@@ -1,6 +1,29 @@
 {% extends "base.html" %}
 {% block title %}פוזיציות{% endblock %}
 {% block content %}
+
+<form method="post" action="/positions/refresh-prices" style="margin-bottom: 1rem;">
+  <button type="submit">רענן מחירים מ-IBKR</button>
+  {% if price_as_of %}
+    <span class="muted">עודכן לאחרונה: {{ price_as_of }}</span>
+  {% elif not price_error %}
+    <span class="muted">לא רוענן עדיין בסשן זה. דורש TWS / IB Gateway רצים ברקע.</span>
+  {% endif %}
+</form>
+
+{% if price_error %}
+<div class="error">{{ price_error }}</div>
+{% endif %}
+
+{% if total_market_value is not none %}
+<div class="cards">
+  <div class="card">
+    <div class="label">שווי תיק חי</div>
+    <div class="value">{{ "%.2f"|format(total_market_value) }}</div>
+  </div>
+</div>
+{% endif %}
+
 <table>
   <thead>
     <tr>
@@ -9,19 +32,35 @@
       <th>סוג</th>
       <th>בסיס עלות גולמי</th>
       <th>בסיס עלות מתואם</th>
+      <th>מחיר נוכחי</th>
+      <th>שווי שוק</th>
+      <th>רווח/הפסד לא ממומש (גולמי)</th>
+      <th>רווח/הפסד לא ממומש (מתואם)</th>
       <th>סך פרמיה שנגבתה</th>
       <th>תאריך פתיחה</th>
       <th>עדכון סיווג</th>
     </tr>
   </thead>
   <tbody>
-    {% for p in positions %}
+    {% for v in valuations %}
+    {% set p = v.position %}
     <tr>
       <td>{{ p.ticker }}</td>
       <td>{{ p.shares_held|round(2) }}</td>
       <td>{{ p.position_type or "—" }}</td>
       <td>{{ "%.2f"|format(p.avg_cost_raw) if p.avg_cost_raw is not none else "—" }}</td>
       <td>{{ "%.2f"|format(p.avg_cost_adjusted) if p.avg_cost_adjusted is not none else "—" }}</td>
+      <td>
+        {{ "%.2f"|format(v.current_price) if v.current_price is not none else "—" }}
+        {% if v.quote_source %}<div class="muted">{{ v.quote_source }}</div>{% endif %}
+      </td>
+      <td>{{ "%.2f"|format(v.market_value) if v.market_value is not none else "—" }}</td>
+      <td class="{{ 'positive' if v.unrealized_pl_raw and v.unrealized_pl_raw > 0 else 'negative' if v.unrealized_pl_raw and v.unrealized_pl_raw < 0 else '' }}">
+        {{ "%.2f"|format(v.unrealized_pl_raw) if v.unrealized_pl_raw is not none else "—" }}
+      </td>
+      <td class="{{ 'positive' if v.unrealized_pl_adjusted and v.unrealized_pl_adjusted > 0 else 'negative' if v.unrealized_pl_adjusted and v.unrealized_pl_adjusted < 0 else '' }}">
+        {{ "%.2f"|format(v.unrealized_pl_adjusted) if v.unrealized_pl_adjusted is not none else "—" }}
+      </td>
       <td>{{ "%.2f"|format(p.total_premium_collected) }}</td>
       <td>{{ p.opened_date or "—" }}</td>
       <td>
@@ -36,7 +75,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">אין פוזיציות פתוחות. הזן עסקה כדי להתחיל.</td></tr>
+    <tr><td colspan="12" class="muted">אין פוזיציות פתוחות. הזן עסקה כדי להתחיל.</td></tr>
     {% endfor %}
   </tbody>
 </table>

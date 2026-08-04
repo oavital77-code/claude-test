@@ -14,9 +14,18 @@
     <div class="label">סך עסקאות ביומן</div>
     <div class="value">{{ trade_count }}</div>
   </div>
+  {% if total_market_value is not none %}
+  <div class="card">
+    <div class="label">שווי תיק חי (עודכן {{ price_as_of }})</div>
+    <div class="value">{{ "%.2f"|format(total_market_value) }}</div>
+  </div>
+  {% endif %}
 </div>
 <p class="muted">
-  שלב 1 בלבד פעיל כרגע (היומן). שווי תיק חי, מחירים שוטפים והתראות ניהול
-  יתווספו בשלבים הבאים לפי docs/SPEC.md סעיף 12.
+  {% if total_market_value is none %}
+  שווי תיק חי טרם נטען. לחץ "רענן מחירים מ-IBKR" בעמוד
+  <a href="/positions">הפוזיציות</a> (דורש TWS או IB Gateway רצים ברקע).
+  {% endif %}
+  שכבת האופציות, המסנן והתראות הניהול יתווספו בשלבים הבאים לפי docs/SPEC.md סעיף 12.
 </p>
 {% endblock %}

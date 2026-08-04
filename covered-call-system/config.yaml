@@ -77,6 +77,15 @@ data_source:
   requires_opra_subscription_for_realtime: true
   delayed_data_minutes: 15
 
+ibkr:
+  # קריאה בלבד. readonly=True מוגדר בקוד (src/data_providers/ibkr.py) ואינו
+  # ניתן לשינוי מכאן - ר' CLAUDE.md "אין שליחת פקודות ל-IBKR".
+  host: 127.0.0.1
+  port: 7497            # TWS paper trading; 7496=TWS live, 4002=Gateway paper, 4001=Gateway live
+  client_id: 17
+  timeout_seconds: 5
+  prefer_live_market_data: false   # false = delayed (~15 min), אינו דורש מנוי OPRA
+
 database:
   path: data/portfolio.db
   backup_before_migration: true
