@@ -89,3 +89,10 @@ ibkr:
 database:
   path: data/portfolio.db
   backup_before_migration: true
+
+tax:
+  # אומדן גס בלבד - שיעור אחיד, לא מדרגות מס, לא נקודות זיכוי, לא
+  # קיזוזי הפסדים בין שנים. יש לאמת מול רו"ח לפני הסתמכות (ר' סעיף 10
+  # באפיון ו-ASSUMPTIONS.md).
+  capital_gains_rate_pct: 0.25
+  dividend_tax_rate_pct: 0.25

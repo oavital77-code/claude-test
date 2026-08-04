@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}מס{% endblock %}
+{% block content %}
+
+<div class="error" style="border-color: var(--accent); color: var(--text); background: #1c2333;">
+  <strong>אינו ייעוץ מס.</strong> המערכת מתעדת ומחשבת טיוטה בלבד — כל מספר
+  כאן הוא אומדן ואינו מחליף רו"ח. נקודות שדורשות אימות מפורש לפני הסתמכות
+  (סעיף 10 באפיון):
+  <ol style="margin: 0.4rem 0 0; padding-inline-start: 1.2rem;">
+    <li>בניירות זרים החישוב בשקלים לפי שער יציג בכל צד בנפרד (כך שרווח/הפסד משער החליפין נכלל בבסיס המס).</li>
+    <li>ב-roll, סגירת החוזה הישן ופתיחת החדש הם שני אירועי מס נפרדים באותו יום.</li>
+    <li>כללי קיזוז הפסדים בין אופציות, מניות ודיבידנדים — <strong>לא ממומשים כאן</strong>.</li>
+    <li>מיסוי דיבידנדים, ניכוי במקור אמריקאי (W-8BEN) והזיכוי בישראל — <strong>לא מחושבים כאן</strong> (מוצג ברוטו בלבד).</li>
+  </ol>
+</div>
+
+<form method="get" action="/tax" style="margin: 1rem 0;">
+  <label class="muted">שנת מס
+    <select name="year" onchange="this.form.submit()">
+      {% for y in available_years %}
+      <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <a href="/tax/export?year={{ selected_year }}" style="margin-inline-start: 0.6rem;"><button type="button">ייצוא ל-Excel</button></a>
+</form>
+
+{% if report.events_missing_fx > 0 %}
+<div class="error">
+  {{ report.events_missing_fx }} אירועים ללא שער חליפין באחד הצדדים — לא נכללים בסכומים למטה.
+  יש להשלים fx_rate בעסקאות הרלוונטיות ביומן.
+</div>
+{% endif %}
+
+<div class="cards">
+  <div class="card">
+    <div class="label">רווח הון ממניות (ש"ח)</div>
+    <div class="value">{{ "%.2f"|format(report.stock_gain_ils) if report.stock_gain_ils is not none else "—" }}</div>
+  </div>
+  <div class="card">
+    <div class="label">רווח הון מאופציות (ש"ח)</div>
+    <div class="value">{{ "%.2f"|format(report.option_gain_ils) if report.option_gain_ils is not none else "—" }}</div>
+  </div>
+  <div class="card">
+    <div class="label">דיבידנד ברוטו (ש"ח)</div>
+    <div class="value">{{ "%.2f"|format(report.dividend_gross_ils) if report.dividend_gross_ils is not none else "—" }}</div>
+  </div>
+  <div class="card">
+    <div class="label">חבות מס משוערת (ש"ח) — אומדן בלבד</div>
+    <div class="value">{{ "%.2f"|format(report.estimated_tax_ils) if report.estimated_tax_ils is not none else "—" }}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>תאריך</th><th>טיקר</th><th>קטגוריה</th><th>רווח/הפסד (ש"ח)</th><th>שער פתיחה</th><th>שער סגירה</th><th>הערות</th></tr>
+  </thead>
+  <tbody>
+    {% for e in report.events %}
+    <tr>
+      <td>{{ e.event_date }}</td>
+      <td>{{ e.ticker }}</td>
+      <td>{{ e.category }}</td>
+      <td class="{{ 'positive' if e.gain_loss_ils and e.gain_loss_ils > 0 else 'negative' if e.gain_loss_ils and e.gain_loss_ils < 0 else '' }}">
+        {{ "%.2f"|format(e.gain_loss_ils) if e.gain_loss_ils is not none else "חסר שער חליפין" }}
+      </td>
+      <td>{{ e.fx_rate_open if e.fx_rate_open is not none else "—" }}</td>
+      <td>{{ e.fx_rate_close if e.fx_rate_close is not none else "—" }}</td>
+      <td>{{ e.notes }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">אין אירועי מס בשנה זו.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
