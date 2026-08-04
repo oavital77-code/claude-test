@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}פוזיציות{% endblock %}
+{% block content %}
+<table>
+  <thead>
+    <tr>
+      <th>טיקר</th>
+      <th>כמות מניות</th>
+      <th>סוג</th>
+      <th>בסיס עלות גולמי</th>
+      <th>בסיס עלות מתואם</th>
+      <th>סך פרמיה שנגבתה</th>
+      <th>תאריך פתיחה</th>
+      <th>עדכון סיווג</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in positions %}
+    <tr>
+      <td>{{ p.ticker }}</td>
+      <td>{{ p.shares_held|round(2) }}</td>
+      <td>{{ p.position_type or "—" }}</td>
+      <td>{{ "%.2f"|format(p.avg_cost_raw) if p.avg_cost_raw is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(p.avg_cost_adjusted) if p.avg_cost_adjusted is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(p.total_premium_collected) }}</td>
+      <td>{{ p.opened_date or "—" }}</td>
+      <td>
+        <form class="classify-form" method="post" action="/positions/{{ p.security_id }}/classify">
+          <select name="position_type">
+            {% for t in position_types %}
+            <option value="{{ t }}" {% if t == p.position_type %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit">עדכן</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">אין פוזיציות פתוחות. הזן עסקה כדי להתחיל.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

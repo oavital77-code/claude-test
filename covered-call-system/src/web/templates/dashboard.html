@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}דשבורד{% endblock %}
+{% block content %}
+<div class="cards">
+  <div class="card">
+    <div class="label">פוזיציות פתוחות</div>
+    <div class="value">{{ position_count }}</div>
+  </div>
+  <div class="card">
+    <div class="label">סך פרמיה שנגבתה (נטו, כל הזמנים)</div>
+    <div class="value">{{ "%.2f"|format(total_premium) }}</div>
+  </div>
+  <div class="card">
+    <div class="label">סך עסקאות ביומן</div>
+    <div class="value">{{ trade_count }}</div>
+  </div>
+</div>
+<p class="muted">
+  שלב 1 בלבד פעיל כרגע (היומן). שווי תיק חי, מחירים שוטפים והתראות ניהול
+  יתווספו בשלבים הבאים לפי docs/SPEC.md סעיף 12.
+</p>
+{% endblock %}

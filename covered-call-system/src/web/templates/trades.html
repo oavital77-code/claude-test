@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}יומן עסקאות{% endblock %}
+{% block content %}
+<table>
+  <thead>
+    <tr>
+      <th>תאריך</th>
+      <th>טיקר</th>
+      <th>סוג</th>
+      <th>כמות</th>
+      <th>מחיר</th>
+      <th>עמלה</th>
+      <th>מטבע</th>
+      <th>strike</th>
+      <th>expiry</th>
+      <th>הערות</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in trades %}
+    <tr>
+      <td>{{ t.trade_date }}</td>
+      <td>{{ securities[t.security_id].ticker }}</td>
+      <td>{{ t.type }}</td>
+      <td>{{ t.quantity }}</td>
+      <td>{{ t.price }}</td>
+      <td>{{ t.commission }}</td>
+      <td>{{ t.currency }}</td>
+      <td>{{ t.strike or "—" }}</td>
+      <td>{{ t.expiry or "—" }}</td>
+      <td>{{ t.notes or "" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="10" class="muted">אין עסקאות ביומן עדיין.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

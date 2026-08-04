@@ -1,0 +1,141 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --border: #2a2e38;
+  --text: #e6e8ec;
+  --muted: #9aa1ac;
+  --accent: #4f8cff;
+  --positive: #3ecf8e;
+  --negative: #f16063;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  direction: rtl;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 0 2rem 3rem;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+header h1 { font-size: 1.2rem; margin: 0; }
+
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+  margin-inline-start: 1.2rem;
+  font-size: 0.95rem;
+}
+
+nav a:hover, nav a.active { color: var(--accent); }
+
+.cards {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.4rem;
+  min-width: 160px;
+}
+
+.card .label { color: var(--muted); font-size: 0.8rem; }
+.card .value { font-size: 1.6rem; font-weight: 600; margin-top: 0.3rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 0.5rem 0.7rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+  background: #1c1f28;
+}
+
+tr:last-child td { border-bottom: none; }
+
+.positive { color: var(--positive); }
+.negative { color: var(--negative); }
+
+form.entry {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+form.entry label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  color: var(--muted);
+  gap: 0.3rem;
+}
+
+form.entry input, form.entry select {
+  background: #10131a;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.95rem;
+}
+
+form.entry .full { grid-column: 1 / -1; }
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+button:hover { opacity: 0.9; }
+
+.error {
+  background: #3a1c1e;
+  border: 1px solid var(--negative);
+  color: var(--negative);
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  max-width: 640px;
+}
+
+.classify-form select { margin-inline-end: 0.4rem; }
+.muted { color: var(--muted); }

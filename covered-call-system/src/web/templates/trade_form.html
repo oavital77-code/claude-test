@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}הזנת עסקה{% endblock %}
+{% block content %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form class="entry" method="post" action="/trades/new">
+  <label>טיקר
+    <input type="text" name="ticker" required value="{{ form.ticker if form else '' }}">
+  </label>
+  <label>בורסה
+    <input type="text" name="exchange" required placeholder="NASDAQ / NYSE / TASE" value="{{ form.exchange if form else '' }}">
+  </label>
+  <label>מטבע
+    <input type="text" name="currency" required placeholder="USD" value="{{ form.currency if form else 'USD' }}">
+  </label>
+  <label>תאריך עסקה
+    <input type="date" name="trade_date" required value="{{ form.trade_date if form else '' }}">
+  </label>
+  <label>סוג עסקה
+    <select name="type" required>
+      {% for t in trade_types %}
+      <option value="{{ t }}" {% if form and form.type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>כמות
+    <input type="number" step="any" name="quantity" required value="{{ form.quantity if form else '' }}">
+  </label>
+  <label>מחיר
+    <input type="number" step="any" name="price" required value="{{ form.price if form else '' }}">
+  </label>
+  <label>עמלה
+    <input type="number" step="any" name="commission" value="{{ form.commission if form else 0 }}">
+  </label>
+  <label>שער חליפין (ידני, שלב 1)
+    <input type="number" step="any" name="fx_rate">
+  </label>
+  <label>Strike (אופציות בלבד)
+    <input type="number" step="any" name="strike">
+  </label>
+  <label>Expiry (אופציות בלבד)
+    <input type="date" name="expiry">
+  </label>
+  <label>roll_group_id
+    <input type="text" name="roll_group_id">
+  </label>
+  <label>שם החברה (אופציונלי)
+    <input type="text" name="name">
+  </label>
+  <label>סקטור (אופציונלי)
+    <input type="text" name="sector">
+  </label>
+  <label>
+    <input type="checkbox" name="options_eligible" value="1" checked style="width:auto;display:inline;">
+    ניתן לכתוב אופציות (options_eligible)
+  </label>
+  <label class="full">הערות
+    <input type="text" name="notes">
+  </label>
+  <div class="full"><button type="submit">שמור עסקה</button></div>
+</form>
+{% endblock %}

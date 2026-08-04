@@ -1,0 +1,82 @@
+# Covered Call System - configuration
+# כל סף מספרי במערכת חי כאן. אין לקדד ערכים בקוד (ר' CLAUDE.md).
+
+portfolio:
+  target_value_min_usd: 50000
+  target_value_max_usd: 200000
+  target_position_count_min: 6
+  target_position_count_max: 10
+  max_single_position_pct: 0.12   # אילוץ קשיח: עד 12% מהתיק לפוזיציה בודדת
+  preferred_price_min_usd: 25
+  preferred_price_max_usd: 130
+  max_sector_concentration_pct: 0.25
+
+position_types:
+  CORE:
+    target_delta_min: 0.15
+    target_delta_max: 0.22
+    min_otm_pct: 0.07
+    strike_min_pct_of_price: 1.07   # לא מתחת ל-107% ממחיר השוק
+    require_above_cost_basis: true
+  INCOME:
+    target_delta_min: 0.28
+    target_delta_max: 0.35
+    min_otm_pct: 0.03
+    strike_min_pct_of_price: 1.03   # לא מתחת ל-103% ממחיר השוק
+    require_above_cost_basis: false  # מומלץ, לא חובה
+
+screener:
+  fundamental:
+    quality:
+      roic_min_pct: 0.12
+      roic_avg_years: 3
+      net_debt_ebitda_max: 2.5
+      fcf_positive_years_required: 4
+      fcf_positive_years_window: 5
+      gross_margin_trend_years: 3
+      interest_coverage_min: 5
+    value:
+      fcf_yield_min_pct: 0.05
+      ev_ebitda_vs_sector_avg: true
+      pe_vs_5y_median: true
+    general:
+      market_cap_min_usd: 2000000000
+      price_min_usd: 25
+      price_max_usd: 130
+  liquidity:
+    open_interest_min: 200
+    bid_ask_spread_max_pct_of_mid: 0.05
+    bid_ask_spread_max_abs_usd: 0.10
+    min_months_of_expiries_available: 3
+    avg_daily_volume_min_shares: 500000
+  ranking_weights:
+    quality: 0.30
+    value: 0.25
+    annualized_premium_yield: 0.25
+    iv_rank: 0.10
+    liquidity: 0.10
+  iv_rank:
+    preferred_min: 30
+    preferred_max: 60
+    cheap_below: 25
+
+options:
+  expiry_days_min: 30
+  expiry_days_max: 45
+  prefer_monthly_expiries: true
+
+management_alerts:
+  profit_take_pct_of_premium_captured: 0.50
+  roll_days_to_expiry_threshold: 21
+  roll_alternatives_count: 3
+  ex_dividend_alert_days: 5
+  strike_cross_alert: true
+
+data_source:
+  broker: ibkr
+  requires_opra_subscription_for_realtime: true
+  delayed_data_minutes: 15
+
+database:
+  path: data/portfolio.db
+  backup_before_migration: true
