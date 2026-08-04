@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}סורק{% endblock %}
+{% block content %}
+
+<p class="muted">
+  אין מקור נתונים ל"כל השוק האמריקאי" — הזן טיקרים ידנית לבדיקה. פונדמנטלס
+  מ-Yahoo Finance, נזילות אופציות מ-IBKR (דורש TWS/Gateway רצים ברקע).
+  שורה לכל טיקר, ברירת מחדל NASDAQ/USD; לדריסה: <code>TICKER:EXCHANGE:CURRENCY</code>.
+</p>
+
+<form class="entry" method="post" action="/screener" style="max-width: 480px;">
+  <label class="full">טיקרים
+    <textarea name="tickers" rows="6" style="background:#10131a;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:0.5rem;">{{ tickers_raw }}</textarea>
+  </label>
+  <div class="full"><button type="submit">סרוק</button></div>
+</form>
+
+{% if errors %}
+<div class="error">
+  {% for e in errors %}
+  <div>{{ e.ticker }} ({{ e.stage }}): {{ e.message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if ranked is not none %}
+<table>
+  <thead>
+    <tr>
+      <th>#</th><th>טיקר</th><th>ציון סופי</th><th>איכות</th><th>ערך</th>
+      <th>נזילות</th><th>תשואת פרמיה שנתית</th><th>IV Rank</th><th>מחיר</th>
+      <th>הצעת CORE</th><th>הצעת INCOME</th><th>סטטוס</th><th>סיבות כשל</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in ranked %}
+    {% set c = r.candidate %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ c.ticker }}</td>
+      <td>{{ "%.1f"|format(r.final_score) }}</td>
+      <td>{{ "%.0f"|format(r.quality_score) }} {{ "✓" if c.quality.passed else "✗" }}</td>
+      <td>{{ "%.0f"|format(r.value_score) }} {{ "✓" if c.value.passed else "✗" }}</td>
+      <td>{{ "%.0f"|format(r.liquidity_score) }} {{ "✓" if c.liquidity.passed else "✗" }}</td>
+      <td>{{ "%.1f"|format(r.premium_yield * 100) ~ "%" if r.premium_yield is not none else "—" }}</td>
+      <td>{{ "%.0f"|format(r.iv_rank_score) if r.iv_rank_score is not none else "—" }}</td>
+      <td>{{ "%.2f"|format(c.current_price) if c.current_price is not none else "—" }}</td>
+      <td>
+        {% if r.core_suggestion %}
+          strike {{ r.core_suggestion.quote.strike }} / {{ r.core_suggestion.quote.expiry }}
+          (Δ{{ "%.2f"|format(r.core_suggestion.quote.delta) }}, {{ r.core_suggestion.days_to_expiry }}י')
+          {% if r.core_suggestion.crosses_earnings %}<div class="alert-badge">חוצה דוחות</div>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if r.income_suggestion %}
+          strike {{ r.income_suggestion.quote.strike }} / {{ r.income_suggestion.quote.expiry }}
+          (Δ{{ "%.2f"|format(r.income_suggestion.quote.delta) }}, {{ r.income_suggestion.days_to_expiry }}י')
+          {% if r.income_suggestion.crosses_earnings %}<div class="alert-badge">חוצה דוחות</div>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if r.options_eligible_only_for_holding %}
+          <span class="muted">החזקה בלבד (נכשל בנזילות)</span>
+        {% elif not r.passes_fundamental_screen %}
+          <span class="muted">נכשל בפונדמנטלי</span>
+        {% else %}
+          עומד בכל השלבים
+        {% endif %}
+      </td>
+      <td>
+        {% for reason in c.quality.reasons_failed + c.value.reasons_failed + c.general.reasons_failed + c.liquidity.reasons_failed %}
+        <div class="alert-badge">{{ reason }}</div>
+        {% endfor %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="12" class="muted">אין תוצאות.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

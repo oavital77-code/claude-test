@@ -213,6 +213,40 @@ async def fetch_option_prices(
         ib.disconnect()
 
 
+async def fetch_option_expiries(
+    ticker: str,
+    exchange: str,
+    currency: str,
+    host: str,
+    port: int,
+    client_id: int,
+    timeout: float,
+) -> list[str]:
+    """All expiry dates (ISO YYYY-MM-DD) IBKR offers for this underlying —
+    metadata only, no market-data snapshot. Used by the liquidity screen
+    (section 6 stage 2) to check "at least 3 months of expiries
+    available," which needs visibility beyond fetch_option_chain's narrow
+    30-45 day window.
+    """
+    ib = IB()
+    await _connect(ib, host, port, client_id, timeout)
+    try:
+        stock = Stock(ticker, exchange, currency)
+        try:
+            await ib.qualifyContractsAsync(stock)
+            chains = await ib.reqSecDefOptParamsAsync(stock.symbol, "", stock.secType, stock.conId)
+        except Exception as exc:
+            raise IBKRConnectionError(f"שגיאה בשליפת תפוגות אופציה עבור {ticker}: {exc}") from exc
+
+        if not chains:
+            raise IBKRConnectionError(f"לא נמצאה שרשרת אופציות עבור {ticker}")
+
+        chain = next((c for c in chains if c.exchange in ("SMART", exchange)), chains[0])
+        return sorted(_to_iso_date(e) for e in chain.expirations)
+    finally:
+        ib.disconnect()
+
+
 async def fetch_option_chain(
     ticker: str,
     exchange: str,
