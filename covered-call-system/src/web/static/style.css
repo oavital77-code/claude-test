@@ -139,3 +139,14 @@ button:hover { opacity: 0.9; }
 
 .classify-form select { margin-inline-end: 0.4rem; }
 .muted { color: var(--muted); }
+
+.alert-badge {
+  background: #2a2313;
+  border: 1px solid #6b5a1f;
+  color: #e0c34a;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+  white-space: normal;
+}

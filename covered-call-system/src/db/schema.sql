@@ -42,13 +42,16 @@ CREATE INDEX IF NOT EXISTS idx_trades_security_date ON trades(security_id, trade
 CREATE INDEX IF NOT EXISTS idx_trades_type ON trades(type);
 CREATE INDEX IF NOT EXISTS idx_trades_roll_group ON trades(roll_group_id);
 
--- הסיווג היחיד שמוזן ידנית: CORE / INCOME לכל נייר. שאר שדות "positions"
--- (shares_held, avg_cost_raw, avg_cost_adjusted, total_premium_collected, opened_date)
+-- מטא-דאטה שמוזנת ידנית לכל נייר: הסיווג CORE/INCOME (העיקרון המארגן של
+-- המערכת, סעיף 2.1) ותאריך אקס-דיבידנד הקרוב (סעיף 8) - אין ספק דיבידנדים
+-- אוטומטי עדיין (ר' ASSUMPTIONS.md). שאר שדות "positions" (shares_held,
+-- avg_cost_raw, avg_cost_adjusted, total_premium_collected, opened_date)
 -- מחושבים תמיד מ-trades ואינם מאוחסנים.
 CREATE TABLE IF NOT EXISTS position_classification (
-    security_id     INTEGER PRIMARY KEY REFERENCES securities(id),
-    position_type   TEXT NOT NULL CHECK (position_type IN ('CORE', 'INCOME')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    security_id           INTEGER PRIMARY KEY REFERENCES securities(id),
+    position_type         TEXT CHECK (position_type IN ('CORE', 'INCOME')),
+    next_ex_dividend_date TEXT,
+    updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- שלב 3: מעקב אופציות פתוחות (נגזר גם הוא מ-trades, אך שומר מצב תצוגה נוח)

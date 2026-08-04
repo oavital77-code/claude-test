@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}אופציות{% endblock %}
+{% block content %}
+
+<form method="post" action="/options/refresh-prices" style="margin-bottom: 0.5rem;">
+  <button type="submit">רענן מחירי אופציות מ-IBKR</button>
+  {% if price_as_of %}<span class="muted">עודכן לאחרונה: {{ price_as_of }}</span>{% endif %}
+</form>
+{% if price_error %}<div class="error">{{ price_error }}</div>{% endif %}
+<p class="muted">
+  רענון מחירי מניות מתבצע בעמוד <a href="/positions">הפוזיציות</a> — נדרש
+  גם לפני חיפוש חלופות roll ולצורך התראות שתלויות במחיר.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>טיקר</th><th>סוג</th><th>strike</th><th>expiry</th><th>ימים לפקיעה</th>
+      <th>חוזים</th><th>פרמיה שנגבתה</th><th>מחיר אופציה נוכחי</th><th>% פרמיה שנתפס</th>
+      <th>התראות</th><th>אקס-דיבידנד הבא</th><th>roll</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    {% set op = row.op %}
+    <tr>
+      <td>{{ op.position.ticker }}</td>
+      <td>{{ op.position.position_type or "—" }}</td>
+      <td>{{ op.lot.strike }}</td>
+      <td>{{ op.lot.expiry }}</td>
+      <td class="{{ 'negative' if row.days_to_expiry <= 21 else '' }}">{{ row.days_to_expiry }}</td>
+      <td>{{ op.lot.contracts }}</td>
+      <td>{{ "%.2f"|format(op.lot.premium_received) }}</td>
+      <td>{{ "%.2f"|format(row.option_price) if row.option_price is not none else "—" }}</td>
+      <td>{{ "%.0f"|format(row.pct_captured * 100) ~ "%" if row.pct_captured is not none else "—" }}</td>
+      <td>
+        {% for a in row.alerts %}
+        <div class="alert-badge">{{ a.rule }}: {{ a.message }}</div>
+        {% else %}
+        <span class="muted">—</span>
+        {% endfor %}
+      </td>
+      <td>
+        <form method="post" action="/options/{{ row.security_id }}/ex-dividend">
+          <input type="date" name="next_ex_dividend_date" value="{{ row.ex_dividend_date }}">
+          <button type="submit">שמור</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/options/{{ row.security_id }}/roll">
+          <button type="submit">חפש חלופות roll</button>
+        </form>
+        {% if row.roll %}
+          {% if row.roll.error %}
+            <div class="error">{{ row.roll.error }}</div>
+          {% elif row.roll.alternatives %}
+            <table>
+              <thead>
+                <tr><th>strike</th><th>expiry</th><th>ימים</th><th>דלתא</th><th>זיכוי/חיוב נטו</th><th>מעל בסיס עלות</th></tr>
+              </thead>
+              <tbody>
+                {% for alt in row.roll.alternatives %}
+                <tr>
+                  <td>{{ alt.quote.strike }}</td>
+                  <td>{{ alt.quote.expiry }}</td>
+                  <td>{{ alt.days_to_expiry }}</td>
+                  <td>{{ "%.2f"|format(alt.delta) if alt.delta is not none else "—" }}</td>
+                  <td class="{{ 'positive' if alt.net_credit_debit > 0 else 'negative' }}">
+                    {{ "%.2f"|format(alt.net_credit_debit) }}
+                  </td>
+                  <td>{{ "כן" if alt.above_cost_basis else "לא" }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <span class="muted">אין חלופות זמינות</span>
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="12" class="muted">אין פוזיציות אופציה פתוחות. הזן CALL_SELL_OPEN ביומן כדי להתחיל.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

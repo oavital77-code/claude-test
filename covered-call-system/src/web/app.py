@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.config import db_path
 from src.db.queries import init_db
-from src.web.routes import dashboard, positions, trades
+from src.web.routes import alerts, dashboard, options, positions, trades
 
 app = FastAPI(title="Covered Call System")
 app.mount("/static", StaticFiles(directory="src/web/static"), name="static")
@@ -11,6 +11,8 @@ app.mount("/static", StaticFiles(directory="src/web/static"), name="static")
 app.include_router(dashboard.router)
 app.include_router(positions.router)
 app.include_router(trades.router)
+app.include_router(options.router)
+app.include_router(alerts.router)
 
 
 @app.on_event("startup")

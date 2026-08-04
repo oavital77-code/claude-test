@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}התראות{% endblock %}
+{% block content %}
+
+<form method="post" action="/alerts/refresh" style="margin-bottom: 0.5rem;">
+  <button type="submit">בדוק התראות מחדש</button>
+</form>
+<p class="muted">
+  בודק את כל הפוזיציות הפתוחות מול כללי הניהול (סעיף 8 באפיון). התראות
+  שתלויות במחיר (סגירת רווח, אקס-דיבידנד ITM, חציית strike) מדויקות רק אם
+  מחירי המניות/האופציות עודכנו לאחרונה בעמודים <a href="/positions">הפוזיציות</a>
+  ו<a href="/options">האופציות</a>.
+</p>
+
+<table>
+  <thead>
+    <tr><th>טיקר</th><th>כלל</th><th>הודעה</th><th>נוצר</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for a in alerts %}
+    <tr>
+      <td>{{ securities[a.security_id].ticker if a.security_id in securities else "—" }}</td>
+      <td>{{ a.rule }}</td>
+      <td>{{ a.message }}</td>
+      <td>{{ a.created_at }}</td>
+      <td>
+        <form method="post" action="/alerts/{{ a.id }}/dismiss">
+          <button type="submit">התעלם</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">אין התראות פעילות. לחץ "בדוק התראות מחדש".</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

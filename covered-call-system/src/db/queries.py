@@ -97,3 +97,51 @@ def set_position_classification(conn: sqlite3.Connection, security_id: int, posi
 def get_position_classifications(conn: sqlite3.Connection) -> dict[int, str]:
     rows = conn.execute("SELECT security_id, position_type FROM position_classification").fetchall()
     return {row["security_id"]: row["position_type"] for row in rows}
+
+
+def set_next_ex_dividend_date(conn: sqlite3.Connection, security_id: int, date_str: Optional[str]) -> None:
+    """Manual input (no dividend-calendar data source is wired yet, ASSUMPTIONS.md)."""
+    conn.execute(
+        """INSERT INTO position_classification (security_id, next_ex_dividend_date, updated_at)
+           VALUES (?, ?, datetime('now'))
+           ON CONFLICT(security_id) DO UPDATE SET
+                next_ex_dividend_date = excluded.next_ex_dividend_date,
+                updated_at = excluded.updated_at""",
+        (security_id, date_str),
+    )
+    conn.commit()
+
+
+def get_next_ex_dividend_dates(conn: sqlite3.Connection) -> dict[int, Optional[str]]:
+    rows = conn.execute(
+        "SELECT security_id, next_ex_dividend_date FROM position_classification"
+    ).fetchall()
+    return {row["security_id"]: row["next_ex_dividend_date"] for row in rows}
+
+
+def replace_active_alerts(conn: sqlite3.Connection, computed: list[dict]) -> None:
+    """Called on each manual alert refresh (section 8): replaces the
+    current non-dismissed alert set with freshly computed ones. Dismissed
+    alerts stay as historical rows (dismissed_at set) but are not carried
+    forward — if a dismissed condition still holds on the next refresh, it
+    reappears, since this is a manually-triggered check-in, not a push
+    notification (ASSUMPTIONS.md).
+    """
+    conn.execute("DELETE FROM alerts WHERE dismissed_at IS NULL")
+    if computed:
+        conn.executemany(
+            "INSERT INTO alerts (security_id, rule, message) VALUES (:security_id, :rule, :message)",
+            computed,
+        )
+    conn.commit()
+
+
+def list_active_alerts(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM alerts WHERE dismissed_at IS NULL ORDER BY created_at DESC"
+    ).fetchall()
+
+
+def dismiss_alert(conn: sqlite3.Connection, alert_id: int) -> None:
+    conn.execute("UPDATE alerts SET dismissed_at = datetime('now') WHERE id = ?", (alert_id,))
+    conn.commit()
