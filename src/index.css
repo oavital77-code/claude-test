@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-coal-950 text-slate-100;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Numbers and units stay LTR inside RTL text */
+.ltr-num {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #27384a;
+  border-radius: 4px;
+}
