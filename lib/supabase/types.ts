@@ -46,6 +46,28 @@ export type Database = {
         Update: { key?: string; value?: Json; updated_at?: string | null };
         Relationships: [];
       };
+      availability_events: {
+        Row: {
+          id: number;
+          room_id: string;
+          starts_at: string;
+          ends_at: string;
+          kind: "booked" | "blocked";
+          action: "insert" | "delete";
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          room_id: string;
+          starts_at: string;
+          ends_at: string;
+          kind: "booked" | "blocked";
+          action: "insert" | "delete";
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["availability_events"]["Insert"]>;
+        Relationships: [];
+      };
       branches: {
         Row: {
           id: string;
