@@ -492,6 +492,14 @@ export type Database = {
         Args: { p_payment_id: string; p_reason: string };
         Returns: undefined;
       };
+      create_booking: {
+        Args: { p_room_id: string; p_starts_at: string; p_ends_at: string };
+        Returns: { booking_id: string; hours_charged: number; hours_remaining: number }[];
+      };
+      cancel_booking: {
+        Args: { p_booking_id: string };
+        Returns: { hours_refunded: boolean }[];
+      };
     };
     Enums: {
       user_role: UserRole;

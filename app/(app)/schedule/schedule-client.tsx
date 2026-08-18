@@ -22,6 +22,7 @@ import type { AvailabilityInterval } from "@/lib/availability/types";
 import type { Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { AvailabilityGrid, Legend, type GridColumn } from "./availability-grid";
+import { bookSlot } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -52,8 +53,10 @@ export function ScheduleClient({
   );
   const [selected, setSelected] = useState<{
     columnKey: string;
-    slot: Slot;
+    roomId: string;
     roomName: string;
+    start: Date;
+    end: Date;
   } | null>(null);
 
   useEffect(() => {
@@ -136,28 +139,35 @@ export function ScheduleClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, roomIdsKey, rangeStart, rangeEnd, reload]);
 
+  /** ממיר (columnKey, slot של תבנית היום) ל-instant אמיתי + room_id, לפי התצוגה. */
+  function resolveSlot(columnKey: string, slot: Slot): { roomId: string; start: Date; end: Date } {
+    if (view === "day") {
+      return { roomId: columnKey, start: slot.start, end: slot.end };
+    }
+    const { start: dayStart } = dayBoundaries(columnKey);
+    const offsetMs = slot.start.getTime() - dayBoundaries(slotsAnchorDate).start.getTime();
+    const start = new Date(dayStart.getTime() + offsetMs);
+    const end = new Date(start.getTime() + (slot.end.getTime() - slot.start.getTime()));
+    return { roomId: selectedRoomId, start, end };
+  }
+
   function handleSlotClick(columnKey: string, slot: Slot) {
-    const roomName =
-      view === "day"
-        ? (filteredRooms.find((r) => r.id === columnKey)?.name ?? "")
-        : (rooms.find((r) => r.id === selectedRoomId)?.name ?? "");
-    setSelected({ columnKey, slot, roomName });
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
+    setSelected({ columnKey, roomId, roomName, start, end });
   }
 
   function statusFor(columnKey: string, slot: Slot) {
-    if (view === "day") {
-      return slotStatus(slot.start, slot.end, availability.get(columnKey));
-    }
-    const dayIntervals = (availability.get(selectedRoomId) ?? []).filter((iv) => {
-      const dayStart = dayBoundaries(columnKey).start;
-      const dayEnd = dayBoundaries(columnKey).end;
-      return iv.startsAt < dayEnd && iv.endsAt > dayStart;
-    });
-    const { start } = dayBoundaries(columnKey);
-    const offsetMs = slot.start.getTime() - dayBoundaries(slotsAnchorDate).start.getTime();
-    const slotStart = new Date(start.getTime() + offsetMs);
-    const slotEnd = new Date(slotStart.getTime() + (slot.end.getTime() - slot.start.getTime()));
-    return slotStatus(slotStart, slotEnd, dayIntervals);
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const dayIntervals =
+      view === "day"
+        ? availability.get(roomId)
+        : (availability.get(roomId) ?? []).filter((iv) => {
+            const dayStart = dayBoundaries(columnKey).start;
+            const dayEnd = dayBoundaries(columnKey).end;
+            return iv.startsAt < dayEnd && iv.endsAt > dayStart;
+          });
+    return slotStatus(start, end, dayIntervals);
   }
 
   return (
@@ -235,16 +245,20 @@ export function ScheduleClient({
         slots={slots}
         statusFor={statusFor}
         onSlotClick={handleSlotClick}
-        selectedKey={
-          selected ? `${selected.columnKey}|${selected.slot.start.toISOString()}` : null
-        }
+        selectedKey={selected ? `${selected.roomId}|${selected.start.toISOString()}` : null}
       />
 
       {selected && (
         <SlotPreview
+          roomId={selected.roomId}
           roomName={selected.roomName}
-          slot={selected.slot}
+          start={selected.start}
+          end={selected.end}
           onClose={() => setSelected(null)}
+          onBooked={() => {
+            setSelected(null);
+            reload();
+          }}
         />
       )}
     </div>
@@ -252,35 +266,77 @@ export function ScheduleClient({
 }
 
 function SlotPreview({
+  roomId,
   roomName,
-  slot,
+  start,
+  end,
   onClose,
+  onBooked,
 }: {
+  roomId: string;
   roomName: string;
-  slot: Slot;
+  start: Date;
+  end: Date;
   onClose: () => void;
+  onBooked: () => void;
 }) {
-  const { accessStart, accessEnd } = accessWindow(slot.start, slot.end);
+  const { accessStart, accessEnd } = accessWindow(start, end);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState<{ hoursRemaining: number } | null>(null);
+
+  async function handleConfirm() {
+    setLoading(true);
+    setError(null);
+    const result = await bookSlot(roomId, start.toISOString(), end.toISOString());
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setConfirmed({ hoursRemaining: result.hoursRemaining });
+  }
+
   return (
     <div className="rounded-md border bg-card p-4 text-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
-          {roomName} · {formatInTimeZone(slot.start, TIMEZONE, "dd/MM/yyyy")}
+          {roomName} · {formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}
         </span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
           ✕
         </button>
       </div>
       <p>
-        {formatInTimeZone(slot.start, TIMEZONE, "HH:mm")}–{formatInTimeZone(slot.end, TIMEZONE, "HH:mm")}
+        {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
       </p>
       <p className="text-muted-foreground">
         🔑 כניסה בפועל: {formatInTimeZone(accessStart, TIMEZONE, "HH:mm")} · פינוי:{" "}
         {formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}
       </p>
-      <p className="mt-2 text-xs text-muted-foreground">
-        הזמנה בפועל תיפתח בשלב הבא של הפרויקט.
-      </p>
+
+      {confirmed ? (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-emerald-600 dark:text-emerald-400">
+            ההזמנה אושרה! יתרה לאחר ההזמנה: {confirmed.hoursRemaining} שעות.
+          </p>
+          <Button size="sm" onClick={onBooked}>
+            סגירה
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-col gap-2">
+          {error && <p className="text-destructive">{error}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleConfirm} disabled={loading}>
+              {loading ? "מזמין..." : "אישור הזמנה"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              ביטול
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
