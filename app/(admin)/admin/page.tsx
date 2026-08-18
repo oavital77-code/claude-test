@@ -9,9 +9,14 @@ export default async function AdminDashboardPage() {
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
       <h1 className="text-2xl font-semibold">פאנל ניהול — בקליניקה</h1>
       <p className="text-muted-foreground">שלום, {profile.full_name}. שאר הדשבורד בבנייה — M6.</p>
-      <Button asChild>
-        <Link href="/admin/rooms">ניהול סניפים וחדרים</Link>
-      </Button>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button asChild>
+          <Link href="/admin/rooms">ניהול סניפים וחדרים</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/admin/sessions">בקשות ססיה</Link>
+        </Button>
+      </div>
     </div>
   );
 }

@@ -6,12 +6,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // 🔴 מקור האמת לתשלום. לא ה-redirect (§7.4). כל עדכון סטטוס עובר תמיד
 // דרך אימות hash, ואז דרך RPC (SECURITY DEFINER) — לא כתיבה ישירה.
 //
-// ⚠️ צורת ה-payload כאן (השדות transaction_uid/more_info/status_code/amount)
-// מבוססת על התיאור הכללי ב-spec §7.3-7.4 ועל התבנית הנפוצה ב-webhooks של
-// PayPlus. יש לאמת מול תיעוד ה-API הרשמי / Postman collection של PayPlus
-// לפני production — כולל שם השדה המדויק לסטטוס הצלחה/כישלון ולאמצעי
-// התשלום. עד אז, כל כשל בפענוח או באימות נכשל סגור (החזרת שגיאה, בלי
-// להפעיל כרטיסייה).
+// ⚠️ צורת ה-payload כאן (השדות transaction_uid/more_info/status_code/amount/
+// token_uid) מבוססת על התיאור הכללי ב-spec §7.3-7.4 ועל התבנית הנפוצה
+// ב-webhooks של PayPlus. יש לאמת מול תיעוד ה-API הרשמי / Postman collection
+// של PayPlus לפני production — כולל שם השדה המדויק לסטטוס הצלחה/כישלון,
+// לאמצעי התשלום, ולטוקן שחוזר מעסקה עם create_token=true (ססיה, §7.2).
+// עד אז, כל כשל בפענוח או באימות נכשל סגור (החזרת שגיאה, בלי להפעיל דבר).
 interface PayPlusCallbackPayload {
   transaction_uid: string;
   status_code: string; // "000" מייצג הצלחה בתיעוד הכללי של PayPlus — לאמת
@@ -20,6 +20,9 @@ interface PayPlusCallbackPayload {
   payment_method?: "credit_card" | "bit" | "paybox";
   invoice_url?: string;
   status_description?: string;
+  token_uid?: string; // רק כשהעסקה נוצרה עם create_token=true (ססיה)
+  card_last4?: string;
+  card_expiry?: string;
 }
 
 export async function POST(request: Request) {
@@ -62,7 +65,15 @@ export async function POST(request: Request) {
 
   const succeeded = payload.status_code === "000";
 
-  if (succeeded) {
+  if (!succeeded) {
+    await supabase.rpc("mark_payment_failed", {
+      p_payment_id: paymentId,
+      p_reason: payload.status_description ?? "לא צוינה סיבה",
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (payment.type === "punch_card") {
     const { error } = await supabase.rpc("activate_punch_card_payment", {
       p_payment_id: paymentId,
       p_transaction_uid: payload.transaction_uid,
@@ -72,11 +83,26 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: "ACTIVATION_FAILED" }, { status: 500 });
     }
-  } else {
-    await supabase.rpc("mark_payment_failed", {
+  } else if (payment.type === "session_initial") {
+    if (!payload.token_uid) {
+      // ססיה חייבת כרטיס אשראי + טוקן שמור (§7.2) — בלי טוקן אין חידוש אפשרי.
+      return NextResponse.json({ error: "MISSING_TOKEN" }, { status: 400 });
+    }
+    const { error } = await supabase.rpc("activate_session_payment", {
       p_payment_id: paymentId,
-      p_reason: payload.status_description ?? "לא צוינה סיבה",
+      p_transaction_uid: payload.transaction_uid,
+      p_method: payload.payment_method ?? "credit_card",
+      p_token_uid: payload.token_uid,
+      p_card_last4: payload.card_last4 ?? null,
+      p_card_expiry: payload.card_expiry ?? null,
+      p_invoice_url: payload.invoice_url ?? null,
     });
+    if (error) {
+      return NextResponse.json({ error: "ACTIVATION_FAILED" }, { status: 500 });
+    }
+  } else {
+    // session_recurring מטופל דרך app/api/cron/charge-renewals, לא webhook נכנס.
+    return NextResponse.json({ error: "UNEXPECTED_PAYMENT_TYPE" }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });

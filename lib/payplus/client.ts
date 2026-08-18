@@ -93,3 +93,31 @@ export async function queryPaymentStatus(
     `queryPaymentStatus אינו ממומש עבור page_request_uid=${pageRequestUid} — יש לאמת את ה-endpoint הנכון מול תיעוד PayPlus (ר' הערה בקוד)`,
   );
 }
+
+export interface ChargeByTokenResult {
+  success: boolean;
+  transactionUid: string;
+  invoiceUrl?: string;
+  failureReason?: string;
+}
+
+/**
+ * ⚠️ חיוב חוזר (חידוש ססיה, §6.7) באמצעות טוקן שנשמר בעסקה הראשונית
+ * (create_token=true, §7.2). מסמך האפיון אינו כולל את ה-endpoint המדויק
+ * לחיוב טוקן ב-PayPlus. **stub מפורש** — לא ניחוש שמוצג כמוגמר. זורקת
+ * שגיאה בכוונה כדי שהקורא (app/api/cron/charge-renewals) יתפוס אותה
+ * ויתעד אותה כחיוב שנכשל (מה שמפעיל נכון את לוגיקת ה-3 ניסיונות/השעיה,
+ * כי חיוב אמיתי שנדחה גם הוא צריך לעבור באותו נתיב) במקום לקרוס על כל
+ * הבאטש. יש להחליף במימוש אמיתי מול תיעוד PayPlus (חיוב לפי טוקן, לא
+ * generateLink) לפני שסומכים על החיוב האוטומטי הזה בפרודקשן — חיוב כרטיס
+ * אשראי בלי אישור משתמש מחייב וודאות מלאה לגבי הפורמט, לא ניחוש.
+ */
+export async function chargeByToken(
+  tokenUid: string,
+  amountTotal: number,
+  moreInfo: string,
+): Promise<ChargeByTokenResult> {
+  throw new Error(
+    `chargeByToken אינו ממומש (more_info=${moreInfo}, amount=${amountTotal}, token=${tokenUid.slice(0, 4)}...) — יש לאמת את ה-endpoint הנכון לחיוב טוקן מול תיעוד PayPlus לפני שימוש בפרודקשן (ר' הערה בקוד)`,
+  );
+}

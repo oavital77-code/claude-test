@@ -500,6 +500,60 @@ export type Database = {
         Args: { p_booking_id: string };
         Returns: { hours_refunded: boolean }[];
       };
+      request_session: {
+        Args: { p_slots: Json };
+        Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
+      };
+      approve_session: {
+        Args: { p_subscription_id: string };
+        Returns: undefined;
+      };
+      reject_session: {
+        Args: { p_subscription_id: string; p_reason: string };
+        Returns: undefined;
+      };
+      create_session_initial_payment: {
+        Args: { p_subscription_id: string };
+        Returns: { payment_id: string; amount_total: number }[];
+      };
+      activate_session_payment: {
+        Args: {
+          p_payment_id: string;
+          p_transaction_uid: string;
+          p_method: PaymentMethod;
+          p_token_uid: string;
+          p_card_last4?: string | null;
+          p_card_expiry?: string | null;
+          p_invoice_url?: string | null;
+        };
+        Returns: undefined;
+      };
+      request_subscription_cancellation: {
+        Args: { p_subscription_id: string };
+        Returns: { effective_end_date: string }[];
+      };
+      materialize_session_bookings: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      create_session_renewal_payment: {
+        Args: { p_subscription_id: string };
+        Returns: { payment_id: string; amount_total: number; user_id: string }[];
+      };
+      finalize_session_renewal: {
+        Args: {
+          p_payment_id: string;
+          p_success: boolean;
+          p_transaction_uid?: string | null;
+          p_invoice_url?: string | null;
+          p_reason?: string | null;
+        };
+        Returns: { suspended: boolean }[];
+      };
+      expire_session_holds_and_cancellations: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
     };
     Enums: {
       user_role: UserRole;
