@@ -32,3 +32,8 @@ export function formatTimeHe(date: Date) {
 export function formatDateTimeHe(date: Date) {
   return formatInTimeZone(date, TIMEZONE, "dd/MM/yyyy HH:mm", { locale: he });
 }
+
+/** "עכשיו פחות X ימים", כ-ISO — עזר ל-queries. מכוון: מחוץ לרכיבי React (§ purity). */
+export function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}

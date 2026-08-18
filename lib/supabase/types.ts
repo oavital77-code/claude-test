@@ -554,6 +554,56 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      preview_overrun: {
+        Args: { p_booking_id: string; p_minutes: number };
+        Returns: {
+          hours: number;
+          price_per_hour: number;
+          amount: number;
+          deposit_available: number;
+          needs_charge: boolean;
+        }[];
+      };
+      record_overrun: {
+        Args: { p_booking_id: string; p_minutes: number; p_note: string };
+        Returns: {
+          overrun_id: string;
+          amount: number;
+          source: OverrunSource;
+          payment_id: string | null;
+        }[];
+      };
+      finalize_overrun_charge: {
+        Args: {
+          p_payment_id: string;
+          p_success: boolean;
+          p_transaction_uid?: string | null;
+          p_reason?: string | null;
+        };
+        Returns: undefined;
+      };
+      admin_complete_deposit: {
+        Args: { p_punch_card_id: string };
+        Returns: undefined;
+      };
+      grant_bonus_hours: {
+        Args: { p_user_id: string; p_hours: number; p_note: string };
+        Returns: { punch_card_id: string }[];
+      };
+      admin_cancel_booking: {
+        Args: { p_booking_id: string; p_refund_hours?: boolean };
+        Returns: undefined;
+      };
+      admin_create_booking: {
+        Args: {
+          p_user_id: string;
+          p_room_id: string;
+          p_starts_at: string;
+          p_ends_at: string;
+          p_note?: string | null;
+        };
+        Returns: { booking_id: string }[];
+      };
     };
     Enums: {
       user_role: UserRole;
