@@ -1,3 +1,4 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 // app.baclinica.co.il  → ממשק מטפלים, ב-app/(app), נתיבים ללא קידומת
@@ -13,11 +14,31 @@ export async function middleware(request: NextRequest) {
     url.pathname = `/admin${url.pathname}`;
   }
 
-  // DIAGNOSTIC TEMP: Supabase session-refresh call removed to isolate a
-  // "__dirname is not defined" Edge Runtime crash on Vercel that does not
-  // reproduce locally. Restore before real use — auth session won't refresh
-  // without this.
-  return NextResponse.rewrite(url);
+  let response = NextResponse.rewrite(url);
+
+  // מרענן את ה-session cookie של Supabase בכל בקשה (נדרש ב-App Router).
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.rewrite(url);
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  await supabase.auth.getUser();
+
+  return response;
 }
 
 export const config = {
