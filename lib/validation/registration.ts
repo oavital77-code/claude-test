@@ -1,0 +1,41 @@
+import { z } from "zod";
+import { toE164Israel } from "@/lib/phone";
+
+export const phoneFormSchema = z.object({
+  phone: z
+    .string()
+    .min(1, "יש להזין מספר טלפון")
+    .refine((v) => toE164Israel(v) !== null, {
+      message: "מספר טלפון לא תקין (05XXXXXXXX)",
+    }),
+});
+
+export const otpFormSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "יש להזין קוד בן 6 ספרות"),
+});
+
+export const detailsFormSchema = z.object({
+  full_name: z.string().trim().min(2, "יש להזין שם מלא"),
+  email: z.string().trim().email("כתובת מייל לא תקינה"),
+  national_id: z
+    .string()
+    .trim()
+    .regex(/^\d{9}$/, "תעודת זהות צריכה להכיל 9 ספרות")
+    .optional()
+    .or(z.literal("")),
+  profession: z.string().trim().min(2, "יש להזין תחום טיפול"),
+  business_number: z
+    .string()
+    .trim()
+    .regex(/^\d{9}$/, "מספר עוסק/ח.פ צריך להכיל 9 ספרות")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type DetailsFormValues = z.infer<typeof detailsFormSchema>;
+
+export const termsFormSchema = z.object({
+  accepted: z.literal(true, {
+    error: "יש לאשר את תקנון השירות כדי להמשיך",
+  }),
+});
