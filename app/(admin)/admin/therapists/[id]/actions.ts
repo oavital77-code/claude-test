@@ -19,26 +19,32 @@ export async function updateTherapistProfile(
   userId: string,
   formValues: unknown,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const { userId: adminId } = await requireAdmin();
   const parsed = profileFieldsSchema.safeParse(formValues);
   if (!parsed.success) return { ok: false, error: "פרטים לא תקינים" };
 
   const supabase = await createClient();
   const { full_name, email, profession, business_number, door_code, admin_notes } = parsed.data;
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      full_name,
-      email,
-      profession: profession || null,
-      business_number: business_number || null,
-      door_code: door_code || null,
-      admin_notes: admin_notes || null,
-    })
-    .eq("id", userId);
+  const [{ error: profileError }, { error: notesError }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .update({
+        full_name,
+        email,
+        profession: profession || null,
+        business_number: business_number || null,
+        door_code: door_code || null,
+      })
+      .eq("id", userId),
+    // טבלה נפרדת עם RLS is_admin()-בלבד — ר' 20260825000003. אף מטפל לא
+    // יכול לקרוא את השורה שלו-עצמו בטבלה הזו, בניגוד ל-profiles.
+    supabase
+      .from("therapist_admin_notes")
+      .upsert({ user_id: userId, note: admin_notes || null, updated_by: adminId, updated_at: new Date().toISOString() }),
+  ]);
 
-  if (error) return { ok: false, error: "השמירה נכשלה" };
+  if (profileError || notesError) return { ok: false, error: "השמירה נכשלה" };
   return { ok: true };
 }
 

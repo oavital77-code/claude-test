@@ -15,7 +15,7 @@ export default async function AdminTherapistDetailPage({
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
   if (!profile) notFound();
 
-  const [{ data: punchCards }, { data: bookings }, { data: payments }, { data: subscriptions }] =
+  const [{ data: punchCards }, { data: bookings }, { data: payments }, { data: subscriptions }, { data: notesRow }] =
     await Promise.all([
       supabase.from("punch_cards").select("*").eq("user_id", id).order("purchased_at", { ascending: false }),
       supabase
@@ -26,6 +26,7 @@ export default async function AdminTherapistDetailPage({
         .limit(20),
       supabase.from("payments").select("*").eq("user_id", id).order("created_at", { ascending: false }),
       supabase.from("session_subscriptions").select("*").eq("user_id", id).order("created_at", { ascending: false }),
+      supabase.from("therapist_admin_notes").select("note").eq("user_id", id).maybeSingle(),
     ]);
 
   const roomIds = [...new Set((bookings ?? []).map((b) => b.room_id))];
@@ -41,6 +42,7 @@ export default async function AdminTherapistDetailPage({
       <h1 className="text-xl font-semibold">{profile.full_name}</h1>
       <TherapistDetailClient
         profile={profile}
+        adminNote={notesRow?.note ?? ""}
         punchCards={punchCards ?? []}
         bookings={bookingsWithRoom}
         payments={payments ?? []}

@@ -139,7 +139,6 @@ export type Database = {
           payplus_token_uid: string | null;
           card_last4: string | null;
           card_expiry: string | null;
-          admin_notes: string | null;
           ics_token: string;
           created_at: string;
         };
@@ -159,12 +158,27 @@ export type Database = {
           payplus_token_uid?: string | null;
           card_last4?: string | null;
           card_expiry?: string | null;
-          admin_notes?: string | null;
           ics_token?: string;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
-      Relationships: [];
+        Relationships: [];
+      };
+      therapist_admin_notes: {
+        Row: {
+          user_id: string;
+          note: string | null;
+          updated_at: string | null;
+          updated_by: string | null;
+        };
+        Insert: {
+          user_id: string;
+          note?: string | null;
+          updated_at?: string | null;
+          updated_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["therapist_admin_notes"]["Insert"]>;
+        Relationships: [];
       };
       punch_card_tiers: {
         Row: {

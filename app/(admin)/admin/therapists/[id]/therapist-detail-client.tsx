@@ -28,12 +28,14 @@ type BookingRow = Pick<
 
 export function TherapistDetailClient({
   profile,
+  adminNote,
   punchCards,
   bookings,
   payments,
   subscriptions,
 }: {
   profile: Profile;
+  adminNote: string;
   punchCards: PunchCard[];
   bookings: BookingRow[];
   payments: Payment[];
@@ -43,7 +45,7 @@ export function TherapistDetailClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <ProfileSection profile={profile} onSaved={() => router.refresh()} />
+      <ProfileSection profile={profile} adminNote={adminNote} onSaved={() => router.refresh()} />
       <BonusHoursSection userId={profile.id} onGranted={() => router.refresh()} />
 
       <Section title="כרטיסיות">
@@ -110,13 +112,21 @@ function Empty() {
   return <p className="text-sm text-muted-foreground">אין נתונים.</p>;
 }
 
-function ProfileSection({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
+function ProfileSection({
+  profile,
+  adminNote,
+  onSaved,
+}: {
+  profile: Profile;
+  adminNote: string;
+  onSaved: () => void;
+}) {
   const [fullName, setFullName] = useState(profile.full_name);
   const [email, setEmail] = useState(profile.email);
   const [profession, setProfession] = useState(profile.profession ?? "");
   const [businessNumber, setBusinessNumber] = useState(profile.business_number ?? "");
   const [doorCode, setDoorCode] = useState(profile.door_code ?? "");
-  const [adminNotes, setAdminNotes] = useState(profile.admin_notes ?? "");
+  const [adminNotes, setAdminNotes] = useState(adminNote);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
