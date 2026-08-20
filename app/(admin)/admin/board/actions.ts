@@ -3,6 +3,7 @@
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
+import { notifyBookingCancelled } from "@/lib/notifications/cancellation";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -34,6 +35,9 @@ export async function adminCancelBookingAction(bookingId: string, refundHours: b
     p_refund_hours: refundHours,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+
+  notifyBookingCancelled(bookingId, refundHours).catch(() => {});
+
   return { ok: true };
 }
 

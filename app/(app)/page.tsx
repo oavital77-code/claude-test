@@ -96,6 +96,9 @@ export default async function HomePage() {
         <Button asChild variant="outline">
           <Link href="/payments">התשלומים שלי</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/waitlist">רשימת המתנה</Link>
+        </Button>
       </div>
     </div>
   );

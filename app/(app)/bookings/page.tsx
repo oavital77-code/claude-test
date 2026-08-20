@@ -1,9 +1,10 @@
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { BookingsClient, type BookingWithRoom } from "./bookings-client";
+import { CalendarSyncLink } from "./calendar-sync-link";
 
 export default async function BookingsPage() {
-  const { userId } = await requireTherapistProfile();
+  const { userId, profile } = await requireTherapistProfile();
   const supabase = await createClient();
 
   const { data: bookings } = await supabase
@@ -36,6 +37,7 @@ export default async function BookingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">ההזמנות שלי</h1>
+      <CalendarSyncLink icsToken={profile.ics_token} />
       <BookingsClient bookings={bookingsWithRoom} />
     </div>
   );

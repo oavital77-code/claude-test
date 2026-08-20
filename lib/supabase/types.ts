@@ -199,6 +199,8 @@ export type Database = {
           purchased_at: string;
           expires_at: string;
           active: boolean;
+          low_balance_notified_at: string | null;
+          expiry_notified_at: string | null;
         };
         Insert: {
           id?: string;
@@ -212,9 +214,11 @@ export type Database = {
           purchased_at?: string;
           expires_at: string;
           active?: boolean;
+          low_balance_notified_at?: string | null;
+          expiry_notified_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["punch_cards"]["Insert"]>;
-      Relationships: [];
+        Relationships: [];
       };
       session_subscriptions: {
         Row: {
@@ -291,6 +295,7 @@ export type Database = {
           hours_refunded: boolean;
           admin_note: string | null;
           created_at: string;
+          reminder_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -308,9 +313,10 @@ export type Database = {
           hours_refunded?: boolean;
           admin_note?: string | null;
           created_at?: string;
+          reminder_sent_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
-      Relationships: [];
+        Relationships: [];
       };
       room_blocks: {
         Row: {

@@ -2,8 +2,11 @@
 
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { generatePaymentLink } from "@/lib/payplus/client";
 import { bookingErrorMessage } from "@/lib/booking-errors";
+import { sendEmail } from "@/lib/email/resend";
+import { sessionRequestedAdminEmail } from "@/lib/email/templates";
+import { getAdminEmails } from "@/lib/email/recipients";
+import { createSessionInitialPaymentLink, type SessionPaymentLinkResult } from "@/lib/payments/session-initial";
 import type { SessionSlotDraft } from "@/lib/pricing/session";
 
 export type ActionResult<T = undefined> =
@@ -13,7 +16,7 @@ export type ActionResult<T = undefined> =
 export async function requestSession(
   slots: Pick<SessionSlotDraft, "roomId" | "weekday" | "startTime" | "endTime">[],
 ): Promise<ActionResult<{ subscriptionId: string }>> {
-  await requireTherapistProfile();
+  const { profile } = await requireTherapistProfile();
   const supabase = await createClient();
 
   const payload = slots.map((s) => ({
@@ -29,48 +32,29 @@ export async function requestSession(
     return { ok: false, error: bookingErrorMessage(error?.message) };
   }
 
+  notifyAdminOfSessionRequest(profile.full_name, data.weekly_hours, data.monthly_price).catch(() => {});
+
   return { ok: true, data: { subscriptionId: data.subscription_id } };
 }
 
-export type PaymentRedirect = { ok: true; redirectUrl: string } | { ok: false; error: string };
+async function notifyAdminOfSessionRequest(therapistName: string, weeklyHours: number, monthlyPrice: number) {
+  const supabase = await createClient();
+  const adminEmails = await getAdminEmails(supabase);
+  if (adminEmails.length === 0) return;
+  const { subject, html } = sessionRequestedAdminEmail({ therapistName, weeklyHours, monthlyPrice });
+  await sendEmail({ to: adminEmails, subject, html });
+}
+
+export type PaymentRedirect = SessionPaymentLinkResult;
 
 export async function initiateSessionPayment(subscriptionId: string): Promise<PaymentRedirect> {
   const { profile } = await requireTherapistProfile();
   const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .rpc("create_session_initial_payment", { p_subscription_id: subscriptionId })
-    .single();
-
-  if (error || !data) {
-    return { ok: false, error: "יצירת בקשת התשלום נכשלה. נסו שוב." };
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-  try {
-    const link = await generatePaymentLink({
-      amountTotal: data.amount_total,
-      createToken: true, // ססיה חייבת כרטיס אשראי + טוקן שמור לחידוש (§7.2)
-      customerName: profile.full_name,
-      customerEmail: profile.email,
-      customerPhone: profile.phone,
-      itemName: "מנוי ססיה — בקליניקה",
-      moreInfo: data.payment_id,
-      successUrl: `${baseUrl}/sessions?payment=success`,
-      failureUrl: `${baseUrl}/sessions?payment=failure`,
-      callbackUrl: `${baseUrl}/api/payplus/callback`,
-    });
-
-    await supabase.rpc("set_payment_page_uid", {
-      p_payment_id: data.payment_id,
-      p_page_uid: link.pageRequestUid,
-    });
-
-    return { ok: true, redirectUrl: link.paymentPageLink };
-  } catch {
-    return { ok: false, error: "יצירת דף התשלום נכשלה. נסו שוב מאוחר יותר." };
-  }
+  return createSessionInitialPaymentLink(supabase, subscriptionId, {
+    fullName: profile.full_name,
+    email: profile.email,
+    phone: profile.phone,
+  });
 }
 
 export async function requestCancellation(

@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { chargeByToken } from "@/lib/payplus/client";
 import { bookingErrorMessage } from "@/lib/booking-errors";
+import { sendEmail } from "@/lib/email/resend";
+import { overrunRecordedEmail, paymentFailedEmail } from "@/lib/email/templates";
+import { getAdminEmails } from "@/lib/email/recipients";
 
 export type PreviewResult =
   | {
@@ -46,13 +49,23 @@ export async function recordOverrunAction(
   await requireAdmin();
   const supabase = await createClient();
 
+  const { data: booking } = await supabase.from("bookings").select("user_id").eq("id", bookingId).maybeSingle();
+
   const { data, error } = await supabase
     .rpc("record_overrun", { p_booking_id: bookingId, p_minutes: minutes, p_note: note })
     .single();
 
   if (error || !data) return { ok: false, error: bookingErrorMessage(error?.message) };
 
+  const { data: profile } = booking
+    ? await supabase.from("profiles").select("email").eq("id", booking.user_id).maybeSingle()
+    : { data: null };
+
   if (data.source === "deposit" || !data.payment_id) {
+    if (profile) {
+      const { subject, html } = overrunRecordedEmail({ minutes, amount: data.amount, source: "deposit" });
+      await sendEmail({ to: profile.email, subject, html }).catch(() => {});
+    }
     return { ok: true, source: "deposit" };
   }
 
@@ -72,29 +85,36 @@ export async function recordOverrunAction(
     return { ok: false, error: "שגיאה באיתור התשלום שנוצר" };
   }
 
-  const { data: profile } = await admin
+  const { data: payerProfile } = await admin
     .from("profiles")
-    .select("payplus_token_uid")
+    .select("email, payplus_token_uid")
     .eq("id", payment.user_id)
     .maybeSingle();
 
-  if (!profile?.payplus_token_uid) {
+  if (!payerProfile?.payplus_token_uid) {
     await admin.rpc("finalize_overrun_charge", {
       p_payment_id: paymentId,
       p_success: false,
       p_reason: "אין כרטיס שמור",
     });
+    await notifyChargeFailed(admin, payerProfile?.email, payment.amount_total);
     return { ok: true, source: "charge_failed" };
   }
 
   try {
-    const charge = await chargeByToken(profile.payplus_token_uid, payment.amount_total, paymentId);
+    const charge = await chargeByToken(payerProfile.payplus_token_uid, payment.amount_total, paymentId);
     await admin.rpc("finalize_overrun_charge", {
       p_payment_id: paymentId,
       p_success: charge.success,
       p_transaction_uid: charge.transactionUid,
       p_reason: charge.failureReason ?? null,
     });
+    if (charge.success) {
+      const { subject, html } = overrunRecordedEmail({ minutes, amount: data.amount, source: "charge" });
+      await sendEmail({ to: payerProfile.email, subject, html }).catch(() => {});
+    } else {
+      await notifyChargeFailed(admin, payerProfile.email, payment.amount_total);
+    }
     return { ok: true, source: charge.success ? "charge_succeeded" : "charge_failed" };
   } catch (err) {
     await admin.rpc("finalize_overrun_charge", {
@@ -102,6 +122,19 @@ export async function recordOverrunAction(
       p_success: false,
       p_reason: err instanceof Error ? err.message : "charge_by_token_unavailable",
     });
+    await notifyChargeFailed(admin, payerProfile.email, payment.amount_total);
     return { ok: true, source: "charge_failed" };
   }
+}
+
+async function notifyChargeFailed(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string | undefined,
+  amountTotal: number,
+) {
+  const adminEmails = await getAdminEmails(admin);
+  const recipients = [email, ...adminEmails].filter(Boolean) as string[];
+  if (recipients.length === 0) return;
+  const { subject, html } = paymentFailedEmail({ amountTotal, context: "חריגת זמן" });
+  await sendEmail({ to: recipients, subject, html }).catch(() => {});
 }
