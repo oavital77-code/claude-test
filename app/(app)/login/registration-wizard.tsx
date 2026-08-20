@@ -35,7 +35,13 @@ const emptyDetails: DetailsFormValues = {
   business_number: "",
 };
 
-export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }) {
+export function RegistrationWizard({
+  skipToDetails,
+  linkExpiredError,
+}: {
+  skipToDetails: boolean;
+  linkExpiredError?: boolean;
+}) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -45,7 +51,9 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
   const [details, setDetails] = useState<DetailsFormValues>(emptyDetails);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    linkExpiredError ? "הקישור פג תוקף או שכבר נעשה בו שימוש. יש לבקש קוד חדש." : null,
+  );
 
   async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -60,7 +68,10 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: parsed.data.email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
     setLoading(false);
 
@@ -172,7 +183,8 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
         {step === "otp" && (
           <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              נשלח קוד בן 6 ספרות לכתובת {email}
+              נשלח מייל לכתובת {email} — אפשר להזין כאן את הקוד בן 6
+              הספרות מהמייל, או ללחוץ על הקישור שבמייל.
             </p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="code">קוד אימות</Label>
