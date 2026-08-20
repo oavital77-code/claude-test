@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { detailsFormSchema } from "@/lib/validation/registration";
 import { TERMS_VERSION } from "@/lib/terms/current";
+import { toE164Israel } from "@/lib/phone";
 
 export type CompleteRegistrationResult =
   | { ok: true }
@@ -26,18 +27,21 @@ export async function completeRegistration(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || !user.phone) {
-    return { ok: false, error: "יש לאמת מספר טלפון לפני המשך ההרשמה" };
+  if (!user || !user.email) {
+    return { ok: false, error: "יש לאמת כתובת מייל לפני המשך ההרשמה" };
   }
 
-  const { full_name, email, national_id, profession, business_number } = parsed.data;
-  const phoneE164 = user.phone.startsWith("+") ? user.phone : `+${user.phone}`;
+  const { full_name, phone, national_id, profession, business_number } = parsed.data;
+  const phoneE164 = toE164Israel(phone);
+  if (!phoneE164) {
+    return { ok: false, error: "מספר טלפון לא תקין" };
+  }
 
   const { error } = await supabase.from("profiles").insert({
     id: user.id,
     phone: phoneE164,
     full_name,
-    email,
+    email: user.email,
     national_id: national_id || null,
     profession,
     business_number: business_number || null,
@@ -47,7 +51,7 @@ export async function completeRegistration(
 
   if (error) {
     if (error.code === "23505") {
-      return { ok: false, error: "כתובת המייל כבר רשומה במערכת" };
+      return { ok: false, error: "מספר הטלפון כבר רשום במערכת" };
     }
     return { ok: false, error: "שגיאה בשמירת הפרטים. נסו שוב." };
   }

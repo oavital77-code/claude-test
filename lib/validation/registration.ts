@@ -1,13 +1,8 @@
 import { z } from "zod";
 import { toE164Israel } from "@/lib/phone";
 
-export const phoneFormSchema = z.object({
-  phone: z
-    .string()
-    .min(1, "יש להזין מספר טלפון")
-    .refine((v) => toE164Israel(v) !== null, {
-      message: "מספר טלפון לא תקין (05XXXXXXXX)",
-    }),
+export const emailFormSchema = z.object({
+  email: z.string().trim().email("כתובת מייל לא תקינה"),
 });
 
 export const otpFormSchema = z.object({
@@ -16,7 +11,12 @@ export const otpFormSchema = z.object({
 
 export const detailsFormSchema = z.object({
   full_name: z.string().trim().min(2, "יש להזין שם מלא"),
-  email: z.string().trim().email("כתובת מייל לא תקינה"),
+  phone: z
+    .string()
+    .min(1, "יש להזין מספר טלפון")
+    .refine((v) => toE164Israel(v) !== null, {
+      message: "מספר טלפון לא תקין (05XXXXXXXX)",
+    }),
   national_id: z
     .string()
     .trim()

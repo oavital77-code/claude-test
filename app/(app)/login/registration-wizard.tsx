@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/client";
-import { toE164Israel } from "@/lib/phone";
 import {
-  phoneFormSchema,
+  emailFormSchema,
   otpFormSchema,
   detailsFormSchema,
   type DetailsFormValues,
@@ -26,11 +25,11 @@ import {
 } from "@/components/ui/card";
 import { completeRegistration } from "./actions";
 
-type Step = "phone" | "otp" | "details" | "terms";
+type Step = "email" | "otp" | "details" | "terms";
 
 const emptyDetails: DetailsFormValues = {
   full_name: "",
-  email: "",
+  phone: "",
   national_id: "",
   profession: "",
   business_number: "",
@@ -40,8 +39,8 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "phone");
-  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "email");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [details, setDetails] = useState<DetailsFormValues>(emptyDetails);
   const [accepted, setAccepted] = useState(false);
@@ -52,22 +51,24 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
     e.preventDefault();
     setError(null);
 
-    const parsed = phoneFormSchema.safeParse({ phone });
+    const parsed = emailFormSchema.safeParse({ email });
     if (!parsed.success) {
       setError(z.prettifyError(parsed.error));
       return;
     }
 
-    const e164 = toE164Israel(phone)!;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: parsed.data.email,
+      options: { shouldCreateUser: true },
+    });
     setLoading(false);
 
     if (error) {
-      setError("שליחת הקוד נכשלה. בדקו את המספר ונסו שוב.");
+      setError("שליחת הקוד נכשלה. בדקו את הכתובת ונסו שוב.");
       return;
     }
-    setPhone(e164);
+    setEmail(parsed.data.email);
     setStep("otp");
   }
 
@@ -83,9 +84,9 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
 
     setLoading(true);
     const { data, error } = await supabase.auth.verifyOtp({
-      phone,
+      email,
       token: code,
-      type: "sms",
+      type: "email",
     });
     if (error || !data.user) {
       setLoading(false);
@@ -145,17 +146,17 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {step === "phone" && (
+        {step === "email" && (
           <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">מספר טלפון</Label>
+              <Label htmlFor="email">כתובת מייל</Label>
               <Input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                placeholder="05X-XXXXXXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                id="email"
+                type="email"
+                inputMode="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 dir="ltr"
                 className="text-left"
                 autoFocus
@@ -171,7 +172,7 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
         {step === "otp" && (
           <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              נשלח קוד בן 6 ספרות למספר {phone}
+              נשלח קוד בן 6 ספרות לכתובת {email}
             </p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="code">קוד אימות</Label>
@@ -195,12 +196,12 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
               type="button"
               variant="ghost"
               onClick={() => {
-                setStep("phone");
+                setStep("email");
                 setCode("");
                 setError(null);
               }}
             >
-              שינוי מספר טלפון
+              שינוי כתובת מייל
             </Button>
           </form>
         )}
@@ -217,14 +218,15 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">מייל *</Label>
+              <Label htmlFor="details_phone">מספר טלפון *</Label>
               <Input
-                id="email"
-                type="email"
+                id="details_phone"
+                type="tel"
                 dir="ltr"
                 className="text-left"
-                value={details.email}
-                onChange={(e) => setDetails({ ...details, email: e.target.value })}
+                placeholder="05X-XXXXXXX"
+                value={details.phone}
+                onChange={(e) => setDetails({ ...details, phone: e.target.value })}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -293,10 +295,10 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
 
 function stepDescription(step: Step) {
   switch (step) {
-    case "phone":
-      return "התחברות / הרשמה באמצעות מספר טלפון";
+    case "email":
+      return "התחברות / הרשמה באמצעות כתובת מייל";
     case "otp":
-      return "אימות מספר הטלפון";
+      return "אימות כתובת המייל";
     case "details":
       return "פרטים אישיים";
     case "terms":
