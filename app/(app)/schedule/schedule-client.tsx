@@ -196,13 +196,13 @@ export function ScheduleClient({
         <div className="mx-2 h-6 w-px bg-border" />
 
         <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? -1 : -7))}>
-          ←
+          הקודם
         </Button>
         <span className="text-sm font-medium">
           {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "dd/MM/yyyy")}
         </span>
         <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? 1 : 7))}>
-          →
+          הבא
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
           היום

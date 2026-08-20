@@ -97,11 +97,11 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
         ))}
         <div className="mx-2 h-6 w-px bg-border" />
         <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, -1))}>
-          ←
+          הקודם
         </Button>
         <span className="text-sm font-medium">{formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}</span>
         <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, 1))}>
-          →
+          הבא
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
           היום

@@ -78,13 +78,22 @@ export function AvailabilityGrid({
               {columns.map((col) => {
                 const status = statusFor(col.key, slot);
                 const key = `${col.key}|${slot.start.toISOString()}`;
+                const isFree = status === "free";
                 return (
                   <div
                     key={col.key}
-                    role={status === "free" ? "button" : undefined}
-                    onClick={() => status === "free" && onSlotClick(col.key, slot, status)}
+                    role={isFree ? "button" : undefined}
+                    tabIndex={isFree ? 0 : undefined}
+                    onClick={() => isFree && onSlotClick(col.key, slot, status)}
+                    onKeyDown={(e) => {
+                      if (isFree && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        onSlotClick(col.key, slot, status);
+                      }
+                    }}
                     className={cn(
                       "h-5 border-b border-l last:border-l-0",
+                      isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
                       STATUS_STYLES[status],
                       selectedKey === key && "ring-2 ring-inset ring-primary",
                     )}
