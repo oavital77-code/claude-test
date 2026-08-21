@@ -252,17 +252,24 @@ export function ScheduleClient({
       />
 
       {selected && (
-        <SlotPreview
-          roomId={selected.roomId}
-          roomName={selected.roomName}
-          start={selected.start}
-          end={selected.end}
-          onClose={() => setSelected(null)}
-          onBooked={() => {
-            setSelected(null);
-            reload();
-          }}
-        />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSelected(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+            <SlotPreview
+              roomId={selected.roomId}
+              roomName={selected.roomName}
+              start={selected.start}
+              end={selected.end}
+              onClose={() => setSelected(null)}
+              onBooked={() => {
+                setSelected(null);
+                reload();
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

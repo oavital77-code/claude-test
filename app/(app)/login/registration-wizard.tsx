@@ -76,7 +76,12 @@ export function RegistrationWizard({
     setLoading(false);
 
     if (error) {
-      setError("שליחת הקוד נכשלה. בדקו את הכתובת ונסו שוב.");
+      console.error("signInWithOtp failed", error);
+      if (error.status === 429 || /rate limit|security purposes/i.test(error.message)) {
+        setError("נשלחו יותר מדי בקשות בזמן קצר. יש להמתין כמה דקות ולנסות שוב.");
+      } else {
+        setError(`שליחת הקוד נכשלה: ${error.message}`);
+      }
       return;
     }
     setEmail(parsed.data.email);
