@@ -291,6 +291,14 @@ export function RegistrationWizard({
                 קראתי, הבנתי ואני מסכים/ה לתנאי הסכם השירות
               </Label>
             </div>
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              מדיניות הפרטיות
+            </a>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button onClick={handleConfirmTerms} disabled={loading || !accepted}>
               {loading ? "שומר..." : "אני מאשר/ת וחותם/ת"}

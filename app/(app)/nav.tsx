@@ -25,7 +25,7 @@ const LINKS = [
   { href: "/waitlist", label: "רשימת המתנה", icon: Clock },
 ];
 
-const HIDDEN_ON = ["/login", "/suspended"];
+const HIDDEN_ON = ["/login", "/suspended", "/privacy"];
 
 export function AppNav() {
   const pathname = usePathname();
