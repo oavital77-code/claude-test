@@ -52,7 +52,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
   }, [supabase, branchId]);
 
   const roomIds = useMemo(() => rooms.map((r) => r.id), [rooms]);
-  const { start, end } = dayBoundaries(date);
+  const { start, end } = useMemo(() => dayBoundaries(date), [date]);
   const roomIdsKey = roomIds.join(",");
 
   const reload = useCallback(() => {
