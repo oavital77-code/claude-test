@@ -56,6 +56,13 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
             </tr>
           </thead>
           <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-6 text-center text-sm text-muted-foreground">
+                  {therapists.length === 0 ? "אין עדיין מטפלים רשומים" : "אין תוצאות לחיפוש"}
+                </td>
+              </tr>
+            ) : null}
             {filtered.map((t) => (
               <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="p-2">

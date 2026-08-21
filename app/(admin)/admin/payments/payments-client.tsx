@@ -82,9 +82,17 @@ export function AdminPaymentsClient({ rows }: { rows: PaymentRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
-              <PaymentRowLine key={p.id} payment={p} onChanged={() => router.refresh()} />
-            ))}
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
+                  אין תשלומים להצגה
+                </td>
+              </tr>
+            ) : (
+              filtered.map((p) => (
+                <PaymentRowLine key={p.id} payment={p} onChanged={() => router.refresh()} />
+              ))
+            )}
           </tbody>
         </table>
       </div>
