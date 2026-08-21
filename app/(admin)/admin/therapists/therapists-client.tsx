@@ -87,7 +87,7 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
   );
 }
 
-const emptyDemo = { full_name: "", email: "", phone: "", profession: "", demo_hours: "10" };
+const emptyDemo = { full_name: "", email: "", phone: "", profession: "", demo_hours: "0" };
 
 function DemoTherapistSection() {
   const router = useRouter();
@@ -117,7 +117,7 @@ function DemoTherapistSection() {
   if (!open) {
     return (
       <Button size="sm" variant="outline" className="w-fit" onClick={() => setOpen(true)}>
-        + הוספת משתמש דמו
+        + הוספת מטפל/ת ידנית
       </Button>
     );
   }
@@ -125,21 +125,23 @@ function DemoTherapistSection() {
   return (
     <Card className="max-w-xl">
       <CardHeader>
-        <CardTitle className="text-base">משתמש דמו</CardTitle>
+        <CardTitle className="text-base">הוספת מטפל/ת ידנית</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          יוצר חשבון מטפל אמיתי בלי הרשמה עצמאית, עם שעות כרטיסייה חינמיות (בלי
-          PayPlus בכלל) — ומחזיר קישור התחברות חד-פעמי כדי שתוכל להיכנס ולבדוק
-          את המערכת בתור המטפל הזה.
+          יוצר חשבון מטפל/ת אמיתי בלי שהוא/היא צריכים לעבור הרשמה עצמאית —
+          שימושי למטפל/ת קיימים שמצטרפים ידנית, או ליצירת משתמש בדיקה עם שעות
+          כרטיסייה חינמיות (בלי PayPlus). מחזיר קישור התחברות חד-פעמי — שלח
+          אותו למטפל/ת עצמם כדי שיתחברו, או פתח אותו בעצמך לבדיקה.
         </p>
 
         {loginUrl ? (
           <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3">
-            <p className="text-sm font-medium">המשתמש נוצר בהצלחה!</p>
+            <p className="text-sm font-medium">המטפל/ת נוצר/ה בהצלחה!</p>
             <p className="text-xs text-muted-foreground">
-              קישור ההתחברות תקף לשימוש חד-פעמי — הכי טוב לפתוח אותו בחלון גלישה
-              בסתר (Incognito) כדי לא לצאת מהחשבון שלך כאדמין:
+              קישור ההתחברות תקף לשימוש חד-פעמי — אפשר לשלוח אותו למטפל/ת כדי
+              שיתחברו בעצמם, או לפתוח אותו בחלון גלישה בסתר (Incognito) כדי
+              לבדוק בלי לצאת מהחשבון שלך כאדמין:
             </p>
             <a
               href={loginUrl}
@@ -199,7 +201,7 @@ function DemoTherapistSection() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>שעות חינמיות</Label>
+                <Label>שעות חינמיות (אופציונלי, לבדיקה)</Label>
                 <Input
                   type="number"
                   min={0}
@@ -213,7 +215,7 @@ function DemoTherapistSection() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2">
               <Button size="sm" onClick={handleCreate} disabled={loading}>
-                {loading ? "יוצר..." : "יצירת משתמש דמו"}
+                {loading ? "יוצר..." : "יצירת מטפל/ת"}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
                 ביטול

@@ -238,6 +238,9 @@ export function ScheduleClient({
         )}
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור.
+      </p>
       <Legend />
 
       <AvailabilityGrid

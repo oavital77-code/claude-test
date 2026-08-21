@@ -61,6 +61,11 @@ export default async function HomePage() {
               יש להשלים פיקדון — הזמנות חדשות חסומות עד ההשלמה
             </p>
           )}
+          {hoursRemaining > 0 && !depositShort && (
+            <Button asChild className="mt-2">
+              <Link href="/schedule">קביעת תור עכשיו</Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
 

@@ -209,13 +209,18 @@ export function SessionRequestWizard({
           )}
           <div className="flex justify-between border-t pt-2 text-sm">
             <span>סה״כ שעות שבועיות</span>
-            <span className={weeklyHours < 5 ? "text-destructive" : ""}>{weeklyHours} (מינימום 5)</span>
+            <span>{weeklyHours} (5 שעות ראשונות כלולות במחיר הבסיס)</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>מחיר חודשי (לפני מע״מ)</span>
             <span>{formatCurrency(monthlyPrice)}</span>
           </div>
-          <Button disabled={weeklyHours < 5} onClick={() => setStep("summary")}>
+          {weeklyHours > 5 && (
+            <p className="text-xs text-muted-foreground">
+              מעבר ל-5 שעות שבועיות נוספות 110₪ לכל שעה נוספת.
+            </p>
+          )}
+          <Button disabled={weeklyHours <= 0} onClick={() => setStep("summary")}>
             המשך לסיכום
           </Button>
         </CardContent>
