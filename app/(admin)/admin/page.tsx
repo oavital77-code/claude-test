@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { TIMEZONE } from "@/lib/time";
 import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,7 +105,7 @@ function Metric({
   href?: string;
 }) {
   const content = (
-    <Card className={highlight ? "border-amber-500" : undefined}>
+    <Card className={cn("h-full", highlight && "border-amber-500")}>
       <CardContent className="flex flex-col gap-1 p-4">
         <p className="text-sm text-muted-foreground">{label}</p>
         <p className="text-2xl font-semibold">{value}</p>
@@ -112,5 +113,11 @@ function Metric({
       </CardContent>
     </Card>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+  return href ? (
+    <Link href={href} className="block h-full">
+      {content}
+    </Link>
+  ) : (
+    content
+  );
 }

@@ -50,6 +50,17 @@ export function OverrunClient({ bookingOptions }: { bookingOptions: BookingOptio
     setPreview(null);
   }
 
+  if (bookingOptions.length === 0) {
+    return (
+      <Card className="max-w-lg">
+        <CardContent className="p-6 text-sm text-muted-foreground">
+          אין הזמנות זמינות לרישום חריגה (מוצגות הזמנות מאושרות מ-14 הימים
+          האחרונים בלבד — כולל עתידיות).
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="max-w-lg">
       <CardContent className="flex flex-col gap-3 p-6">
