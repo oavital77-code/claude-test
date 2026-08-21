@@ -9,11 +9,11 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "בקליניקה",
+  title: "Cleana",
   description: "מערכת ניהול השכרת קליניקות",
   appleWebApp: {
     capable: true,
-    title: "בקליניקה",
+    title: "Cleana",
     statusBarStyle: "default",
   },
 };
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#1f5f52",
+  themeColor: "#b5622f",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

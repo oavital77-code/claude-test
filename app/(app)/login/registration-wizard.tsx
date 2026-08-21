@@ -153,7 +153,7 @@ export function RegistrationWizard({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-xl">בקליניקה</CardTitle>
+        <CardTitle className="text-xl font-bold text-primary">Cleana</CardTitle>
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

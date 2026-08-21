@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "בקליניקה",
-    short_name: "בקליניקה",
+    name: "Cleana",
+    short_name: "Cleana",
     description: "ניהול הזמנות חדרים, כרטיסיות וססיות לקליניקה",
     start_url: "/",
     display: "standalone",
-    background_color: "#f5f4ee",
-    theme_color: "#1f5f52",
+    background_color: "#f7f1ea",
+    theme_color: "#b5622f",
     orientation: "portrait-primary",
     lang: "he",
     dir: "rtl",

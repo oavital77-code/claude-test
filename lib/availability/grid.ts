@@ -1,12 +1,24 @@
-import { addDays, parseISO } from "date-fns";
-import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { TIMEZONE, BOOKING_BLOCK_MINUTES } from "@/lib/time";
+
+// בכוונה לא date-fns parseISO/addDays: הן פועלות בזמן מקומי של הדפדפן/שרת,
+// מה שגורם לחישוב שגוי של "היום הבא" באזורי זמן קדימה מ-UTC (כמו ישראל) —
+// כאן הכל מחרוזת-תאריך <-> UTC, בלי תלות באזור הזמן המקומי בכלל.
+function utcDateFromDateStr(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+export function addDaysToDateStr(dateStr: string, days: number): string {
+  const d = utcDateFromDateStr(dateStr);
+  d.setUTCDate(d.getUTCDate() + days);
+  return formatInTimeZone(d, "UTC", "yyyy-MM-dd");
+}
 
 /** גבולות היממה (00:00-24:00 לפי שעון ישראל) כ-UTC instants. */
 export function dayBoundaries(dateStr: string): { start: Date; end: Date } {
   const start = fromZonedTime(`${dateStr}T00:00:00`, TIMEZONE);
-  const nextDateStr = formatInTimeZone(addDays(parseISO(dateStr), 1), "UTC", "yyyy-MM-dd");
-  const end = fromZonedTime(`${nextDateStr}T00:00:00`, TIMEZONE);
+  const end = fromZonedTime(`${addDaysToDateStr(dateStr, 1)}T00:00:00`, TIMEZONE);
   return { start, end };
 }
 
@@ -30,12 +42,8 @@ export function todayInIsrael(): string {
   return formatInTimeZone(new Date(), TIMEZONE, "yyyy-MM-dd");
 }
 
-export function addDaysToDateStr(dateStr: string, days: number): string {
-  return formatInTimeZone(addDays(parseISO(dateStr), days), "UTC", "yyyy-MM-dd");
-}
-
 export function weekDatesStartingSunday(dateStr: string): string[] {
-  const weekday = parseISO(dateStr).getUTCDay(); // 0 = ראשון, תואם parseISO של תאריך בלבד (UTC)
+  const weekday = utcDateFromDateStr(dateStr).getUTCDay(); // 0 = ראשון
   const sunday = addDaysToDateStr(dateStr, -weekday);
   return Array.from({ length: 7 }, (_, i) => addDaysToDateStr(sunday, i));
 }
