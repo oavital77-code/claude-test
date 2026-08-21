@@ -34,13 +34,22 @@ export default async function HomePage() {
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
   let nextRoomName: string | null = null;
+  let nextBranchName: string | null = null;
   if (nextBooking) {
     const { data: room } = await supabase
       .from("rooms")
-      .select("name")
+      .select("name, branch_id")
       .eq("id", nextBooking.room_id)
       .maybeSingle();
     nextRoomName = room?.name ?? null;
+    if (room) {
+      const { data: branch } = await supabase
+        .from("branches")
+        .select("name")
+        .eq("id", room.branch_id)
+        .maybeSingle();
+      nextBranchName = branch?.name ?? null;
+    }
   }
 
   return (
@@ -74,6 +83,7 @@ export default async function HomePage() {
           <CardContent className="flex flex-col gap-1 p-4 text-right">
             <p className="text-sm text-muted-foreground">ההזמנה הבאה</p>
             <p className="font-medium">
+              {nextBranchName ? `${nextBranchName} · ` : ""}
               {nextRoomName} · {formatDateTimeHe(new Date(nextBooking.starts_at))}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -84,27 +94,6 @@ export default async function HomePage() {
           </CardContent>
         </Card>
       )}
-
-      <div className="flex flex-wrap justify-center gap-2">
-        <Button asChild>
-          <Link href="/schedule">לוח הזמנים</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/bookings">ההזמנות שלי</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/purchase">רכישת כרטיסייה</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/sessions">הססיות שלי</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/payments">התשלומים שלי</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/waitlist">רשימת המתנה</Link>
-        </Button>
-      </div>
     </div>
   );
 }

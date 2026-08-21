@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { accessWindow, TIMEZONE } from "@/lib/time";
 import {
   fetchRooms,
@@ -33,6 +34,15 @@ const ROOM_TYPE_LABELS: Record<Room["room_type"], string> = {
   podcast: "פודקאסט",
   group: "קבוצתי",
 };
+
+// צבע ייחודי לכל סניף (לפי סדר הופעה) — כדי שיהיה ברור מיד באיזה סניף
+// מסתכלים / קבעו תור, בלי צורך בעמודת color נפרדת בטבלת branches.
+const BRANCH_COLORS = [
+  { dot: "bg-sky-500", active: "border-sky-600 bg-sky-600 text-white hover:bg-sky-600" },
+  { dot: "bg-violet-500", active: "border-violet-600 bg-violet-600 text-white hover:bg-violet-600" },
+  { dot: "bg-amber-500", active: "border-amber-600 bg-amber-600 text-white hover:bg-amber-600" },
+  { dot: "bg-emerald-500", active: "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600" },
+];
 
 export function ScheduleClient({
   branches,
@@ -189,22 +199,30 @@ export function ScheduleClient({
     setSelected({ columnKey, roomId, roomName, start, end });
   }
 
+  const currentBranchName = branches.find((b) => b.id === branchId)?.name ?? "";
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {branches.map((b) => (
-          <Button
-            key={b.id}
-            size="sm"
-            variant={b.id === branchId ? "default" : "outline"}
-            onClick={() => {
-              setSelected(null);
-              setBranchId(b.id);
-            }}
-          >
-            {b.name}
-          </Button>
-        ))}
+        {branches.map((b, i) => {
+          const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
+          const active = b.id === branchId;
+          return (
+            <Button
+              key={b.id}
+              size="sm"
+              variant={active ? "default" : "outline"}
+              className={active ? color.active : ""}
+              onClick={() => {
+                setSelected(null);
+                setBranchId(b.id);
+              }}
+            >
+              <span className={cn("ml-1.5 inline-block size-2 rounded-full", color.dot)} />
+              {b.name}
+            </Button>
+          );
+        })}
 
         <div className="mx-2 h-6 w-px bg-border" />
 
@@ -329,6 +347,7 @@ export function ScheduleClient({
             <SlotPreview
               roomId={selected.roomId}
               roomName={selected.roomName}
+              branchName={currentBranchName}
               start={selected.start}
               end={selected.end}
               onClose={() => setSelected(null)}
@@ -347,6 +366,7 @@ export function ScheduleClient({
 function SlotPreview({
   roomId,
   roomName,
+  branchName,
   start,
   end,
   onClose,
@@ -354,6 +374,7 @@ function SlotPreview({
 }: {
   roomId: string;
   roomName: string;
+  branchName: string;
   start: Date;
   end: Date;
   onClose: () => void;
@@ -380,6 +401,7 @@ function SlotPreview({
     <div className="rounded-md border bg-card p-4 text-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
+          {branchName ? `${branchName} · ` : ""}
           {roomName} · {formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}
         </span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
