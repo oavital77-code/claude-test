@@ -320,11 +320,12 @@ export function ScheduleClient({
       />
 
       {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setSelected(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm">
+        // pointer-events-none על העטיפה כדי שלחיצות על שאר הלוח (מחוץ לכרטיס)
+        // ימשיכו להגיע למשבצות — כך אפשר להמשיך ולהרחיב את הבחירה בזמן
+        // שהכרטיס פתוח, ולא רק לבטל אותו. הכרטיס עצמו קבוע בתחתית המסך כדי
+        // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
+          <div className="pointer-events-auto w-full max-w-sm shadow-lg">
             <SlotPreview
               roomId={selected.roomId}
               roomName={selected.roomName}
@@ -389,6 +390,7 @@ function SlotPreview({
         {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
       </p>
       <p className="text-muted-foreground">משך: {(end.getTime() - start.getTime()) / (60 * 60 * 1000)} שעות</p>
+      <p className="text-xs text-muted-foreground">אפשר עדיין ללחוץ על משבצות פנויות נוספות כדי להאריך.</p>
       <p className="text-muted-foreground">
         🔑 כניסה בפועל:{" "}
         <span dir="ltr">{formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}</span> · פינוי:{" "}
