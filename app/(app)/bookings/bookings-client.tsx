@@ -99,11 +99,13 @@ function BookingCard({ booking }: { booking: BookingWithRoom }) {
           </p>
           <p className="text-sm text-muted-foreground">
             {formatInTimeZone(startsAt, TIMEZONE, "dd/MM/yyyy")} ·{" "}
-            {formatInTimeZone(startsAt, TIMEZONE, "HH:mm")}–{formatInTimeZone(endsAt, TIMEZONE, "HH:mm")}
+            <span dir="ltr">
+              {formatInTimeZone(startsAt, TIMEZONE, "HH:mm")}–{formatInTimeZone(endsAt, TIMEZONE, "HH:mm")}
+            </span>
           </p>
           <p className="text-xs text-muted-foreground">
-            🔑 כניסה בפועל {formatInTimeZone(accessStart, TIMEZONE, "HH:mm")} · פינוי{" "}
-            {formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}
+            🔑 כניסה בפועל <span dir="ltr">{formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}</span> · פינוי{" "}
+            <span dir="ltr">{formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}</span>
           </p>
         </div>
 

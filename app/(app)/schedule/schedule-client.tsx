@@ -151,12 +151,6 @@ export function ScheduleClient({
     return { roomId: selectedRoomId, start, end };
   }
 
-  function handleSlotClick(columnKey: string, slot: Slot) {
-    const { roomId, start, end } = resolveSlot(columnKey, slot);
-    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
-    setSelected({ columnKey, roomId, roomName, start, end });
-  }
-
   function statusFor(columnKey: string, slot: Slot) {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
     const dayIntervals =
@@ -170,6 +164,31 @@ export function ScheduleClient({
     return slotStatus(start, end, dayIntervals);
   }
 
+  /**
+   * לחיצה על משבצת פנויה נוספת באותה עמודה מרחיבה את הבחירה הקיימת (במקום
+   * להחליף אותה) — כך אפשר לסמן כמה משבצות ברצף ולהזמין אותן כטווח אחד.
+   * מרחיבים רק אם כל המשבצות בטווח המאוחד עדיין פנויות; אחרת מתחילים בחירה חדשה.
+   */
+  function handleSlotClick(columnKey: string, slot: Slot) {
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
+
+    if (selected && selected.columnKey === columnKey) {
+      const rangeStart = selected.start < start ? selected.start : start;
+      const rangeEnd = selected.end > end ? selected.end : end;
+      const allFree = slots.every((s) => {
+        const resolved = resolveSlot(columnKey, s);
+        if (resolved.start < rangeStart || resolved.end > rangeEnd) return true;
+        return statusFor(columnKey, s) === "free";
+      });
+      if (allFree) {
+        setSelected({ columnKey, roomId, roomName, start: rangeStart, end: rangeEnd });
+        return;
+      }
+    }
+    setSelected({ columnKey, roomId, roomName, start, end });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -178,7 +197,10 @@ export function ScheduleClient({
             key={b.id}
             size="sm"
             variant={b.id === branchId ? "default" : "outline"}
-            onClick={() => setBranchId(b.id)}
+            onClick={() => {
+              setSelected(null);
+              setBranchId(b.id);
+            }}
           >
             {b.name}
           </Button>
@@ -186,25 +208,60 @@ export function ScheduleClient({
 
         <div className="mx-2 h-6 w-px bg-border" />
 
-        <Button size="sm" variant={view === "day" ? "default" : "outline"} onClick={() => setView("day")}>
+        <Button
+          size="sm"
+          variant={view === "day" ? "default" : "outline"}
+          onClick={() => {
+            setSelected(null);
+            setView("day");
+          }}
+        >
           יום
         </Button>
-        <Button size="sm" variant={view === "week" ? "default" : "outline"} onClick={() => setView("week")}>
+        <Button
+          size="sm"
+          variant={view === "week" ? "default" : "outline"}
+          onClick={() => {
+            setSelected(null);
+            setView("week");
+          }}
+        >
           שבוע
         </Button>
 
         <div className="mx-2 h-6 w-px bg-border" />
 
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? -1 : -7))}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSelected(null);
+            setDate(addDaysToDateStr(date, view === "day" ? -1 : -7));
+          }}
+        >
           הקודם
         </Button>
         <span className="text-sm font-medium">
           {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "dd/MM/yyyy")}
         </span>
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? 1 : 7))}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSelected(null);
+            setDate(addDaysToDateStr(date, view === "day" ? 1 : 7));
+          }}
+        >
           הבא
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setSelected(null);
+            setDate(todayInIsrael());
+          }}
+        >
           היום
         </Button>
 
@@ -213,7 +270,10 @@ export function ScheduleClient({
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
           value={roomTypeFilter}
-          onChange={(e) => setRoomTypeFilter(e.target.value as Room["room_type"] | "all")}
+          onChange={(e) => {
+            setSelected(null);
+            setRoomTypeFilter(e.target.value as Room["room_type"] | "all");
+          }}
         >
           <option value="all">כל סוגי החדרים</option>
           {Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => (
@@ -227,7 +287,10 @@ export function ScheduleClient({
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
+            onChange={(e) => {
+              setSelected(null);
+              setSelectedRoomId(e.target.value);
+            }}
           >
             {filteredRooms.map((r) => (
               <option key={r.id} value={r.id}>
@@ -239,7 +302,8 @@ export function ScheduleClient({
       </div>
 
       <p className="text-sm text-muted-foreground">
-        לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור.
+        לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
+        ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
       </p>
       <Legend />
 
@@ -248,7 +312,11 @@ export function ScheduleClient({
         slots={slots}
         statusFor={statusFor}
         onSlotClick={handleSlotClick}
-        selectedKey={selected ? `${selected.roomId}|${selected.start.toISOString()}` : null}
+        isSelected={(columnKey, slot) => {
+          if (!selected || selected.columnKey !== columnKey) return false;
+          const { start, end } = resolveSlot(columnKey, slot);
+          return start >= selected.start && end <= selected.end;
+        }}
       />
 
       {selected && (
@@ -317,12 +385,14 @@ function SlotPreview({
           ✕
         </button>
       </div>
-      <p>
+      <p dir="ltr" className="text-right">
         {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
       </p>
+      <p className="text-muted-foreground">משך: {(end.getTime() - start.getTime()) / (60 * 60 * 1000)} שעות</p>
       <p className="text-muted-foreground">
-        🔑 כניסה בפועל: {formatInTimeZone(accessStart, TIMEZONE, "HH:mm")} · פינוי:{" "}
-        {formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}
+        🔑 כניסה בפועל:{" "}
+        <span dir="ltr">{formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}</span> · פינוי:{" "}
+        <span dir="ltr">{formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}</span>
       </p>
 
       {confirmed ? (

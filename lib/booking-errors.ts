@@ -18,5 +18,9 @@ const MESSAGES: Record<string, string> = {
 
 export function bookingErrorMessage(code: string | undefined): string {
   if (!code) return "משהו השתבש. נסו שוב.";
-  return MESSAGES[code] ?? "משהו השתבש. נסו שוב.";
+  const known = MESSAGES[code];
+  if (known) return known;
+  // קוד לא מוכר (לא אחד מהקודים שה-RPCs זורקים בכוונה) — מציגים את הודעת
+  // השגיאה הגולמית כדי שאפשר יהיה לאבחן מה קרה בפועל, במקום הודעה עיוורת.
+  return `משהו השתבש. נסו שוב. (${code})`;
 }

@@ -42,13 +42,13 @@ export function AvailabilityGrid({
   slots,
   statusFor,
   onSlotClick,
-  selectedKey,
+  isSelected,
 }: {
   columns: GridColumn[];
   slots: Slot[];
   statusFor: (columnKey: string, slot: Slot) => SlotStatus;
   onSlotClick: (columnKey: string, slot: Slot, status: SlotStatus) => void;
-  selectedKey?: string | null;
+  isSelected?: (columnKey: string, slot: Slot) => boolean;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -77,8 +77,8 @@ export function AvailabilityGrid({
               </div>
               {columns.map((col) => {
                 const status = statusFor(col.key, slot);
-                const key = `${col.key}|${slot.start.toISOString()}`;
                 const isFree = status === "free";
+                const selected = isSelected?.(col.key, slot) ?? false;
                 return (
                   <div
                     key={col.key}
@@ -95,7 +95,7 @@ export function AvailabilityGrid({
                       "h-5 border-b border-l last:border-l-0",
                       isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
                       STATUS_STYLES[status],
-                      selectedKey === key && "ring-2 ring-inset ring-primary",
+                      selected && "ring-2 ring-inset ring-primary",
                     )}
                   />
                 );

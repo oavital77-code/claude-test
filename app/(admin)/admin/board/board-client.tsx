@@ -134,9 +134,11 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                 {roomBookings.map((b) => (
                   <div key={b.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                     <span>
-                      {formatInTimeZone(new Date(b.starts_at), TIMEZONE, "HH:mm")}–
-                      {formatInTimeZone(new Date(b.ends_at), TIMEZONE, "HH:mm")} ·{" "}
-                      {therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · {SOURCE_LABELS[b.source]}
+                      <span dir="ltr">
+                        {formatInTimeZone(new Date(b.starts_at), TIMEZONE, "HH:mm")}–
+                        {formatInTimeZone(new Date(b.ends_at), TIMEZONE, "HH:mm")}
+                      </span>{" "}
+                      · {therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · {SOURCE_LABELS[b.source]}
                     </span>
                     <CancelBookingButton bookingId={b.id} onDone={reload} />
                   </div>
@@ -145,8 +147,11 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                 {roomBlocks.map((rb) => (
                   <div key={rb.id} className="flex items-center justify-between rounded-md border border-dashed p-2 text-sm">
                     <span>
-                      {formatInTimeZone(new Date(rb.starts_at), TIMEZONE, "HH:mm")}–
-                      {formatInTimeZone(new Date(rb.ends_at), TIMEZONE, "HH:mm")} · חסום: {rb.reason}
+                      <span dir="ltr">
+                        {formatInTimeZone(new Date(rb.starts_at), TIMEZONE, "HH:mm")}–
+                        {formatInTimeZone(new Date(rb.ends_at), TIMEZONE, "HH:mm")}
+                      </span>{" "}
+                      · חסום: {rb.reason}
                     </span>
                     <RemoveBlockButton blockId={rb.id} onDone={reload} />
                   </div>
