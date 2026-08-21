@@ -9,8 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { formatDateHe, formatDateTimeHe } from "@/lib/time";
+import { WEEKDAY_LABELS } from "@/lib/pricing/session";
 import type { Database } from "@/lib/supabase/types";
 import {
+  addSessionSlotAction,
+  adjustPunchCardHoursAction,
   completeDepositAction,
   grantBonusHoursAction,
   setTherapistStatus,
@@ -25,6 +28,7 @@ type BookingRow = Pick<
   Database["public"]["Tables"]["bookings"]["Row"],
   "id" | "starts_at" | "ends_at" | "source" | "status"
 > & { roomName: string };
+type RoomOption = { id: string; name: string };
 
 export function TherapistDetailClient({
   profile,
@@ -33,6 +37,7 @@ export function TherapistDetailClient({
   bookings,
   payments,
   subscriptions,
+  roomOptions,
 }: {
   profile: Profile;
   adminNote: string;
@@ -40,6 +45,7 @@ export function TherapistDetailClient({
   bookings: BookingRow[];
   payments: Payment[];
   subscriptions: Subscription[];
+  roomOptions: RoomOption[];
 }) {
   const router = useRouter();
 
@@ -52,7 +58,9 @@ export function TherapistDetailClient({
         {punchCards.length === 0 ? (
           <Empty />
         ) : (
-          punchCards.map((c) => <PunchCardRow key={c.id} card={c} onCompleted={() => router.refresh()} />)
+          punchCards.map((c) => (
+            <PunchCardRow key={c.id} card={c} onCompleted={() => router.refresh()} onAdjusted={() => router.refresh()} />
+          ))
         )}
       </Section>
 
@@ -61,9 +69,12 @@ export function TherapistDetailClient({
           <Empty />
         ) : (
           subscriptions.map((s) => (
-            <p key={s.id} className="text-sm">
-              {s.weekly_hours} ש׳/שבוע · {formatCurrency(s.monthly_price)}/חודש · סטטוס: {s.status}
-            </p>
+            <SubscriptionRow
+              key={s.id}
+              subscription={s}
+              roomOptions={roomOptions}
+              onChanged={() => router.refresh()}
+            />
           ))
         )}
       </Section>
@@ -252,8 +263,18 @@ function BonusHoursSection({ userId, onGranted }: { userId: string; onGranted: (
   );
 }
 
-function PunchCardRow({ card, onCompleted }: { card: PunchCard; onCompleted: () => void }) {
+function PunchCardRow({
+  card,
+  onCompleted,
+  onAdjusted,
+}: {
+  card: PunchCard;
+  onCompleted: () => void;
+  onAdjusted: () => void;
+}) {
   const [loading, setLoading] = useState(false);
+  const [delta, setDelta] = useState("1");
+  const [error, setError] = useState<string | null>(null);
   const depositShort = card.deposit_remaining < card.deposit_amount;
 
   async function handleComplete() {
@@ -263,22 +284,158 @@ function PunchCardRow({ card, onCompleted }: { card: PunchCard; onCompleted: () 
     onCompleted();
   }
 
+  async function handleAdjust(sign: 1 | -1) {
+    const hours = Number(delta);
+    if (!hours || hours <= 0) {
+      setError("יש להזין מספר שעות תקין");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const result = await adjustPunchCardHoursAction(card.id, hours * sign, "עדכון ידני ע\"י אדמין");
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onAdjusted();
+  }
+
   return (
-    <div className="flex items-center justify-between rounded-md border p-3 text-sm">
-      <div>
-        <p>
-          {card.hours_remaining}/{card.hours_purchased} שעות · תוקף {formatDateHe(new Date(card.expires_at))}
-          {!card.active && " · לא פעילה"}
-        </p>
-        <p className="text-muted-foreground">
-          פיקדון: {formatCurrency(card.deposit_remaining)}/{formatCurrency(card.deposit_amount)}
-        </p>
+    <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p>
+            {card.hours_remaining}/{card.hours_purchased} שעות · תוקף {formatDateHe(new Date(card.expires_at))}
+            {!card.active && " · לא פעילה"}
+          </p>
+          <p className="text-muted-foreground">
+            פיקדון: {formatCurrency(card.deposit_remaining)}/{formatCurrency(card.deposit_amount)}
+          </p>
+        </div>
+        {depositShort && (
+          <Button size="sm" variant="outline" onClick={handleComplete} disabled={loading}>
+            {loading ? "משלים..." : "השלמת פיקדון"}
+          </Button>
+        )}
       </div>
-      {depositShort && (
-        <Button size="sm" variant="outline" onClick={handleComplete} disabled={loading}>
-          {loading ? "משלים..." : "השלמת פיקדון"}
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={0.5}
+          step={0.5}
+          value={delta}
+          onChange={(e) => setDelta(e.target.value)}
+          className="w-20"
+        />
+        <Button size="sm" variant="outline" onClick={() => handleAdjust(1)} disabled={loading}>
+          + הוספת שעות
         </Button>
+        <Button size="sm" variant="ghost" onClick={() => handleAdjust(-1)} disabled={loading}>
+          − הפחתת שעות
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function SubscriptionRow({
+  subscription,
+  roomOptions,
+  onChanged,
+}: {
+  subscription: Subscription;
+  roomOptions: RoomOption[];
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [roomId, setRoomId] = useState(roomOptions[0]?.id ?? "");
+  const [weekday, setWeekday] = useState(0);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canAddSlot = subscription.status === "active" || subscription.status === "pending_cancellation";
+
+  async function handleAddSlot() {
+    setLoading(true);
+    setError(null);
+    const result = await addSessionSlotAction({
+      subscriptionId: subscription.id,
+      roomId,
+      weekday,
+      startTime,
+      endTime,
+    });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setOpen(false);
+    onChanged();
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <p>
+          {subscription.weekly_hours} ש׳/שבוע · {formatCurrency(subscription.monthly_price)}/חודש · סטטוס:{" "}
+          {subscription.status}
+        </p>
+        {canAddSlot && (
+          <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+            {open ? "סגירה" : "+ הוספת משבצת"}
+          </Button>
+        )}
+      </div>
+
+      {open && (
+        <div className="flex flex-wrap items-end gap-2 rounded-md bg-muted/40 p-2">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">חדר</Label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+            >
+              {roomOptions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">יום</Label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={weekday}
+              onChange={(e) => setWeekday(Number(e.target.value))}
+            >
+              {WEEKDAY_LABELS.map((label, i) => (
+                <option key={i} value={i}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">משעה</Label>
+            <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-28" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">עד שעה</Label>
+            <Input type="time" step={1800} value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-28" />
+          </div>
+          <Button size="sm" onClick={handleAddSlot} disabled={loading || !roomId}>
+            {loading ? "שומר..." : "הוספה"}
+          </Button>
+        </div>
       )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

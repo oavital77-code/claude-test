@@ -624,6 +624,20 @@ export type Database = {
         };
         Returns: { booking_id: string }[];
       };
+      admin_adjust_punch_card_hours: {
+        Args: { p_card_id: string; p_hours_delta: number; p_note: string };
+        Returns: undefined;
+      };
+      admin_add_session_slot: {
+        Args: {
+          p_subscription_id: string;
+          p_room_id: string;
+          p_weekday: number;
+          p_start_time: string;
+          p_end_time: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       user_role: UserRole;
