@@ -99,7 +99,11 @@ body {
   );
 }
 
-/* כתמי רקע רכים ומטושטשים — קצת עניין ויזואלי, בלי להסיח דעת מהתוכן. */
+/* כתמי רקע רכים ומטושטשים — קצת עניין ויזואלי, בלי להסיח דעת מהתוכן.
+   הצבע חייב להיות מוטבע ישירות ב-SVG (לא currentColor/CSS var): כש-SVG
+   נטען כ-background-image הוא מטופל כמסמך עצמאי בלי גישה לצבעי הדף
+   המארח, אז currentColor שם היה נופל תמיד לשחור. בהיר מהרקע עצמו
+   (לא primary/secondary הכהים) כדי שיאירו את הרקע במקום להכהות אותו. */
 .bg-decor {
   position: fixed;
   inset: 0;
@@ -120,9 +124,8 @@ body {
   inset-inline-end: -7rem;
   width: 34rem;
   height: 34rem;
-  color: var(--primary);
-  opacity: 0.16;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='currentColor' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='oklch(0.93 0.045 40)' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
 }
 
 .bg-decor .blob-2 {
@@ -130,9 +133,8 @@ body {
   inset-inline-start: -9rem;
   width: 32rem;
   height: 32rem;
-  color: var(--accent);
-  opacity: 0.18;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='currentColor' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
+  opacity: 0.6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='oklch(0.95 0.04 75)' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
 }
 
 .bg-decor .blob-3 {
@@ -140,18 +142,23 @@ body {
   inset-inline-start: 38%;
   width: 26rem;
   height: 26rem;
-  color: var(--secondary);
-  opacity: 0.2;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='currentColor' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
+  opacity: 0.65;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='oklch(0.96 0.03 85)' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
 }
 
-.dark .bg-decor .blob-1,
+.dark .bg-decor .blob-1 {
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='oklch(0.68 0.13 45)' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+}
+
 .dark .bg-decor .blob-2 {
-  opacity: 0.2;
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='oklch(0.5 0.08 70)' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
 }
 
 .dark .bg-decor .blob-3 {
   opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='oklch(0.32 0.025 45)' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
 }
 
 @media (prefers-reduced-motion: no-preference) {
