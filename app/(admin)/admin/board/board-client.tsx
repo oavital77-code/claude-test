@@ -96,29 +96,42 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
   );
   const gridSlots = useMemo(() => daySlots(date), [date]);
 
-  function gridStatusFor(roomId: string, slot: Slot): SlotStatus {
-    const hasBlock = blocks.some(
-      (rb) => rb.room_id === roomId && new Date(rb.starts_at) < slot.end && new Date(rb.ends_at) > slot.start,
-    );
-    if (hasBlock) return "blocked";
-    const hasBooking = bookings.some(
+  function bookingAt(roomId: string, slot: Slot) {
+    return bookings.find(
       (b) => b.room_id === roomId && new Date(b.starts_at) < slot.end && new Date(b.ends_at) > slot.start,
     );
-    return hasBooking ? "taken" : "free";
+  }
+  function blockAt(roomId: string, slot: Slot) {
+    return blocks.find(
+      (rb) => rb.room_id === roomId && new Date(rb.starts_at) < slot.end && new Date(rb.ends_at) > slot.start,
+    );
+  }
+
+  function gridStatusFor(roomId: string, slot: Slot): SlotStatus {
+    if (blockAt(roomId, slot)) return "blocked";
+    return bookingAt(roomId, slot) ? "taken" : "free";
   }
 
   function gridTitleFor(roomId: string, slot: Slot, status: SlotStatus): string | undefined {
     if (status === "taken") {
-      const b = bookings.find(
-        (b) => b.room_id === roomId && new Date(b.starts_at) < slot.end && new Date(b.ends_at) > slot.start,
-      );
+      const b = bookingAt(roomId, slot);
       if (!b) return undefined;
       return `${therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · ${SOURCE_LABELS[b.source]} · ${formatInTimeZone(new Date(b.starts_at), TIMEZONE, "HH:mm")}–${formatInTimeZone(new Date(b.ends_at), TIMEZONE, "HH:mm")}`;
     }
     if (status === "blocked") {
-      const rb = blocks.find(
-        (rb) => rb.room_id === roomId && new Date(rb.starts_at) < slot.end && new Date(rb.ends_at) > slot.start,
-      );
+      const rb = blockAt(roomId, slot);
+      return rb ? `חסום: ${rb.reason}` : undefined;
+    }
+    return undefined;
+  }
+
+  function gridLabelFor(roomId: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status === "taken") {
+      const b = bookingAt(roomId, slot);
+      return b ? (therapistById.get(b.user_id)?.full_name ?? "מטפל/ת") : undefined;
+    }
+    if (status === "blocked") {
+      const rb = blockAt(roomId, slot);
       return rb ? `חסום: ${rb.reason}` : undefined;
     }
     return undefined;
@@ -157,12 +170,14 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
       {viewMode === "grid" && (
         <div className="flex flex-col gap-3">
           <Legend />
-          <p className="text-xs text-muted-foreground">רחפו מעל משבצת תפוסה כדי לראות פרטים.</p>
+          <p className="text-xs text-muted-foreground">רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים.</p>
           <AvailabilityGrid
             columns={gridColumns}
             slots={gridSlots}
+            rowHeightClass="h-6"
             statusFor={(columnKey, slot) => gridStatusFor(columnKey, slot)}
             titleFor={(columnKey, slot, status) => gridTitleFor(columnKey, slot, status)}
+            labelFor={(columnKey, slot, status) => gridLabelFor(columnKey, slot, status)}
           />
         </div>
       )}

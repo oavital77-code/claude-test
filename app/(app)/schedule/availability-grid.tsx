@@ -44,6 +44,8 @@ export function AvailabilityGrid({
   onSlotClick,
   isSelected,
   titleFor,
+  labelFor,
+  rowHeightClass = "h-5",
 }: {
   columns: GridColumn[];
   slots: Slot[];
@@ -52,6 +54,10 @@ export function AvailabilityGrid({
   isSelected?: (columnKey: string, slot: Slot) => boolean;
   /** טקסט tooltip (title) לתא — למשל שם המטפל/ת בתא תפוס, לתצוגות read-only. */
   titleFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** טקסט קבוע בתוך התא (למשל שם קצר) — בניגוד ל-titleFor שדורש ריחוף. */
+  labelFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** גובה שורה — ברירת מחדל h-5 (מתאים ללוח המטפל בלי טקסט); לוח עם labelFor כדאי גבוה יותר. */
+  rowHeightClass?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -82,6 +88,7 @@ export function AvailabilityGrid({
                 const status = statusFor(col.key, slot);
                 const isFree = status === "free" && Boolean(onSlotClick);
                 const selected = isSelected?.(col.key, slot) ?? false;
+                const label = labelFor?.(col.key, slot, status);
                 return (
                   <div
                     key={col.key}
@@ -96,12 +103,19 @@ export function AvailabilityGrid({
                       }
                     }}
                     className={cn(
-                      "h-5 border-b border-l last:border-l-0",
+                      rowHeightClass,
+                      "flex items-center overflow-hidden border-b border-l last:border-l-0",
                       isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
                       STATUS_STYLES[status],
                       selected && "ring-2 ring-inset ring-primary",
                     )}
-                  />
+                  >
+                    {label && (
+                      <span className="truncate px-1 text-[9px] leading-none text-foreground/80 select-none">
+                        {label}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </FragmentRow>
