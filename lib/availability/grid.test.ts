@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addDaysToDateStr, weekDatesStartingSunday } from "./grid";
+import {
+  addDaysToDateStr,
+  addMonthsToDateStr,
+  monthCalendarDates,
+  startOfMonth,
+  weekDatesStartingSunday,
+} from "./grid";
 
 // באג אמיתי שנתפס: date-fns parseISO/addDays פועלים בזמן מקומי, ותערובת עם
 // formatInTimeZone(..., "UTC", ...) גרמה ל"יום הבא" לחזור לאותו תאריך בדיוק
@@ -46,5 +52,36 @@ describe("weekDatesStartingSunday", () => {
     const week = weekDatesStartingSunday("2026-08-16");
     expect(week[0]).toBe("2026-08-16");
     expect(week).toHaveLength(7);
+  });
+});
+
+describe("startOfMonth", () => {
+  it("מחזיר את ה-1 לחודש", () => {
+    expect(startOfMonth("2026-08-21")).toBe("2026-08-01");
+  });
+});
+
+describe("addMonthsToDateStr", () => {
+  it("חודש קדימה", () => {
+    expect(addMonthsToDateStr("2026-08-21", 1)).toBe("2026-09-21");
+  });
+
+  it("חודש אחורה", () => {
+    expect(addMonthsToDateStr("2026-08-21", -1)).toBe("2026-07-21");
+  });
+
+  it("מכווץ יום שלא קיים בחודש היעד (31 בינואר -> פברואר לא-מעוברת)", () => {
+    expect(addMonthsToDateStr("2026-01-31", 1)).toBe("2026-02-28");
+  });
+});
+
+describe("monthCalendarDates", () => {
+  it("מחזיר 42 תאריכים (6 שבועות), מתחיל ביום ראשון שמכיל את ה-1 לחודש", () => {
+    // 2026-08-01 הוא יום שבת -> יום ראשון הקודם הוא 2026-07-26
+    const dates = monthCalendarDates("2026-08-21");
+    expect(dates).toHaveLength(42);
+    expect(dates[0]).toBe("2026-07-26");
+    expect(dates).toContain("2026-08-01");
+    expect(dates).toContain("2026-08-31");
   });
 });

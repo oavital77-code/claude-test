@@ -3,10 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
+import { he } from "date-fns/locale";
 
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { TIMEZONE } from "@/lib/time";
-import { dayBoundaries, daySlots, todayInIsrael, addDaysToDateStr, type Slot } from "@/lib/availability/grid";
+import {
+  dayBoundaries,
+  daySlots,
+  todayInIsrael,
+  addDaysToDateStr,
+  addMonthsToDateStr,
+  weekDatesStartingSunday,
+  monthCalendarDates,
+  startOfMonth,
+  type Slot,
+} from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,7 +54,8 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
   const [blocks, setBlocks] = useState<RoomBlock[]>([]);
   const [formForRoom, setFormForRoom] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [viewMode, setViewMode] = useState<"list" | "grid" | "week" | "month">("list");
+  const [selectedRoomId, setSelectedRoomId] = useState<string>("");
 
   useEffect(() => {
     supabase
@@ -51,11 +64,30 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
       .eq("branch_id", branchId)
       .eq("active", true)
       .order("sort_order")
-      .then(({ data }) => setRooms(data ?? []));
+      .then(({ data }) => {
+        setRooms(data ?? []);
+        if (!data?.find((r) => r.id === selectedRoomId)) {
+          setSelectedRoomId(data?.[0]?.id ?? "");
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, branchId]);
 
   const roomIds = useMemo(() => rooms.map((r) => r.id), [rooms]);
-  const { start, end } = useMemo(() => dayBoundaries(date), [date]);
+  const weekDates = useMemo(() => weekDatesStartingSunday(date), [date]);
+  const monthDates = useMemo(() => monthCalendarDates(date), [date]);
+
+  // טווח השאילתה תלוי בתצוגה: יום בודד ל"רשימה"/"לוח זמנים", שבוע/חודש
+  // מלא ל"שבועי"/"חודשי" (כולל ריפוד החודש הקודם/הבא בתצוגה החודשית).
+  const { start, end } = useMemo(() => {
+    if (viewMode === "week") {
+      return { start: dayBoundaries(weekDates[0]).start, end: dayBoundaries(weekDates[6]).end };
+    }
+    if (viewMode === "month") {
+      return { start: dayBoundaries(monthDates[0]).start, end: dayBoundaries(monthDates[41]).end };
+    }
+    return dayBoundaries(date);
+  }, [viewMode, date, weekDates, monthDates]);
   const roomIdsKey = roomIds.join(",");
 
   const reload = useCallback(() => {
@@ -137,6 +169,56 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
     return undefined;
   }
 
+  // ═══ תצוגה שבועית: חדר נבחר אחד, 7 ימים כעמודות (כמו לוח הזמנים של המטפל) ═══
+  const weekColumns: GridColumn[] = useMemo(
+    () =>
+      weekDates.map((d) => ({
+        key: d,
+        label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM", { locale: he }),
+      })),
+    [weekDates],
+  );
+  const weekSlots = useMemo(() => daySlots(weekDates[0]), [weekDates]);
+
+  function resolveWeekSlot(columnKey: string, slot: Slot): Slot {
+    const { start: dayStart } = dayBoundaries(columnKey);
+    const offsetMs = slot.start.getTime() - dayBoundaries(weekDates[0]).start.getTime();
+    const start = new Date(dayStart.getTime() + offsetMs);
+    const end = new Date(start.getTime() + (slot.end.getTime() - slot.start.getTime()));
+    return { start, end };
+  }
+
+  // ═══ תצוגה חודשית: כמה הזמנות יש בכל יום (כל החדרים בסניף), לחיצה עוברת ל"רשימה" של אותו יום ═══
+  const monthCountsByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of monthDates) {
+      const { start: dayStart, end: dayEnd } = dayBoundaries(d);
+      const count = bookings.filter(
+        (b) => new Date(b.starts_at) < dayEnd && new Date(b.ends_at) > dayStart,
+      ).length;
+      if (count > 0) map.set(d, count);
+    }
+    return map;
+  }, [monthDates, bookings]);
+
+  function goToPrev() {
+    if (viewMode === "week") setDate(addDaysToDateStr(date, -7));
+    else if (viewMode === "month") setDate(addMonthsToDateStr(date, -1));
+    else setDate(addDaysToDateStr(date, -1));
+  }
+  function goToNext() {
+    if (viewMode === "week") setDate(addDaysToDateStr(date, 7));
+    else if (viewMode === "month") setDate(addMonthsToDateStr(date, 1));
+    else setDate(addDaysToDateStr(date, 1));
+  }
+
+  const dateLabel =
+    viewMode === "week"
+      ? `${formatInTimeZone(dayBoundaries(weekDates[0]).start, TIMEZONE, "dd/MM")} – ${formatInTimeZone(dayBoundaries(weekDates[6]).start, TIMEZONE, "dd/MM/yyyy")}`
+      : viewMode === "month"
+        ? formatInTimeZone(dayBoundaries(startOfMonth(date)).start, TIMEZONE, "MMMM yyyy", { locale: he })
+        : formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -146,11 +228,11 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
           </Button>
         ))}
         <div className="mx-2 h-6 w-px bg-border" />
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, -1))}>
+        <Button size="sm" variant="outline" onClick={goToPrev}>
           הקודם
         </Button>
-        <span className="text-sm font-medium">{formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}</span>
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, 1))}>
+        <span className="text-sm font-medium">{dateLabel}</span>
+        <Button size="sm" variant="outline" onClick={goToNext}>
           הבא
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
@@ -163,6 +245,25 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
         <Button size="sm" variant={viewMode === "grid" ? "default" : "outline"} onClick={() => setViewMode("grid")}>
           לוח זמנים
         </Button>
+        <Button size="sm" variant={viewMode === "week" ? "default" : "outline"} onClick={() => setViewMode("week")}>
+          שבועי
+        </Button>
+        <Button size="sm" variant={viewMode === "month" ? "default" : "outline"} onClick={() => setViewMode("month")}>
+          חודשי
+        </Button>
+        {viewMode === "week" && (
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={selectedRoomId}
+            onChange={(e) => setSelectedRoomId(e.target.value)}
+          >
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -179,6 +280,71 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
             titleFor={(columnKey, slot, status) => gridTitleFor(columnKey, slot, status)}
             labelFor={(columnKey, slot, status) => gridLabelFor(columnKey, slot, status)}
           />
+        </div>
+      )}
+
+      {viewMode === "week" && (
+        <div className="flex flex-col gap-3">
+          <Legend />
+          {selectedRoomId ? (
+            <>
+              <p className="text-xs text-muted-foreground">רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים.</p>
+              <AvailabilityGrid
+                columns={weekColumns}
+                slots={weekSlots}
+                rowHeightClass="h-6"
+                statusFor={(columnKey, slot) => gridStatusFor(selectedRoomId, resolveWeekSlot(columnKey, slot))}
+                titleFor={(columnKey, slot, status) =>
+                  gridTitleFor(selectedRoomId, resolveWeekSlot(columnKey, slot), status)
+                }
+                labelFor={(columnKey, slot, status) =>
+                  gridLabelFor(selectedRoomId, resolveWeekSlot(columnKey, slot), status)
+                }
+              />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">אין חדרים פעילים בסניף זה.</p>
+          )}
+        </div>
+      )}
+
+      {viewMode === "month" && (
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-7 overflow-hidden rounded-md border text-center text-xs font-medium">
+            {["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"].map((label) => (
+              <div key={label} className="border-b border-l bg-muted/50 p-2 last:border-l-0">
+                {label}
+              </div>
+            ))}
+            {monthDates.map((d) => {
+              const inCurrentMonth = d.slice(0, 7) === startOfMonth(date).slice(0, 7);
+              const isToday = d === todayInIsrael();
+              const count = monthCountsByDate.get(d) ?? 0;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => {
+                    setDate(d);
+                    setViewMode("list");
+                  }}
+                  className={cn(
+                    "flex h-20 flex-col items-start gap-1 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
+                    !inCurrentMonth && "bg-muted/20 text-muted-foreground",
+                  )}
+                >
+                  <span className={cn("text-xs", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>
+                    {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
+                  </span>
+                  {count > 0 && (
+                    <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">
+                      {count} הזמנות
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

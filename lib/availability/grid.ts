@@ -47,3 +47,28 @@ export function weekDatesStartingSunday(dateStr: string): string[] {
   const sunday = addDaysToDateStr(dateStr, -weekday);
   return Array.from({ length: 7 }, (_, i) => addDaysToDateStr(sunday, i));
 }
+
+export function startOfMonth(dateStr: string): string {
+  const [y, m] = dateStr.split("-").map(Number);
+  return formatInTimeZone(new Date(Date.UTC(y, m - 1, 1)), "UTC", "yyyy-MM-dd");
+}
+
+export function addMonthsToDateStr(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const targetMonthStart = new Date(Date.UTC(y, m - 1 + months, 1));
+  const daysInTargetMonth = new Date(
+    Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const day = Math.min(d, daysInTargetMonth);
+  return formatInTimeZone(
+    new Date(Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth(), day)),
+    "UTC",
+    "yyyy-MM-dd",
+  );
+}
+
+/** 42 תאריכים (6 שבועות, מתחיל ביום ראשון) שמכסים את כל החודש של dateStr, כולל ריפוד מהחודשים הסמוכים. */
+export function monthCalendarDates(dateStr: string): string[] {
+  const gridStart = weekDatesStartingSunday(startOfMonth(dateStr))[0];
+  return Array.from({ length: 42 }, (_, i) => addDaysToDateStr(gridStart, i));
+}

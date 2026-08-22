@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
+import { he } from "date-fns/locale";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -100,7 +101,7 @@ export function ScheduleClient({
     const end = dayBoundaries(weekDates[6]).end;
     const cols: GridColumn[] = weekDates.map((d) => ({
       key: d,
-      label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM"),
+      label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM", { locale: he }),
     }));
     return {
       rangeStart: start,
