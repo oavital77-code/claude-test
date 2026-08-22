@@ -27,12 +27,18 @@ export interface Slot {
   end: Date;
 }
 
-/** 48 בלוקים של 30 דקות ליום נתון. ר' spec §3.7. */
+// טווח תצוגה בלוחות הזמנים (אדמין + מטפלים) — לא קשור לחישוב חפיפה/זמינות
+// עצמו, שממשיך לפעול על טווחי זמן מלאים. ר' spec §3.7.
+export const GRID_START_HOUR = 7;
+export const GRID_END_HOUR = 22;
+
+/** בלוקים של 30 דקות בין GRID_START_HOUR ל-GRID_END_HOUR ליום נתון. */
 export function daySlots(dateStr: string): Slot[] {
-  const { start } = dayBoundaries(dateStr);
-  const count = (24 * 60) / BOOKING_BLOCK_MINUTES;
+  const { start: dayStart } = dayBoundaries(dateStr);
+  const rangeStart = new Date(dayStart.getTime() + GRID_START_HOUR * 60 * 60_000);
+  const count = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / BOOKING_BLOCK_MINUTES;
   return Array.from({ length: count }, (_, i) => {
-    const slotStart = new Date(start.getTime() + i * BOOKING_BLOCK_MINUTES * 60_000);
+    const slotStart = new Date(rangeStart.getTime() + i * BOOKING_BLOCK_MINUTES * 60_000);
     const slotEnd = new Date(slotStart.getTime() + BOOKING_BLOCK_MINUTES * 60_000);
     return { start: slotStart, end: slotEnd };
   });
