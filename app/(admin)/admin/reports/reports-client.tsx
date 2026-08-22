@@ -75,28 +75,30 @@ function ReportCard({
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">אין נתונים.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b text-right">
-              <tr>
-                {headers.map((h) => (
-                  <th key={h} className="p-1.5">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  {row.map((cell, j) => (
-                    <td key={j} className="p-1.5">
-                      {cell}
-                    </td>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="border-b text-right">
+                <tr>
+                  {headers.map((h) => (
+                    <th key={h} className="p-1.5">
+                      {h}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    {row.map((cell, j) => (
+                      <td key={j} className="p-1.5">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </CardContent>
     </Card>

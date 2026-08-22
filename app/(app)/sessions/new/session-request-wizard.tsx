@@ -139,8 +139,8 @@ export function SessionRequestWizard({
       <Card className="max-w-md flex-1">
         <CardContent className="flex flex-col gap-3 p-6">
           <h2 className="text-lg font-medium">בחירת משבצות</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 flex flex-col gap-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="col-span-1 flex flex-col gap-1.5 sm:col-span-2">
               <Label>חדר</Label>
               <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -168,7 +168,7 @@ export function SessionRequestWizard({
                 ))}
               </select>
             </div>
-            <div />
+            <div className="hidden sm:block" />
             <div className="flex flex-col gap-1.5">
               <Label>משעה</Label>
               <Input type="time" step={1800} value={draftStart} onChange={(e) => setDraftStart(e.target.value)} />

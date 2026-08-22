@@ -61,7 +61,7 @@ export function WaitlistClient({
       <Card className="max-w-lg">
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label>סניף</Label>
                 <select
@@ -98,7 +98,7 @@ export function WaitlistClient({
                 <Label>תאריך</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} min={todayInIsrael()} />
               </div>
-              <div />
+              <div className="hidden sm:block" />
               <div className="flex flex-col gap-1.5">
                 <Label>משעה</Label>
                 <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
