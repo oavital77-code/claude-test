@@ -6,8 +6,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/client";
 import {
-  emailFormSchema,
-  otpFormSchema,
+  authFormSchema,
   detailsFormSchema,
   type DetailsFormValues,
 } from "@/lib/validation/registration";
@@ -25,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { completeRegistration } from "./actions";
 
-type Step = "email" | "otp" | "details" | "terms";
+type Step = "auth" | "details" | "terms";
 
 const emptyDetails: DetailsFormValues = {
   full_name: "",
@@ -45,83 +44,96 @@ export function RegistrationWizard({
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "email");
+  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "auth");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [details, setDetails] = useState<DetailsFormValues>(emptyDetails);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
-    linkExpiredError ? "הקישור פג תוקף או שכבר נעשה בו שימוש. יש לבקש קוד חדש." : null,
+    linkExpiredError ? "הקישור פג תוקף או שכבר נעשה בו שימוש." : null,
   );
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  /** בודק אם למשתמש שהתחבר/נרשם כרגע כבר יש פרופיל, ומנתב בהתאם. */
+  async function proceedAfterAuth(userId: string) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile) {
+      router.push("/");
+      router.refresh();
+      return;
+    }
+    setStep("details");
+  }
+
+  async function handleRegister(e?: React.FormEvent) {
+    e?.preventDefault();
     setError(null);
 
-    const parsed = emailFormSchema.safeParse({ email });
+    const parsed = authFormSchema.safeParse({ email, password });
     if (!parsed.success) {
       setError(z.prettifyError(parsed.error));
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
+    const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password: parsed.data.password,
     });
     setLoading(false);
 
     if (error) {
-      console.error("signInWithOtp failed", error);
-      if (error.status === 429 || /rate limit|security purposes/i.test(error.message)) {
-        setError("נשלחו יותר מדי בקשות בזמן קצר. יש להמתין כמה דקות ולנסות שוב.");
+      if (/already registered|already exists|user_already_exists/i.test(error.message)) {
+        setError("כתובת המייל כבר בשימוש. אם זה אתה — לחץ/י על \"התחברות\" במקום.");
       } else {
-        setError(`שליחת הקוד נכשלה: ${error.message}`);
+        setError(`ההרשמה נכשלה: ${error.message}`);
       }
       return;
     }
+    if (!data.user) {
+      setError("ההרשמה נכשלה. נסו שוב.");
+      return;
+    }
+    if (!data.session) {
+      // נדרש אישור מייל בצד Supabase (עדיין לא כובה בהגדרות) — אין לנו כרגע
+      // דרך לשלוח את המייל הזה בפועל (ר' באג Resend sandbox).
+      setError("ההרשמה נוצרה אך נדרש אישור מייל בצד השרת. יש לפנות למנהל המערכת.");
+      return;
+    }
+
     setEmail(parsed.data.email);
-    setStep("otp");
+    await proceedAfterAuth(data.user.id);
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(e?: React.FormEvent) {
+    e?.preventDefault();
     setError(null);
 
-    const parsed = otpFormSchema.safeParse({ code });
+    const parsed = authFormSchema.safeParse({ email, password });
     if (!parsed.success) {
       setError(z.prettifyError(parsed.error));
       return;
     }
 
     setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: "email",
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: parsed.data.email,
+      password: parsed.data.password,
     });
-    if (error || !data.user) {
-      setLoading(false);
-      setError("קוד שגוי או שפג תוקפו. נסו שוב.");
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", data.user.id)
-      .maybeSingle();
     setLoading(false);
 
-    if (profile) {
-      router.push("/");
+    if (error || !data.user) {
+      setError("אימייל או סיסמה שגויים.");
       return;
     }
-    setStep("details");
+
+    setEmail(parsed.data.email);
+    await proceedAfterAuth(data.user.id);
   }
 
   function handleSubmitDetails(e: React.FormEvent) {
@@ -162,8 +174,8 @@ export function RegistrationWizard({
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {step === "email" && (
-          <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+        {step === "auth" && (
+          <form onSubmit={handleRegister} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">כתובת מייל</Label>
               <Input
@@ -178,48 +190,33 @@ export function RegistrationWizard({
                 autoFocus
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "שולח..." : "שליחת קוד אימות"}
-            </Button>
-          </form>
-        )}
-
-        {step === "otp" && (
-          <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              נשלח מייל לכתובת {email} — אפשר להזין כאן את הקוד בן 6
-              הספרות מהמייל, או ללחוץ על הקישור שבמייל.
-            </p>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="code">קוד אימות</Label>
+              <Label htmlFor="password">סיסמה</Label>
               <Input
-                id="code"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                id="password"
+                type="password"
                 dir="ltr"
-                className="text-center tracking-[0.5em]"
-                autoFocus
+                className="text-left"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">לפחות 8 תווים</p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "מאמת..." : "אימות"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setStep("email");
-                setCode("");
-                setError(null);
-              }}
-            >
-              שינוי כתובת מייל
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? "נרשם/ת..." : "הרשמה"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                className="flex-1"
+                onClick={() => handleLogin()}
+              >
+                {loading ? "מתחבר/ת..." : "התחברות"}
+              </Button>
+            </div>
           </form>
         )}
 
@@ -320,10 +317,8 @@ export function RegistrationWizard({
 
 function stepDescription(step: Step) {
   switch (step) {
-    case "email":
-      return "התחברות / הרשמה באמצעות כתובת מייל";
-    case "otp":
-      return "אימות כתובת המייל";
+    case "auth":
+      return "התחברות / הרשמה עם מייל וסיסמה";
     case "details":
       return "פרטים אישיים";
     case "terms":

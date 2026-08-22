@@ -1,12 +1,9 @@
 import { z } from "zod";
 import { toE164Israel } from "@/lib/phone";
 
-export const emailFormSchema = z.object({
+export const authFormSchema = z.object({
   email: z.string().trim().email("כתובת מייל לא תקינה"),
-});
-
-export const otpFormSchema = z.object({
-  code: z.string().regex(/^\d{6}$/, "יש להזין קוד בן 6 ספרות"),
+  password: z.string().min(8, "הסיסמה חייבת להכיל לפחות 8 תווים"),
 });
 
 export const detailsFormSchema = z.object({
