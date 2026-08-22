@@ -7,6 +7,15 @@ import { cn } from "@/lib/utils";
 import { TIMEZONE } from "@/lib/time";
 import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Database } from "@/lib/supabase/types";
+
+type BookingSource = Database["public"]["Tables"]["bookings"]["Row"]["source"];
+
+const SOURCE_LABELS: Record<BookingSource, string> = {
+  punch_card: "כרטיסייה",
+  session: "ססיה",
+  admin_comp: "שיבוץ אדמין",
+};
 
 export default async function AdminDashboardPage() {
   const { profile } = await requireAdmin();
@@ -27,6 +36,9 @@ export default async function AdminDashboardPage() {
     { count: pendingSessions },
     { data: failedPayments },
     { data: expiringCards },
+    { data: todayBookingsList },
+    { data: rooms },
+    { data: branches },
   ] = await Promise.all([
     supabase.from("rooms").select("id", { count: "exact", head: true }).eq("active", true),
     supabase
@@ -50,9 +62,40 @@ export default async function AdminDashboardPage() {
       .lte("expires_at", in30Days)
       .gte("expires_at", todayStart)
       .limit(5),
+    // כל הפעילות (הזמנות) של היום, בכל הסניפים והחדרים, למסך הראשי.
+    supabase
+      .from("bookings")
+      .select("id, room_id, user_id, starts_at, ends_at, source")
+      .eq("status", "confirmed")
+      .gte("starts_at", todayStart)
+      .lt("starts_at", todayEnd)
+      .order("starts_at", { ascending: true }),
+    supabase.from("rooms").select("id, name, branch_id"),
+    supabase.from("branches").select("id, name"),
   ]);
 
   const monthRevenue = (monthPayments ?? []).reduce((sum, p) => sum + p.amount_total, 0);
+
+  const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const roomById = new Map((rooms ?? []).map((r) => [r.id, r]));
+  const therapistIds = [...new Set((todayBookingsList ?? []).map((b) => b.user_id))];
+  const { data: therapistProfiles } = therapistIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", therapistIds)
+    : { data: [] };
+  const therapistNameById = new Map((therapistProfiles ?? []).map((p) => [p.id, p.full_name]));
+
+  const todayActivity = (todayBookingsList ?? []).map((b) => {
+    const room = roomById.get(b.room_id);
+    return {
+      id: b.id,
+      startsAt: b.starts_at,
+      endsAt: b.ends_at,
+      roomName: room?.name ?? b.room_id,
+      branchName: room ? (branchNameById.get(room.branch_id) ?? "") : "",
+      therapistName: therapistNameById.get(b.user_id) ?? "מטפל/ת",
+      source: b.source,
+    };
+  });
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4">
@@ -69,6 +112,31 @@ export default async function AdminDashboardPage() {
         />
         <Metric label="כרטיסיות פגות תוך 30 יום" value={String(expiringCards?.length ?? 0)} />
       </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <p className="font-medium">כל הפעילות היום</p>
+          {todayActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">אין הזמנות היום.</p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-sm">
+              {todayActivity.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-md border p-2">
+                  <span>
+                    <span dir="ltr">
+                      {formatInTimeZone(new Date(a.startsAt), TIMEZONE, "HH:mm")}–
+                      {formatInTimeZone(new Date(a.endsAt), TIMEZONE, "HH:mm")}
+                    </span>{" "}
+                    · {a.branchName ? `${a.branchName} · ` : ""}
+                    {a.roomName} · {a.therapistName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{SOURCE_LABELS[a.source]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {failedPayments && failedPayments.length > 0 && (
         <Card>
