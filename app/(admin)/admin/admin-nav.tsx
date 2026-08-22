@@ -12,7 +12,6 @@ const LINKS = [
   { href: "/admin/board", label: "לוח מלא" },
   { href: "/admin/therapists", label: "מטפלים" },
   { href: "/admin/sessions", label: "בקשות ססיה" },
-  { href: "/admin/overruns", label: "רישום חריגה" },
   { href: "/admin/payments", label: "תשלומים" },
   { href: "/admin/rooms", label: "סניפים וחדרים" },
   { href: "/admin/settings", label: "הגדרות" },
