@@ -2,14 +2,38 @@ import Link from "next/link";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateHe, formatDateTimeHe, accessWindow, formatTimeHe } from "@/lib/time";
+import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Database } from "@/lib/supabase/types";
+
+type SubStatus = Database["public"]["Tables"]["session_subscriptions"]["Row"]["status"];
+
+const SUB_STATUS_LABELS: Record<SubStatus, string> = {
+  requested: "ממתין לאישור הנהלה",
+  awaiting_payment: "ממתין לתשלום",
+  active: "פעיל",
+  rejected: "נדחה",
+  pending_cancellation: "בביטול",
+  cancelled: "בוטל",
+  expired: "פג תוקף",
+};
+
+const SUB_STATUS_STYLES: Record<SubStatus, string> = {
+  requested: "text-amber-600 dark:text-amber-400",
+  awaiting_payment: "text-amber-600 dark:text-amber-400",
+  active: "text-emerald-600 dark:text-emerald-400",
+  rejected: "text-destructive",
+  pending_cancellation: "text-muted-foreground",
+  cancelled: "text-muted-foreground",
+  expired: "text-muted-foreground",
+};
 
 export default async function HomePage() {
   const { userId, profile } = await requireTherapistProfile();
   const supabase = await createClient();
 
-  const [{ data: cards }, { data: nextBooking }] = await Promise.all([
+  const [{ data: cards }, { data: nextBooking }, { data: sessionSubscriptions }] = await Promise.all([
     supabase
       .from("punch_cards")
       .select("hours_remaining, deposit_amount, deposit_remaining, expires_at")
@@ -25,6 +49,12 @@ export default async function HomePage() {
       .order("starts_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("session_subscriptions")
+      .select("id, status, weekly_hours, monthly_price, next_billing_date")
+      .eq("user_id", userId)
+      .in("status", ["requested", "awaiting_payment", "active", "pending_cancellation"])
+      .order("created_at", { ascending: false }),
   ]);
 
   const hoursRemaining = (cards ?? []).reduce((sum, c) => sum + c.hours_remaining, 0);
@@ -92,6 +122,34 @@ export default async function HomePage() {
           )}
         </CardContent>
       </Card>
+
+      {sessionSubscriptions && sessionSubscriptions.length > 0 && (
+        <Card className="w-full max-w-sm">
+          <CardContent className="flex flex-col gap-2 p-4 text-right">
+            <p className="text-sm text-muted-foreground">הססיות שלי</p>
+            {sessionSubscriptions.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
+              >
+                <div>
+                  <p className="font-medium">{s.weekly_hours} שעות שבועיות</p>
+                  <p className={`text-xs ${SUB_STATUS_STYLES[s.status]}`}>{SUB_STATUS_LABELS[s.status]}</p>
+                  {s.status === "active" && s.next_billing_date && (
+                    <p className="text-xs text-muted-foreground">
+                      חיוב הבא: {formatDateHe(new Date(s.next_billing_date))}
+                    </p>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">{formatCurrency(s.monthly_price)}/חודש</p>
+              </div>
+            ))}
+            <Button asChild variant="outline" size="sm" className="mt-1">
+              <Link href="/sessions">כל הססיות שלי</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {nextBooking && (
         <Card className="w-full max-w-sm">
