@@ -34,7 +34,7 @@ export type PaymentType =
   | "overrun"
   | "deposit_topup";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
-export type PaymentMethod = "credit_card" | "bit" | "paybox";
+export type PaymentMethod = "credit_card" | "bit" | "paybox" | "cash";
 export type OverrunSource = "deposit" | "charge";
 
 export type Database = {
@@ -535,6 +535,14 @@ export type Database = {
       create_session_initial_payment: {
         Args: { p_subscription_id: string };
         Returns: { payment_id: string; amount_total: number }[];
+      };
+      admin_activate_session_cash_payment: {
+        Args: { p_payment_id: string; p_method: PaymentMethod; p_transaction_uid: string };
+        Returns: undefined;
+      };
+      admin_mark_session_recurring_paid_cash: {
+        Args: { p_payment_id: string; p_method: PaymentMethod; p_transaction_uid: string };
+        Returns: undefined;
       };
       activate_session_payment: {
         Args: {
