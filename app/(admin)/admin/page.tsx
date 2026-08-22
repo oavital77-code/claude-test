@@ -30,7 +30,8 @@ export default async function AdminDashboardPage() {
 
   const [
     { data: todayBookingsList },
-    { data: newBookingsToday },
+    { count: newPunchCardBookingsToday },
+    { count: newSessionRequestsToday },
     { data: expiringCardsThisWeek },
     { data: endingSessionsThisWeek },
     { data: rooms },
@@ -44,13 +45,22 @@ export default async function AdminDashboardPage() {
       .gte("starts_at", todayStart)
       .lt("starts_at", todayEnd)
       .order("starts_at", { ascending: true }),
-    // הזמנות חדשות שנוצרו היום — מתי ה*הזמנה עצמה* בוצעה (created_at), לא מתי התור.
+    // הזמנת כרטיסייה חדשה שנוצרה היום — פעולה אמיתית של מטפל/ת.
     supabase
       .from("bookings")
-      .select("id, source")
+      .select("id", { count: "exact", head: true })
       .eq("status", "confirmed")
+      .eq("source", "punch_card")
       .gte("created_at", todayStart)
       .lt("created_at", todayEnd),
+    // בקשת ססיה חדשה שהוגשה היום. לא סופרים שורות bookings של source='session' —
+    // אלה נוצרות בעשרות בכל לילה ע"י ה-cron materialize_session_bookings שממלא
+    // רולינג 90 יום מראש לכל ססיה פעילה, ולא משקפות פעולה שמישהו ביצע היום.
+    supabase
+      .from("session_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .gte("requested_at", todayStart)
+      .lt("requested_at", todayEnd),
     // כרטיסיות שפגות בשבוע הנוכחי (ראשון-שבת)
     supabase
       .from("punch_cards")
@@ -99,11 +109,7 @@ export default async function AdminDashboardPage() {
     };
   });
 
-  const newTodayBySource: Record<BookingSource, number> = { punch_card: 0, session: 0, admin_comp: 0 };
-  for (const b of newBookingsToday ?? []) {
-    newTodayBySource[b.source]++;
-  }
-  const newTodayTotal = (newBookingsToday ?? []).length;
+  const newTodayTotal = (newPunchCardBookingsToday ?? 0) + (newSessionRequestsToday ?? 0);
 
   const endingThisWeek = [
     ...(expiringCardsThisWeek ?? []).map((c) => ({
@@ -129,8 +135,7 @@ export default async function AdminDashboardPage() {
           <p className="font-medium">הזמנות חדשות היום</p>
           <p className="text-2xl font-semibold">{newTodayTotal}</p>
           <p className="text-sm text-muted-foreground">
-            {newTodayBySource.punch_card} כרטיסייה · {newTodayBySource.session} ססיה
-            {newTodayBySource.admin_comp > 0 ? ` · ${newTodayBySource.admin_comp} שיבוץ אדמין` : ""}
+            {newPunchCardBookingsToday ?? 0} כרטיסייה · {newSessionRequestsToday ?? 0} בקשות ססיה
           </p>
         </CardContent>
       </Card>
