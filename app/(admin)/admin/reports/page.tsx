@@ -16,6 +16,7 @@ export default async function AdminReportsPage() {
     { data: recentPayments },
     { data: recentBookings },
     { data: rooms },
+    { data: branches },
     { data: therapists },
     { data: recentBookingsByUser },
     { data: allActiveCards },
@@ -23,7 +24,8 @@ export default async function AdminReportsPage() {
   ] = await Promise.all([
     supabase.from("payments").select("amount_total, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo),
     supabase.from("bookings").select("room_id").eq("status", "confirmed").gte("starts_at", thirtyDaysAgo),
-    supabase.from("rooms").select("id, name"),
+    supabase.from("rooms").select("id, name, branch_id"),
+    supabase.from("branches").select("id, name").order("sort_order", { ascending: true }),
     supabase
       .from("profiles")
       .select("id, full_name, phone, created_at")
@@ -51,14 +53,18 @@ export default async function AdminReportsPage() {
   }
   const monthlyRevenue = [...revenueByMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
 
-  // תפוסה לפי חדר (30 יום אחרונים)
-  const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]));
+  // תפוסה לפי חדר (30 יום אחרונים) — לפי סניף, כי שני סניפים יכולים
+  // להשתמש באותו שם חדר ("Room 2" וכו') על room_id שונה לגמרי.
+  const roomById = new Map((rooms ?? []).map((r) => [r.id, r]));
   const occupancyByRoom = new Map<string, number>();
   for (const b of recentBookings ?? []) {
     occupancyByRoom.set(b.room_id, (occupancyByRoom.get(b.room_id) ?? 0) + 1);
   }
   const occupancy = [...occupancyByRoom.entries()]
-    .map(([roomId, count]) => ({ room: roomNameById.get(roomId) ?? roomId, count }))
+    .map(([roomId, count]) => {
+      const room = roomById.get(roomId);
+      return { room: room?.name ?? roomId, branchId: room?.branch_id ?? "", count };
+    })
     .sort((a, b) => b.count - a.count);
 
   // שעות כרטיסיות לפי מטפל/ת (נותרו + נרכשו, כולל יתרה 0)
@@ -104,6 +110,7 @@ export default async function AdminReportsPage() {
       <ReportsClient
         monthlyRevenue={monthlyRevenue}
         occupancy={occupancy}
+        branches={branches ?? []}
         inactiveTherapists={inactive}
         cardHoursByTherapist={cardHoursByTherapist}
         sessionsByTherapist={sessionsByTherapist}
