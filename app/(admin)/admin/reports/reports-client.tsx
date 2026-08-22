@@ -21,14 +21,12 @@ const SUB_STATUS_LABELS: Record<SubStatus, string> = {
 export function ReportsClient({
   monthlyRevenue,
   occupancy,
-  openBalances,
   inactiveTherapists,
   cardHoursByTherapist,
   sessionsByTherapist,
 }: {
   monthlyRevenue: [string, number][];
   occupancy: { room: string; count: number }[];
-  openBalances: { name: string; hours: number }[];
   inactiveTherapists: { name: string; phone: string }[];
   cardHoursByTherapist: { name: string; remaining: number; purchased: number }[];
   sessionsByTherapist: { name: string; status: SubStatus; weeklyHours: number; monthlyPrice: number }[];
@@ -67,13 +65,6 @@ export function ReportsClient({
         ])}
         csvRows={sessionsByTherapist.map((s) => [s.name, SUB_STATUS_LABELS[s.status], s.weeklyHours, s.monthlyPrice])}
         filename="ססיות-לפי-מטפל.csv"
-      />
-      <ReportCard
-        title="יתרות פתוחות"
-        headers={["מטפל/ת", "שעות"]}
-        rows={openBalances.map((b) => [b.name, String(b.hours)])}
-        csvRows={openBalances.map((b) => [b.name, b.hours])}
-        filename="יתרות-פתוחות.csv"
       />
       <ReportCard
         title="מטפלים לא פעילים 60 יום"
