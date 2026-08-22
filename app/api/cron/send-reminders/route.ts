@@ -4,10 +4,11 @@ import { sendEmail } from "@/lib/email/resend";
 import { bookingReminderEmail, lowBalanceEmail, cardExpiringEmail } from "@/lib/email/templates";
 import { accessWindow } from "@/lib/time";
 import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
+import { withCronAlert } from "@/lib/cron/guard";
 
 // יומי 09:00 — תזכורות 24 שעות לפני + התראות יתרה נמוכה/כרטיסייה פגה. ר' spec §10.
 // כל התראה מסומנת עם *_notified_at כדי שלא תישלח שוב בכל ריצה (§20260824000001).
-export async function GET() {
+export const GET = withCronAlert("send-reminders", async () => {
   const supabase = createAdminClient();
   const today = todayInIsrael();
   const tomorrow = addDaysToDateStr(today, 1);
@@ -90,4 +91,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ reminders, lowBalance, expiring });
-}
+});

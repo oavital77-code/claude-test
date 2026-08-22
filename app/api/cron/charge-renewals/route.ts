@@ -4,12 +4,13 @@ import { chargeByToken } from "@/lib/payplus/client";
 import { sendEmail } from "@/lib/email/resend";
 import { sessionRenewedEmail, paymentFailedEmail } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
+import { withCronAlert } from "@/lib/cron/guard";
 
 // יומי 06:00 — charge_session_renewals. ר' spec §6.7.
 // chargeByToken אינו ממומש עדיין (ר' lib/payplus/client.ts) — עד שיאומת מול
 // תיעוד PayPlus, כל ניסיון חיוב נכשל ועובר בנתיב הכישלון התקין (retry
 // count -> השעיה אחרי 3 נסיונות), במקום להיתקע בשקט. זה מתועד, לא מוסתר.
-export async function GET() {
+export const GET = withCronAlert("charge-renewals", async () => {
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
   const adminEmails = await getAdminEmails(supabase);
@@ -90,7 +91,7 @@ export async function GET() {
   }
 
   return NextResponse.json({ checked: dueSubscriptions?.length ?? 0, results });
-}
+});
 
 async function notifyRenewalSucceeded(email: string, amountTotal: number, invoiceUrl?: string) {
   const { subject, html } = sessionRenewedEmail(amountTotal, invoiceUrl);

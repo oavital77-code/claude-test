@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { queryPaymentStatus } from "@/lib/payplus/client";
+import { withCronAlert } from "@/lib/cron/guard";
 
 // כל 15 דק' — משלים callback-ים שאבדו: תשלומים ב-pending מעל 15 דק' (spec §13).
 // queryPaymentStatus אינו ממומש עדיין (ר' lib/payplus/client.ts) — עד שיאומת
 // מול תיעוד PayPlus, ה-route הזה מזהה נכון את התשלומים התקועים אבל לא מצליח
 // לשחזר אותם, ורק רושם זאת. זה מתועד ולא מוסתר: קריאה שנכשלת לא מפילה את
 // שאר הבאטש.
-export async function GET() {
+export const GET = withCronAlert("sync-payments", async () => {
   const supabase = createAdminClient();
 
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60_000).toISOString();
@@ -54,4 +55,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ checked: stalePayments?.length ?? 0, results });
-}
+});

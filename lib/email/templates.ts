@@ -182,6 +182,17 @@ export function bookingReminderEmail(params: {
   };
 }
 
+export function cronFailedAdminEmail(params: { jobName: string; detail: string }): EmailContent {
+  return {
+    subject: `🚨 משימת cron נכשלה — ${params.jobName}`,
+    html: emailLayout(`
+      <p>משימת ה-cron הבאה נכשלה ודורשת בדיקה:</p>
+      <p style="font-weight:700;">${params.jobName}</p>
+      <p style="color:#6b7570;font-family:monospace;font-size:13px;">${params.detail}</p>
+    `),
+  };
+}
+
 export function waitlistSlotAvailableEmail(params: {
   roomName: string;
   date: string;
