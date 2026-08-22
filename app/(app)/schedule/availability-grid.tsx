@@ -43,12 +43,15 @@ export function AvailabilityGrid({
   statusFor,
   onSlotClick,
   isSelected,
+  titleFor,
 }: {
   columns: GridColumn[];
   slots: Slot[];
   statusFor: (columnKey: string, slot: Slot) => SlotStatus;
-  onSlotClick: (columnKey: string, slot: Slot, status: SlotStatus) => void;
+  onSlotClick?: (columnKey: string, slot: Slot, status: SlotStatus) => void;
   isSelected?: (columnKey: string, slot: Slot) => boolean;
+  /** טקסט tooltip (title) לתא — למשל שם המטפל/ת בתא תפוס, לתצוגות read-only. */
+  titleFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -77,18 +80,19 @@ export function AvailabilityGrid({
               </div>
               {columns.map((col) => {
                 const status = statusFor(col.key, slot);
-                const isFree = status === "free";
+                const isFree = status === "free" && Boolean(onSlotClick);
                 const selected = isSelected?.(col.key, slot) ?? false;
                 return (
                   <div
                     key={col.key}
                     role={isFree ? "button" : undefined}
                     tabIndex={isFree ? 0 : undefined}
-                    onClick={() => isFree && onSlotClick(col.key, slot, status)}
+                    title={titleFor?.(col.key, slot, status)}
+                    onClick={() => isFree && onSlotClick?.(col.key, slot, status)}
                     onKeyDown={(e) => {
                       if (isFree && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault();
-                        onSlotClick(col.key, slot, status);
+                        onSlotClick?.(col.key, slot, status);
                       }
                     }}
                     className={cn(

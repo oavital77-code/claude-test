@@ -8,7 +8,9 @@ export default async function AdminBoardPage() {
 
   const [{ data: branches }, { data: therapists }] = await Promise.all([
     supabase.from("branches").select("*").eq("active", true).order("sort_order"),
-    supabase.from("profiles").select("id, full_name, phone").eq("role", "therapist").order("full_name"),
+    // בלי סינון role: הזמנה יכולה להיות משוייכת גם למשתמש עם role='admin'
+    // (למשל שיבוץ ידני לבדיקה) — ורוצים תמיד להציג שם אמיתי, לא "מטפל/ת".
+    supabase.from("profiles").select("id, full_name, phone").order("full_name"),
   ]);
 
   return (

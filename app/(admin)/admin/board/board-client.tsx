@@ -6,11 +6,13 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { createClient } from "@/lib/supabase/client";
 import { TIMEZONE } from "@/lib/time";
-import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
+import { dayBoundaries, daySlots, todayInIsrael, addDaysToDateStr, type Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
+import type { SlotStatus } from "@/lib/availability/types";
+import { AvailabilityGrid, Legend, type GridColumn } from "@/app/(app)/schedule/availability-grid";
 import {
   adminCancelBookingAction,
   adminCreateBookingAction,
@@ -40,6 +42,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
   const [blocks, setBlocks] = useState<RoomBlock[]>([]);
   const [formForRoom, setFormForRoom] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   useEffect(() => {
     supabase
@@ -87,6 +90,40 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
 
   const therapistById = useMemo(() => new Map(therapists.map((t) => [t.id, t])), [therapists]);
 
+  const gridColumns: GridColumn[] = useMemo(
+    () => rooms.map((r) => ({ key: r.id, label: r.name })),
+    [rooms],
+  );
+  const gridSlots = useMemo(() => daySlots(date), [date]);
+
+  function gridStatusFor(roomId: string, slot: Slot): SlotStatus {
+    const hasBlock = blocks.some(
+      (rb) => rb.room_id === roomId && new Date(rb.starts_at) < slot.end && new Date(rb.ends_at) > slot.start,
+    );
+    if (hasBlock) return "blocked";
+    const hasBooking = bookings.some(
+      (b) => b.room_id === roomId && new Date(b.starts_at) < slot.end && new Date(b.ends_at) > slot.start,
+    );
+    return hasBooking ? "taken" : "free";
+  }
+
+  function gridTitleFor(roomId: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status === "taken") {
+      const b = bookings.find(
+        (b) => b.room_id === roomId && new Date(b.starts_at) < slot.end && new Date(b.ends_at) > slot.start,
+      );
+      if (!b) return undefined;
+      return `${therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · ${SOURCE_LABELS[b.source]} · ${formatInTimeZone(new Date(b.starts_at), TIMEZONE, "HH:mm")}–${formatInTimeZone(new Date(b.ends_at), TIMEZONE, "HH:mm")}`;
+    }
+    if (status === "blocked") {
+      const rb = blocks.find(
+        (rb) => rb.room_id === roomId && new Date(rb.starts_at) < slot.end && new Date(rb.ends_at) > slot.start,
+      );
+      return rb ? `חסום: ${rb.reason}` : undefined;
+    }
+    return undefined;
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -106,10 +143,31 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
           היום
         </Button>
+        <div className="mx-2 h-6 w-px bg-border" />
+        <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} onClick={() => setViewMode("list")}>
+          רשימה
+        </Button>
+        <Button size="sm" variant={viewMode === "grid" ? "default" : "outline"} onClick={() => setViewMode("grid")}>
+          לוח זמנים
+        </Button>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
+      {viewMode === "grid" && (
+        <div className="flex flex-col gap-3">
+          <Legend />
+          <p className="text-xs text-muted-foreground">רחפו מעל משבצת תפוסה כדי לראות פרטים.</p>
+          <AvailabilityGrid
+            columns={gridColumns}
+            slots={gridSlots}
+            statusFor={(columnKey, slot) => gridStatusFor(columnKey, slot)}
+            titleFor={(columnKey, slot, status) => gridTitleFor(columnKey, slot, status)}
+          />
+        </div>
+      )}
+
+      {viewMode === "list" && (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {rooms.map((room) => {
           const roomBookings = bookings
@@ -175,6 +233,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
           );
         })}
       </div>
+      )}
     </div>
   );
 }
