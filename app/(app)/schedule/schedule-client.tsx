@@ -11,6 +11,7 @@ import {
   fetchRooms,
   fetchRoomAvailability,
   slotStatus,
+  sourceAt,
 } from "@/lib/availability/queries";
 import {
   daySlots,
@@ -20,10 +21,10 @@ import {
   weekDatesStartingSunday,
 } from "@/lib/availability/grid";
 import type { Database } from "@/lib/supabase/types";
-import type { AvailabilityInterval } from "@/lib/availability/types";
+import type { AvailabilityInterval, SlotStatus } from "@/lib/availability/types";
 import type { Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
-import { AvailabilityGrid, Legend, type GridColumn } from "./availability-grid";
+import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
 import { bookSlot } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
@@ -162,17 +163,29 @@ export function ScheduleClient({
     return { roomId: selectedRoomId, start, end };
   }
 
+  function intervalsFor(columnKey: string, roomId: string) {
+    return view === "day"
+      ? availability.get(roomId)
+      : (availability.get(roomId) ?? []).filter((iv) => {
+          const dayStart = dayBoundaries(columnKey).start;
+          const dayEnd = dayBoundaries(columnKey).end;
+          return iv.startsAt < dayEnd && iv.endsAt > dayStart;
+        });
+  }
+
   function statusFor(columnKey: string, slot: Slot) {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
-    const dayIntervals =
-      view === "day"
-        ? availability.get(roomId)
-        : (availability.get(roomId) ?? []).filter((iv) => {
-            const dayStart = dayBoundaries(columnKey).start;
-            const dayEnd = dayBoundaries(columnKey).end;
-            return iv.startsAt < dayEnd && iv.endsAt > dayStart;
-          });
-    return slotStatus(start, end, dayIntervals);
+    return slotStatus(start, end, intervalsFor(columnKey, roomId));
+  }
+
+  /** צובע הזמנה "שלי" לפי סוגה (ססיה/כרטיסייה) — לעולם לא על הזמנת מטפל אחר. */
+  function colorFor(columnKey: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status !== "mine") return undefined;
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const source = sourceAt(start, end, intervalsFor(columnKey, roomId));
+    if (source === "session") return SESSION_COLOR;
+    if (source === "punch_card") return CARD_COLOR;
+    return undefined;
   }
 
   /**
@@ -261,7 +274,7 @@ export function ScheduleClient({
           הקודם
         </Button>
         <span className="text-sm font-medium">
-          {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "dd/MM/yyyy")}
+          {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
         </span>
         <Button
           size="sm"
@@ -330,6 +343,7 @@ export function ScheduleClient({
         columns={columns}
         slots={slots}
         statusFor={statusFor}
+        colorFor={colorFor}
         onSlotClick={handleSlotClick}
         isSelected={(columnKey, slot) => {
           if (!selected || selected.columnKey !== columnKey) return false;
@@ -403,7 +417,7 @@ function SlotPreview({
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
           {branchName ? `${branchName} · ` : ""}
-          {roomName} · {formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}
+          {roomName} · {formatInTimeZone(start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
         </span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
           ✕

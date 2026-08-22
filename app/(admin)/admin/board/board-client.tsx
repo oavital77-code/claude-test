@@ -24,7 +24,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import type { SlotStatus } from "@/lib/availability/types";
-import { AvailabilityGrid, Legend, type GridColumn } from "@/app/(app)/schedule/availability-grid";
+import {
+  AvailabilityGrid,
+  Legend,
+  SESSION_COLOR,
+  CARD_COLOR,
+  type GridColumn,
+} from "@/app/(app)/schedule/availability-grid";
 import {
   adminCancelBookingAction,
   adminCreateBookingAction,
@@ -160,12 +166,21 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
   function gridLabelFor(roomId: string, slot: Slot, status: SlotStatus): string | undefined {
     if (status === "taken") {
       const b = bookingAt(roomId, slot);
-      return b ? (therapistById.get(b.user_id)?.full_name ?? "מטפל/ת") : undefined;
+      if (!b) return undefined;
+      return `${therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · ${SOURCE_LABELS[b.source]}`;
     }
     if (status === "blocked") {
       const rb = blockAt(roomId, slot);
       return rb ? `חסום: ${rb.reason}` : undefined;
     }
+    return undefined;
+  }
+
+  function gridColorFor(roomId: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status !== "taken") return undefined;
+    const b = bookingAt(roomId, slot);
+    if (b?.source === "session") return SESSION_COLOR;
+    if (b?.source === "punch_card") return CARD_COLOR;
     return undefined;
   }
 
@@ -217,7 +232,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
       ? `${formatInTimeZone(dayBoundaries(weekDates[0]).start, TIMEZONE, "dd/MM")} – ${formatInTimeZone(dayBoundaries(weekDates[6]).start, TIMEZONE, "dd/MM/yyyy")}`
       : viewMode === "month"
         ? formatInTimeZone(dayBoundaries(startOfMonth(date)).start, TIMEZONE, "MMMM yyyy", { locale: he })
-        : formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy");
+        : formatInTimeZone(start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he });
 
   return (
     <div className="flex flex-col gap-4">
@@ -279,6 +294,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
             statusFor={(columnKey, slot) => gridStatusFor(columnKey, slot)}
             titleFor={(columnKey, slot, status) => gridTitleFor(columnKey, slot, status)}
             labelFor={(columnKey, slot, status) => gridLabelFor(columnKey, slot, status)}
+            colorFor={(columnKey, slot, status) => gridColorFor(columnKey, slot, status)}
           />
         </div>
       )}
@@ -299,6 +315,9 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                 }
                 labelFor={(columnKey, slot, status) =>
                   gridLabelFor(selectedRoomId, resolveWeekSlot(columnKey, slot), status)
+                }
+                colorFor={(columnKey, slot, status) =>
+                  gridColorFor(selectedRoomId, resolveWeekSlot(columnKey, slot), status)
                 }
               />
             </>

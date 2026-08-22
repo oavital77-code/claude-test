@@ -18,6 +18,13 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
   blocked: "bg-zinc-800 dark:bg-zinc-700",
 };
 
+// צבעים לפי סוג הזמנה (ססיה/כרטיסייה) — רכים ולא רוויים בכוונה ("לא צועק").
+// מוצג רק היכן שסוג ההזמנה גלוי לצופה: הלוח המלא של האדמין, וההזמנות
+// של המטפל/ת עצמו/ה בלוח שלו/ה. לעולם לא על הזמנה "תפוסה" של מטפל אחר —
+// public_availability לא חושף source בכלל (CLAUDE.md: אין סוג הזמנה).
+export const SESSION_COLOR = "bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200";
+export const CARD_COLOR = "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200";
+
 export function Legend() {
   const items: { status: SlotStatus; label: string }[] = [
     { status: "free", label: "פנוי" },
@@ -33,6 +40,14 @@ export function Legend() {
           {item.label}
         </div>
       ))}
+      <div className="flex items-center gap-1.5">
+        <span className={cn("size-3 rounded-sm", SESSION_COLOR)} />
+        ססיה
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={cn("size-3 rounded-sm", CARD_COLOR)} />
+        כרטיסייה
+      </div>
     </div>
   );
 }
@@ -45,6 +60,7 @@ export function AvailabilityGrid({
   isSelected,
   titleFor,
   labelFor,
+  colorFor,
   rowHeightClass = "h-5",
 }: {
   columns: GridColumn[];
@@ -56,6 +72,8 @@ export function AvailabilityGrid({
   titleFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
   /** טקסט קבוע בתוך התא (למשל שם קצר) — בניגוד ל-titleFor שדורש ריחוף. */
   labelFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** דריסת צבע התא (למשל לפי סוג הזמנה) — ברירת המחדל היא STATUS_STYLES[status]. */
+  colorFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
   /** גובה שורה — ברירת מחדל h-5 (מתאים ללוח המטפל בלי טקסט); לוח עם labelFor כדאי גבוה יותר. */
   rowHeightClass?: string;
 }) {
@@ -89,6 +107,7 @@ export function AvailabilityGrid({
                 const isFree = status === "free" && Boolean(onSlotClick);
                 const selected = isSelected?.(col.key, slot) ?? false;
                 const label = labelFor?.(col.key, slot, status);
+                const colorOverride = colorFor?.(col.key, slot, status);
                 return (
                   <div
                     key={col.key}
@@ -106,7 +125,7 @@ export function AvailabilityGrid({
                       rowHeightClass,
                       "flex items-center overflow-hidden border-b border-l last:border-l-0",
                       isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
-                      STATUS_STYLES[status],
+                      colorOverride ?? STATUS_STYLES[status],
                       selected && "ring-2 ring-inset ring-primary",
                     )}
                   >
