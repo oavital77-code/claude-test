@@ -19,6 +19,8 @@ export default async function AdminReportsPage() {
     { data: punchCards },
     { data: therapists },
     { data: recentBookingsByUser },
+    { data: allActiveCards },
+    { data: subscriptions },
   ] = await Promise.all([
     supabase.from("payments").select("amount_total, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo),
     supabase.from("bookings").select("room_id").eq("status", "confirmed").gte("starts_at", thirtyDaysAgo),
@@ -36,6 +38,17 @@ export default async function AdminReportsPage() {
       .eq("status", "active")
       .lt("created_at", sixtyDaysAgo),
     supabase.from("bookings").select("user_id, starts_at").eq("status", "confirmed").gte("starts_at", sixtyDaysAgo),
+    // לדוח "שעות כרטיסיות לפי מטפל/ת" — כל כרטיסייה פעילה, גם עם יתרה 0,
+    // בניגוד ל"יתרות פתוחות" שמראה רק מי שנשאר לו משהו.
+    supabase
+      .from("punch_cards")
+      .select("user_id, hours_remaining, hours_purchased")
+      .eq("active", true)
+      .gt("expires_at", new Date().toISOString()),
+    supabase
+      .from("session_subscriptions")
+      .select("user_id, status, weekly_hours, monthly_price, created_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   // הכנסות חודשיות
@@ -63,13 +76,41 @@ export default async function AdminReportsPage() {
     hoursByUser.set(c.user_id, (hoursByUser.get(c.user_id) ?? 0) + c.hours_remaining);
   }
   const userIds = [...hoursByUser.keys()];
-  const { data: userProfiles } = userIds.length
-    ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
+
+  // שעות כרטיסיות לפי מטפל/ת (נותרו + נרכשו, כולל יתרה 0)
+  const cardHoursByUser = new Map<string, { remaining: number; purchased: number }>();
+  for (const c of allActiveCards ?? []) {
+    const cur = cardHoursByUser.get(c.user_id) ?? { remaining: 0, purchased: 0 };
+    cur.remaining += c.hours_remaining;
+    cur.purchased += c.hours_purchased;
+    cardHoursByUser.set(c.user_id, cur);
+  }
+
+  // כל השמות הדרושים (יתרות פתוחות + שעות כרטיסיות + ססיות) בשליפה אחת
+  const allNeededUserIds = [
+    ...new Set([...userIds, ...cardHoursByUser.keys(), ...(subscriptions ?? []).map((s) => s.user_id)]),
+  ];
+  const { data: userProfiles } = allNeededUserIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", allNeededUserIds)
     : { data: [] };
   const nameById = new Map((userProfiles ?? []).map((p) => [p.id, p.full_name]));
+
   const openBalances = userIds
     .map((id) => ({ name: nameById.get(id) ?? id, hours: hoursByUser.get(id)! }))
     .sort((a, b) => b.hours - a.hours);
+
+  const cardHoursByTherapist = [...cardHoursByUser.entries()]
+    .map(([id, h]) => ({ name: nameById.get(id) ?? id, remaining: h.remaining, purchased: h.purchased }))
+    .sort((a, b) => a.name.localeCompare(b.name, "he"));
+
+  const sessionsByTherapist = (subscriptions ?? [])
+    .map((s) => ({
+      name: nameById.get(s.user_id) ?? s.user_id,
+      status: s.status,
+      weeklyHours: s.weekly_hours,
+      monthlyPrice: s.monthly_price,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "he"));
 
   // מטפלים לא פעילים 60 יום
   const activeUserIds = new Set((recentBookingsByUser ?? []).map((b) => b.user_id));
@@ -85,6 +126,8 @@ export default async function AdminReportsPage() {
         occupancy={occupancy}
         openBalances={openBalances}
         inactiveTherapists={inactive}
+        cardHoursByTherapist={cardHoursByTherapist}
+        sessionsByTherapist={sessionsByTherapist}
       />
     </div>
   );

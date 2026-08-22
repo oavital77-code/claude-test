@@ -4,17 +4,34 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { toCsv, downloadCsv } from "@/lib/csv";
+import type { Database } from "@/lib/supabase/types";
+
+type SubStatus = Database["public"]["Tables"]["session_subscriptions"]["Row"]["status"];
+
+const SUB_STATUS_LABELS: Record<SubStatus, string> = {
+  requested: "ממתין לאישור הנהלה",
+  awaiting_payment: "ממתין לתשלום",
+  active: "פעיל",
+  rejected: "נדחה",
+  pending_cancellation: "בביטול",
+  cancelled: "בוטל",
+  expired: "פג תוקף",
+};
 
 export function ReportsClient({
   monthlyRevenue,
   occupancy,
   openBalances,
   inactiveTherapists,
+  cardHoursByTherapist,
+  sessionsByTherapist,
 }: {
   monthlyRevenue: [string, number][];
   occupancy: { room: string; count: number }[];
   openBalances: { name: string; hours: number }[];
   inactiveTherapists: { name: string; phone: string }[];
+  cardHoursByTherapist: { name: string; remaining: number; purchased: number }[];
+  sessionsByTherapist: { name: string; status: SubStatus; weeklyHours: number; monthlyPrice: number }[];
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -31,6 +48,25 @@ export function ReportsClient({
         rows={occupancy.map((o) => [o.room, String(o.count)])}
         csvRows={occupancy.map((o) => [o.room, o.count])}
         filename="תפוסה-לפי-חדר.csv"
+      />
+      <ReportCard
+        title="שעות כרטיסיות לפי מטפל/ת"
+        headers={["מטפל/ת", "שעות נותרו", "שעות נרכשו"]}
+        rows={cardHoursByTherapist.map((c) => [c.name, String(c.remaining), String(c.purchased)])}
+        csvRows={cardHoursByTherapist.map((c) => [c.name, c.remaining, c.purchased])}
+        filename="שעות-כרטיסיות-לפי-מטפל.csv"
+      />
+      <ReportCard
+        title="ססיות לפי מטפל/ת"
+        headers={["מטפל/ת", "סטטוס", "שעות שבועיות", "מחיר חודשי"]}
+        rows={sessionsByTherapist.map((s) => [
+          s.name,
+          SUB_STATUS_LABELS[s.status],
+          String(s.weeklyHours),
+          formatCurrency(s.monthlyPrice),
+        ])}
+        csvRows={sessionsByTherapist.map((s) => [s.name, SUB_STATUS_LABELS[s.status], s.weeklyHours, s.monthlyPrice])}
+        filename="ססיות-לפי-מטפל.csv"
       />
       <ReportCard
         title="יתרות פתוחות"
