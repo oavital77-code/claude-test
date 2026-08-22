@@ -70,9 +70,24 @@ export default async function HomePage() {
               יש להשלים פיקדון — הזמנות חדשות חסומות עד ההשלמה
             </p>
           )}
+          {hoursRemaining === 0 && (
+            <p className="text-sm text-amber-600 dark:text-amber-500">
+              לא נותרו לך שעות — יש לרכוש כרטיסייה כדי להמשיך לקבוע תורים.
+            </p>
+          )}
+          {hoursRemaining > 0 && hoursRemaining <= 2 && (
+            <p className="text-sm text-amber-600 dark:text-amber-500">
+              ⚠️ נשארו לך רק {hoursRemaining} שעות — כדאי לרכוש כרטיסייה נוספת בקרוב.
+            </p>
+          )}
           {hoursRemaining > 0 && !depositShort && (
             <Button asChild className="mt-2">
               <Link href="/schedule">קביעת תור עכשיו</Link>
+            </Button>
+          )}
+          {hoursRemaining <= 2 && (
+            <Button asChild variant="outline" className="mt-2">
+              <Link href="/purchase">רכישת כרטיסייה</Link>
             </Button>
           )}
         </CardContent>
