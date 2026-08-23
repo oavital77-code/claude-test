@@ -226,15 +226,3 @@ export function wooPurchaseReceivedEmail(params: {
   };
 }
 
-export function waitlistSlotAvailableEmail(params: {
-  roomName: string;
-  date: string;
-}): EmailContent {
-  return {
-    subject: "התפנה חלון שביקשת",
-    html: emailLayout(`
-      <p>התפנתה משבצת בחדר <strong>${params.roomName}</strong> בתאריך ${params.date}.</p>
-      <p>ההזמנה בלוח הזמנים היא לפי כל הקודם זוכה — מומלץ להזדרז.</p>
-    `),
-  };
-}

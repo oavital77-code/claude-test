@@ -428,34 +428,6 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["overrun_charges"]["Insert"]>;
       Relationships: [];
       };
-      waitlist: {
-        Row: {
-          id: string;
-          user_id: string;
-          branch_id: string | null;
-          room_id: string | null;
-          date: string;
-          start_time: string;
-          end_time: string;
-          notified_at: string | null;
-          fulfilled: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          branch_id?: string | null;
-          room_id?: string | null;
-          date: string;
-          start_time: string;
-          end_time: string;
-          notified_at?: string | null;
-          fulfilled?: boolean;
-          created_at?: string;
-        };
-        Update: Partial<Database["public"]["Tables"]["waitlist"]["Insert"]>;
-      Relationships: [];
-      };
       woo_product_tiers: {
         Row: {
           woo_product_id: number;

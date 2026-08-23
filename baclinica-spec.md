@@ -440,20 +440,6 @@ create table overrun_charges (
   created_at     timestamptz default now()
 );
 
--- ═══ רשימת המתנה ═══
-create table waitlist (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references profiles(id) on delete cascade,
-  branch_id    uuid references branches(id),
-  room_id      uuid references rooms(id),   -- null = כל חדר בסניף
-  date         date not null,
-  start_time   time not null,
-  end_time     time not null,
-  notified_at  timestamptz,
-  fulfilled    boolean default false,
-  created_at   timestamptz default now()
-);
-
 -- ═══ יומן ביקורת ═══
 create table audit_log (
   id          bigserial primary key,
@@ -495,7 +481,6 @@ alter table punch_cards           enable row level security;
 alter table session_subscriptions enable row level security;
 alter table payments              enable row level security;
 alter table overrun_charges       enable row level security;
-alter table waitlist              enable row level security;
 
 create or replace function is_admin() returns boolean as $$
   select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
@@ -515,7 +500,6 @@ create policy own_cards   on punch_cards           for select using (user_id = a
 create policy own_subs    on session_subscriptions for select using (user_id = auth.uid() or is_admin());
 create policy own_pays    on payments              for select using (user_id = auth.uid() or is_admin());
 create policy own_over    on overrun_charges       for select using (user_id = auth.uid() or is_admin());
-create policy own_wait    on waitlist              for all    using (user_id = auth.uid() or is_admin());
 
 -- טבלאות ציבוריות לקריאה
 alter table branches enable row level security;
@@ -575,8 +559,7 @@ COMMIT
     ELSE:
         hours_refunded = false          ← השעות נשרפות
 6.  status = 'cancelled_by_user'
-7.  בדיקת waitlist → התראה למי שממתין לחלון הזה
-8.  מייל אישור ביטול (מציין אם זוכה או לא)
+7.  מייל אישור ביטול (מציין אם זוכה או לא)
 ```
 
 ### 6.3 `request_session(slots[])`
@@ -764,9 +747,6 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
 - ~~אמצעי תשלום: 4 ספרות אחרונות, החלפת כרטיס~~ — לא רלוונטי יותר; פרטי הכרטיס נשארים אצל Woo, לא אצלנו
 - **סנכרון יומן**: קישור ICS אישי + הוראות לגוגל/אפל
 
-### 8.8 רשימת המתנה
-"תודיע לי אם יתפנה" → סניף/חדר + תאריך + טווח שעות. שחרור חלון → מייל לכל הממתינים (first-come).
-
 ---
 
 ## 9. מסכים — פאנל אדמין
@@ -805,7 +785,6 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
 | חיוב נכשל | מטפל + אדמין |
 | רישום חריגה | מטפל |
 | פיקדון ירד — נדרשת השלמה | מטפל |
-| התפנה חלון מבוקש | ממתינים |
 | התנגשות ב-materialization | 🚨 אדמין |
 
 ---
