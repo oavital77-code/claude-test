@@ -10,25 +10,41 @@ import { initiatePunchCardPurchase } from "./actions";
 
 type Tier = Database["public"]["Tables"]["punch_card_tiers"]["Row"];
 
-// מחוץ לקומפוננטה בכוונה: ניווט לדומיין חיצוני (PayPlus) אינו state של React.
-function navigateTo(url: string) {
-  window.location.href = url;
-}
-
 export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: number }) {
   const [loadingTierId, setLoadingTierId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
   async function handlePurchase(tierId: string) {
     setError(null);
     setLoadingTierId(tierId);
     const result = await initiatePunchCardPurchase(tierId);
+    setLoadingTierId(null);
     if (!result.ok) {
-      setLoadingTierId(null);
       setError(result.error);
       return;
     }
-    navigateTo(result.redirectUrl);
+    setPaymentUrl(result.redirectUrl);
+  }
+
+  // דף התשלום עצמו (PayPlus) מוטמע כ-iframe באותו עמוד — בדיוק כמו בדף
+  // "pay for order" של WooCommerce — במקום לנווט את המשתמש/ת אל דומיין חיצוני.
+  // עם השלמת התשלום, PayPlus מנווט את החלון העליון ל-successUrl/failureUrl
+  // שכבר נשלחים ב-generateLink (refURL_success/refURL_failure).
+  if (paymentUrl) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Button variant="outline" className="self-start" onClick={() => setPaymentUrl(null)}>
+          חזרה לבחירת כרטיסייה
+        </Button>
+        <iframe
+          src={paymentUrl}
+          title="תשלום מאובטח"
+          allow="payment"
+          className="h-[75vh] w-full rounded-md border-0"
+        />
+      </div>
+    );
   }
 
   return (
