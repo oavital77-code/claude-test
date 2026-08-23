@@ -8,12 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
-import {
-  WEEKDAY_LABELS,
-  computeSessionMonthlyPrice,
-  slotHours,
-  type SessionSlotDraft,
-} from "@/lib/pricing/session";
+import { WEEKDAY_LABELS, slotHours, type SessionSlotDraft } from "@/lib/pricing/session";
 import { requestSession } from "../actions";
 
 interface RoomOption {
@@ -27,12 +22,10 @@ export function SessionRequestWizard({
   roomOptions,
   basePrice,
   baseHours,
-  marginalPrice,
 }: {
   roomOptions: RoomOption[];
   basePrice: number;
   baseHours: number;
-  marginalPrice: number;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("slots");
@@ -45,10 +38,8 @@ export function SessionRequestWizard({
   const [loading, setLoading] = useState(false);
 
   const weeklyHours = useMemo(() => slots.reduce((sum, s) => sum + slotHours(s), 0), [slots]);
-  const monthlyPrice = useMemo(
-    () => computeSessionMonthlyPrice(weeklyHours, baseHours, basePrice, marginalPrice),
-    [weeklyHours, baseHours, basePrice, marginalPrice],
-  );
+  const monthlyPrice = basePrice;
+  const hoursMatch = weeklyHours === baseHours;
 
   function addSlot() {
     setError(null);
@@ -139,6 +130,9 @@ export function SessionRequestWizard({
       <Card className="max-w-md flex-1">
         <CardContent className="flex flex-col gap-3 p-6">
           <h2 className="text-lg font-medium">בחירת משבצות</h2>
+          <p className="text-sm text-muted-foreground">
+            יש לבחור משבצות שסך משכן {baseHours} שעות שבועיות בדיוק — {formatCurrency(basePrice)} לחודש (לפני מע״מ).
+          </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="col-span-1 flex flex-col gap-1.5 sm:col-span-2">
               <Label>חדר</Label>
@@ -209,18 +203,21 @@ export function SessionRequestWizard({
           )}
           <div className="flex justify-between border-t pt-2 text-sm">
             <span>סה״כ שעות שבועיות</span>
-            <span>{weeklyHours} (5 שעות ראשונות כלולות במחיר הבסיס)</span>
+            <span>
+              {weeklyHours} מתוך {baseHours} נדרשות
+            </span>
           </div>
           <div className="flex justify-between font-medium">
             <span>מחיר חודשי (לפני מע״מ)</span>
             <span>{formatCurrency(monthlyPrice)}</span>
           </div>
-          {weeklyHours > 5 && (
+          {!hoursMatch && (
             <p className="text-xs text-muted-foreground">
-              מעבר ל-5 שעות שבועיות נוספות 110₪ לכל שעה נוספת.
+              ססיה היא תמיד בהיקף קבוע של {baseHours} שעות שבועיות —{" "}
+              {weeklyHours < baseHours ? "יש להוסיף עוד משבצות" : "יש להסיר משבצות"} עד שהסכום יהיה בדיוק {baseHours}.
             </p>
           )}
-          <Button disabled={weeklyHours <= 0} onClick={() => setStep("summary")}>
+          <Button disabled={!hoursMatch} onClick={() => setStep("summary")}>
             המשך לסיכום
           </Button>
         </CardContent>

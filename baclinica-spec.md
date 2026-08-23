@@ -92,20 +92,18 @@ admin.baclinica.co.il    → פאנל ניהול (דסקטופ)
 
 ### 3.2 ססיה (Session — מנוי חודשי)
 
-**יחידת התמחור = שעה שבועית קבועה.**
+**מוצר בהיקף קבוע — לא תמחור שולי לפי שעות.**
 
-| שעות שבועיות | חישוב | ₪/חודש (לפני מע"מ) |
-|---|---|---|
-| 5 (מינימום) | בסיס | **600** |
-| 6 | 600 + 110 | **710** |
-| 7 | 600 + 220 | **820** |
-| 10 | 600 + 550 | **1,150** |
+| שעות שבועיות | ₪/חודש (לפני מע"מ) |
+|---|---|
+| 5 (קבוע, `session_base_hours`) | **600** (`session_base_price`) |
 
-> נוסחה: `600 + (weekly_hours − 5) × 110`
-> תמחור **שולי** — 5 השעות הראשונות ב-120 ₪, כל שעה נוספת ב-110 ₪.
+> `weekly_hours` חייב להיות שווה בדיוק ל-`session_base_hours` (ב-`app_settings`, ברירת מחדל 5) —
+> לא פחות ולא יותר. `monthly_price = session_base_price` תמיד. שינוי היקף הססיה
+> הקבוע לכלל המערכת נעשה דרך `app_settings` בלבד, לא דרך תמחור לפי שעה.
 
 **כללים:**
-- מינימום 5 שעות שבועיות
+- היקף קבוע — בדיוק `session_base_hours` שעות שבועיות (לא ניתן לבחור יותר או פחות)
 - ניתן לפרוס על **כמה ימים וכמה חדרים** (למשל: ג' 09:00–12:00 בחדר 3 + ה' 14:00–16:00 בחדר 5)
 - המשבצת **נעולה לצמיתות** — חוזרת כל שבוע
 - 🔴 **מטפל בססיה לא יכול לשחרר מפגש בודד.** לא הגיע — השעה אבודה, החדר נשאר חסום על שמו. אין החזר, אין זיכוי, אין שחרור לאחרים.
@@ -248,7 +246,7 @@ create table app_settings (
 -- booking_horizon_days: 30
 -- cancel_window_hours: 24
 -- sub_cancel_notice_days: 30
--- session_base_price: 600 | session_base_hours: 5 | session_marginal_price: 110
+-- session_base_price: 600 | session_base_hours: 5 (היקף ססיה קבוע, לא מינימום)
 -- session_hold_hours: 72
 
 -- ═══ סניפים וחדרים ═══
@@ -584,9 +582,9 @@ COMMIT
 ### 6.3 `request_session(slots[])`
 
 ```
-1.  weekly_hours = Σ משך כל המשבצות ≥ 5
+1.  weekly_hours = Σ משך כל המשבצות; חייב להיות שווה בדיוק ל-session_base_hours אחרת SESSION_HOURS_FIXED
 2.  כל משבצת פנויה ב-90 הימים הקרובים (bookings + session_slots פעילים + holds)
-3.  monthly_price = 600 + (weekly_hours - 5) × 110
+3.  monthly_price = session_base_price (קבוע)
 4.  INSERT session_subscriptions (status='requested', hold_expires_at = now()+72h)
 5.  INSERT session_slots
 6.  מייל לאדמין
@@ -909,6 +907,7 @@ TOO_FAR_AHEAD          מעבר ל-30 יום
 INVALID_SLOT           לא מיושר ל-30 דקות
 BOOKING_PASSED         המועד עבר
 SESSION_NOT_CANCELLABLE  מפגש ססיה לא ניתן לביטול עצמי
+SESSION_HOURS_FIXED     סך המשבצות לא שווה בדיוק session_base_hours
 USER_SUSPENDED         החשבון מושעה
 PAYMENT_REQUIRED       נדרש תשלום
 FORBIDDEN              אין הרשאה

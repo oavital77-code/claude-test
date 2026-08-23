@@ -12,7 +12,7 @@ export default async function NewSessionRequestPage() {
     supabase
       .from("app_settings")
       .select("key, value")
-      .in("key", ["session_base_price", "session_base_hours", "session_marginal_price"]),
+      .in("key", ["session_base_price", "session_base_hours"]),
   ]);
 
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -24,18 +24,11 @@ export default async function NewSessionRequestPage() {
   const settingsMap = Object.fromEntries((settings ?? []).map((s) => [s.key, s.value]));
   const basePrice = typeof settingsMap.session_base_price === "number" ? settingsMap.session_base_price : 600;
   const baseHours = typeof settingsMap.session_base_hours === "number" ? settingsMap.session_base_hours : 5;
-  const marginalPrice =
-    typeof settingsMap.session_marginal_price === "number" ? settingsMap.session_marginal_price : 110;
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">בקשת ססיה חדשה</h1>
-      <SessionRequestWizard
-        roomOptions={roomOptions}
-        basePrice={basePrice}
-        baseHours={baseHours}
-        marginalPrice={marginalPrice}
-      />
+      <SessionRequestWizard roomOptions={roomOptions} basePrice={basePrice} baseHours={baseHours} />
     </div>
   );
 }

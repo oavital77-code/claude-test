@@ -1,22 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSessionMonthlyPrice, slotHours } from "./session";
-
-// נוסחה מ-CLAUDE.md: monthlyPrice = 600 + max(0, weeklyHours - 5) * 110
-describe("computeSessionMonthlyPrice", () => {
-  it.each([
-    [1, 600],
-    [5, 600],
-    [6, 710],
-    [8, 930],
-    [10, 1150],
-])("weeklyHours=%i -> %i", (weeklyHours, expected) => {
-    expect(computeSessionMonthlyPrice(weeklyHours, 5, 600, 110)).toBe(expected);
-  });
-
-  it("לא יורד מתחת למחיר הבסיס גם כשמבקשים פחות מהמינימום", () => {
-    expect(computeSessionMonthlyPrice(0, 5, 600, 110)).toBe(600);
-  });
-});
+import { slotHours } from "./session";
 
 describe("slotHours", () => {
   it.each([
