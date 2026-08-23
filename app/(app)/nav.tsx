@@ -11,6 +11,7 @@ import {
   Repeat,
   CreditCard,
   Clock,
+  Shield,
   LogOut,
   Menu,
   X,
@@ -31,7 +32,7 @@ const LINKS = [
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy"];
 
-export function AppNav() {
+export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -66,6 +67,16 @@ export function AppNav() {
             );
           })}
         </nav>
+
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="hidden items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-sm text-primary hover:bg-primary/10 md:flex"
+          >
+            <Shield className="size-4" />
+            כניסה לניהול המערכת
+          </Link>
+        )}
 
         <form action={signOut} className="hidden md:block">
           <button
@@ -110,6 +121,17 @@ export function AppNav() {
               </Link>
             );
           })}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-md border border-primary px-3 py-2.5 text-sm text-primary hover:bg-primary/10"
+            >
+              <Shield className="size-4" />
+              כניסה לניהול המערכת
+            </Link>
+          )}
+
           <form action={signOut}>
             <button
               type="submit"
