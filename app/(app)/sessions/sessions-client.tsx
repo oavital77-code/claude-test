@@ -36,8 +36,9 @@ const STATUS_STYLES: Record<Subscription["status"], string> = {
 };
 
 // עוזר קטן להשתיק ניווט חוזר מחוץ לקומפוננטה (ניווט לדומיין חיצוני אינו state).
+// נפתח בחלון/טאב נפרד כדי שהמשתמש/ת לא יאבד/תאבד את המקום באפליקציה.
 function navigateTo(url: string) {
-  window.location.href = url;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export function SessionsClient({ subscriptions }: { subscriptions: SubscriptionWithSlots[] }) {

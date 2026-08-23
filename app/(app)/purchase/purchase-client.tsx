@@ -11,8 +11,9 @@ import { initiatePunchCardPurchase } from "./actions";
 type Tier = Database["public"]["Tables"]["punch_card_tiers"]["Row"];
 
 // מחוץ לקומפוננטה בכוונה: ניווט לדומיין חיצוני (חנות בקליניקה) אינו state של React.
+// נפתח בחלון/טאב נפרד כדי שהמשתמש/ת לא יאבד/תאבד את המקום באפליקציה.
 function navigateTo(url: string) {
-  window.location.href = url;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: number }) {
