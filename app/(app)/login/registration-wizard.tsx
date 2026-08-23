@@ -172,7 +172,7 @@ export function RegistrationWizard({
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>
-          <Logo markClassName="size-8" wordmarkClassName="text-xl" />
+          <Logo markClassName="size-12" wordmarkClassName="text-2xl" />
         </CardTitle>
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>

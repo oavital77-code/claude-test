@@ -27,7 +27,7 @@ export function AdminNav() {
     <nav className="sticky top-0 z-20 border-b bg-muted/30 backdrop-blur">
       <div className="flex items-center gap-1 p-2">
         <Link href="/admin" className="ml-2 shrink-0 px-2 py-1.5" onClick={() => setOpen(false)}>
-          <Logo wordmarkClassName="text-lg" />
+          <Logo markClassName="size-10" wordmarkClassName="text-xl" />
         </Link>
 
         {/* דסקטופ: תפריט מלא בשורה */}

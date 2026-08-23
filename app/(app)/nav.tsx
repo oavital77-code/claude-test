@@ -43,7 +43,7 @@ export function AppNav() {
     <header className="sticky top-0 z-20 border-b border-border/70 bg-card/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-1 p-2">
         <Link href="/" className="ml-2 shrink-0 px-2 py-1.5" onClick={() => setOpen(false)}>
-          <Logo wordmarkClassName="text-lg" />
+          <Logo markClassName="size-10" wordmarkClassName="text-xl" />
         </Link>
 
         {/* דסקטופ: תפריט מלא בשורה */}

@@ -39,6 +39,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <span className="blob-1" />
           <span className="blob-2" />
           <span className="blob-3" />
+          <span className="line-1" />
+          <span className="line-2" />
+          <span className="ring-1" />
+          <span className="ring-2" />
+          <span className="mark-outline" />
         </div>
         {children}
         <ServiceWorkerRegister />
