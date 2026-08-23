@@ -52,23 +52,15 @@ async function notifyAdminOfSessionRequest(therapistName: string, weeklyHours: n
 export type PaymentRedirect = SessionPaymentLinkResult;
 
 export async function initiateSessionPayment(subscriptionId: string): Promise<PaymentRedirect> {
-  const { profile } = await requireTherapistProfile();
+  await requireTherapistProfile();
   const supabase = await createClient();
-  return createSessionInitialPaymentLink(supabase, subscriptionId, {
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-  });
+  return createSessionInitialPaymentLink(supabase, subscriptionId);
 }
 
 export async function initiateSessionRenewal(subscriptionId: string): Promise<PaymentRedirect> {
-  const { profile } = await requireTherapistProfile();
+  await requireTherapistProfile();
   const supabase = await createClient();
-  return createSessionRenewalPaymentLink(supabase, subscriptionId, {
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-  });
+  return createSessionRenewalPaymentLink(supabase, subscriptionId);
 }
 
 export async function requestCancellation(

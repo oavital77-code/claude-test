@@ -11,6 +11,7 @@ const SETTING_LABELS: Record<string, string> = {
   session_base_price: "מחיר ססיה חודשי (₪, לפני מע״מ)",
   session_base_hours: "היקף ססיה קבוע (שעות שבועיות)",
   session_hold_hours: "תוקף hold לססיה (שעות)",
+  woo_session_product_id: "Product ID של מוצר הססיה בחנות Woo",
 };
 
 export default async function AdminSettingsPage() {

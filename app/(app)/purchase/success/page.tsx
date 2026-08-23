@@ -2,9 +2,9 @@ import Link from "next/link";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { Button } from "@/components/ui/button";
 
-// ⚠️ מסך זה הוא redirect בלבד לאחר תשלום ב-PayPlus — לא מקור האמת.
-// הפעלת הכרטיסייה קורית ב-callback (app/api/payplus/callback), שעשוי
-// להגיע לפני, אחרי, או במקביל לחזרת המשתמש לכאן. ר' spec §7.4.
+// ⚠️ מסך זה אינו מקור האמת. התשלום מתבצע בחנות ה-Woo; הפעלת הכרטיסייה
+// קורית דרך ה-webhook (app/api/woo/webhook) + claim_woo_pending_purchase,
+// שעשויים להגיע לפני, אחרי, או במקביל לחזרת המשתמש לכאן.
 export default async function PurchaseSuccessPage() {
   await requireTherapistProfile();
 

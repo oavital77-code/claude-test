@@ -34,16 +34,6 @@ export async function adminMarkPaidAction(paymentId: string): Promise<ActionResu
 
   if (payment.status !== "pending") return { ok: false, error: "התשלום כבר טופל" };
 
-  if (payment.type === "punch_card") {
-    const { error } = await supabase.rpc("activate_punch_card_payment", {
-      p_payment_id: paymentId,
-      p_transaction_uid: transactionUid,
-      p_method: "credit_card",
-    });
-    if (error) return { ok: false, error: "הפעלת הכרטיסייה נכשלה" };
-    return { ok: true };
-  }
-
   if (payment.type === "session_recurring") {
     const { error } = await supabase.rpc("finalize_session_renewal", {
       p_payment_id: paymentId,

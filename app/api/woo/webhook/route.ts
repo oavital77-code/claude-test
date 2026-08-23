@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { verifyWooWebhook } from "@/lib/woo/verify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { wooPurchaseReceivedEmail } from "@/lib/email/templates";
+import { wooPurchaseReceivedEmail, sessionRenewedEmail } from "@/lib/email/templates";
 import { toE164Israel } from "@/lib/phone";
+import type { Database } from "@/lib/supabase/types";
 
-// חנות ה-WooCommerce (baclinica-shop) מוכרת כרטיסיות למטפלים שעדיין אין להם
-// חשבון Cleana. ה-webhook הזה הוא מקור האמת ל"שולם בפועל ב-Woo" — לא קורא ל-
-// PayPlus בכלל (התשלום כבר קרה בגייטוויי של Woo). כל שהוא עושה: שומר "רכישה
-// ממתינה" לפי טלפון/מייל, ושולח מייל עם קישור להרשמה/התחברות הרגילה ב-Cleana.
-// ההפעלה בפועל (יצירת punch_card פעילה) קורית רק ב-claim_woo_pending_purchase,
-// שנקראת אוטומטית מתוך completeRegistration — ר' app/(app)/login/actions.ts.
+// חנות ה-WooCommerce (baclinica-shop) היא מקור האמת היחיד לתשלום — לא PayPlus
+// (ר' CLAUDE.md, שוחרר לגמרי מ-PayPlus). ה-webhook הזה מטפל בשני סוגי מוצרים:
+//
+// 1. כרטיסיות (woo_product_tiers): מטפל/ת שעדיין אין להם חשבון Cleana —
+//    שומר "רכישה ממתינה" לפי טלפון/מייל, מופעלת אוטומטית בהרשמה/כניסה הבאה
+//    (claim_woo_pending_purchase, ר' app/(app)/login/actions.ts + AppLayout).
+// 2. ססיה (woo_session_product_id): מטפל/ת עם חשבון קיים וססיה awaiting_payment
+//    (תשלום ראשוני) או פעילה/פגה (חידוש) — מופעלת/מחודשת ישירות כאן, כי
+//    ה-user_id כבר ידוע (לא צריך שלב "רכישה ממתינה" נפרד).
 //
 // ⚠️ צורת ה-payload כאן (order.id/status/billing/line_items) מבוססת על
 // ה-WooCommerce REST API / Webhooks הסטנדרטי. יש לאמת מול הגדרות ה-webhook
@@ -71,6 +76,30 @@ export async function POST(request: Request) {
 
   const supabase = createAdminClient();
 
+  const { data: sessionProductSetting } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "woo_session_product_id")
+    .maybeSingle();
+  const sessionProductId = typeof sessionProductSetting?.value === "number" ? sessionProductSetting.value : 0;
+
+  let sessionHandled = false;
+  if (sessionProductId) {
+    const sessionItem = lineItems.find((li) => li.product_id === sessionProductId);
+    if (sessionItem) {
+      const amountTotal = parseFloat(sessionItem.total) + parseFloat(sessionItem.total_tax ?? "0");
+      if (Number.isFinite(amountTotal)) {
+        await activateSessionFromWooOrder(supabase, {
+          phone,
+          email,
+          wooOrderId: order.id,
+          amountTotal: Math.round(amountTotal * 100) / 100,
+        });
+        sessionHandled = true;
+      }
+    }
+  }
+
   const { data: mappings } = await supabase
     .from("woo_product_tiers")
     .select("woo_product_id, tier_id")
@@ -80,7 +109,7 @@ export async function POST(request: Request) {
     );
 
   if (!mappings || mappings.length === 0) {
-    return NextResponse.json({ ok: true, skipped: "NO_MAPPED_PRODUCTS" });
+    return NextResponse.json(sessionHandled ? { ok: true } : { ok: true, skipped: "NO_MAPPED_PRODUCTS" });
   }
 
   const { data: tiers } = await supabase
@@ -124,7 +153,7 @@ export async function POST(request: Request) {
   }
 
   if (rowsToInsert.length === 0) {
-    return NextResponse.json({ ok: true, skipped: "NO_MAPPED_PRODUCTS" });
+    return NextResponse.json(sessionHandled ? { ok: true } : { ok: true, skipped: "NO_MAPPED_PRODUCTS" });
   }
 
   const { error } = await supabase
@@ -142,4 +171,71 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// ═══ ססיה: מטפל/ת עם חשבון קיים — התשלום מותאם ישירות לתשלום הממתין שלו/ה,
+// לא דרך "רכישה ממתינה" (בניגוד לכרטיסייה, שיכולה להיקנות לפני שיש חשבון).
+// אידמפוטנטי דרך activate_session_payment/finalize_session_renewal עצמם
+// (בודקים status='paid' לפני כתיבה) — קריאה כפולה על אותה הזמנה היא no-op,
+// כי אחרי ההפעלה הראשונה התשלום הממתין כבר לא יימצא ב-status='pending'. ═══
+async function activateSessionFromWooOrder(
+  supabase: SupabaseClient<Database>,
+  params: { phone: string | null; email: string | null; wooOrderId: number; amountTotal: number },
+) {
+  let profile: { id: string; email: string } | null = null;
+
+  if (params.phone) {
+    const { data } = await supabase.from("profiles").select("id, email").eq("phone", params.phone).maybeSingle();
+    profile = data;
+  }
+  if (!profile && params.email) {
+    const { data } = await supabase.from("profiles").select("id, email").eq("email", params.email).maybeSingle();
+    profile = data;
+  }
+  if (!profile) return;
+
+  const transactionUid = `woo-session-${params.wooOrderId}`;
+
+  const { data: initialPayment } = await supabase
+    .from("payments")
+    .select("id, amount_total")
+    .eq("user_id", profile.id)
+    .eq("type", "session_initial")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (initialPayment) {
+    if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) return;
+    await supabase.rpc("activate_session_payment", {
+      p_payment_id: initialPayment.id,
+      p_transaction_uid: transactionUid,
+      p_method: "other",
+      p_token_uid: null,
+    });
+    return;
+  }
+
+  const { data: renewalPayment } = await supabase
+    .from("payments")
+    .select("id, amount_total")
+    .eq("user_id", profile.id)
+    .eq("type", "session_recurring")
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!renewalPayment) return;
+  if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) return;
+
+  await supabase.rpc("finalize_session_renewal", {
+    p_payment_id: renewalPayment.id,
+    p_success: true,
+    p_transaction_uid: transactionUid,
+  });
+
+  const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
+  sendEmail({ to: profile.email, subject, html }).catch(() => {});
 }

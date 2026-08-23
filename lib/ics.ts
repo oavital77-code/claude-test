@@ -1,5 +1,4 @@
-// ייצור iCalendar (RFC 5545). מומש במלואו — בניגוד ל-PayPlus, זהו פורמט
-// תקני ומתועד, לא ניחוש.
+// ייצור iCalendar (RFC 5545) — פורמט תקני ומתועד, מומש במלואו.
 
 function escapeIcsText(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");

@@ -539,27 +539,6 @@ export type Database = {
       };
     };
     Functions: {
-      create_punch_card_purchase: {
-        Args: { p_tier_id: string };
-        Returns: { payment_id: string; punch_card_id: string; amount_total: number }[];
-      };
-      set_payment_page_uid: {
-        Args: { p_payment_id: string; p_page_uid: string };
-        Returns: undefined;
-      };
-      activate_punch_card_payment: {
-        Args: {
-          p_payment_id: string;
-          p_transaction_uid: string;
-          p_method: PaymentMethod;
-          p_invoice_url?: string | null;
-        };
-        Returns: undefined;
-      };
-      mark_payment_failed: {
-        Args: { p_payment_id: string; p_reason: string };
-        Returns: undefined;
-      };
       create_booking: {
         Args: { p_room_id: string; p_starts_at: string; p_ends_at: string };
         Returns: { booking_id: string; hours_charged: number; hours_remaining: number }[];

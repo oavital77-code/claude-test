@@ -32,18 +32,14 @@ async function notifyTherapistOfApproval(subscriptionId: string) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, email, phone")
+    .select("email")
     .eq("id", sub.user_id)
     .maybeSingle();
   if (!profile) return;
 
   // §3.3: אישור → יצירת דף תשלום מיידית + מייל עם הקישור. אין תשלום לפני
   // אישור אדמין — אבל ברגע שאושר, הקישור נוצר ונשלח כאן, לא ממתין ללחיצה באפליקציה.
-  const link = await createSessionInitialPaymentLink(supabase, subscriptionId, {
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-  });
+  const link = await createSessionInitialPaymentLink(supabase, subscriptionId);
   if (!link.ok) return;
 
   const { subject, html } = sessionApprovedEmail(link.redirectUrl);

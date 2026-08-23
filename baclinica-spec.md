@@ -44,7 +44,7 @@
 | DB + Auth | **Supabase** (PostgreSQL 15) | RLS, Realtime, Auth מובנה |
 | Hosting | **Vercel** | דיפלוי אוטומטי מ-Git |
 | Cron | Vercel Cron | חידושי ססיות, materialization, תזכורות |
-| תשלומים | **PayPlus API** | חשבון סוחר קיים |
+| תשלומים | **WooCommerce** (`baclinica.co.il`) | חנות קיימת, בלי אינטגרציית gateway ישירה |
 | מיילים | **Resend** | דומיין מאומת |
 | OTP | Supabase Auth + ספק SMS ישראלי | אימות טלפון |
 
@@ -597,18 +597,16 @@ COMMIT
 2.  status = 'requested'
 3.  בדיקה חוזרת שהמשבצות עדיין פנויות
 4.  status = 'awaiting_payment', hold_expires_at = now() + 72h
-5.  יצירת דף תשלום PayPlus (עם create_token=true)
+5.  יצירת בקשת תשלום ממתינה (create_session_initial_payment) + קישור לדף המוצר בחנות ה-Woo
 6.  מייל למטפל עם הקישור
 ```
 
-### 6.5 `activate_session(subscription_id)` — מ-webhook תשלום
+### 6.5 `activate_session_payment(payment_id, ...)` — מ-webhook תשלום (Woo)
 
 ```
 1.  status = 'active'
 2.  start_date = היום,  next_billing_date = היום + 1 חודש
-3.  שמירת payplus_token_uid בפרופיל
-4.  materialize_session_bookings(subscription_id, 90 days)
-5.  מייל אישור + קובץ ICS
+3.  materialize_session_bookings(subscription_id, 90 days)
 ```
 
 ### 6.6 `materialize_session_bookings()` — cron יומי
@@ -625,17 +623,14 @@ COMMIT
       אם EXCLUDE constraint נכשל → 🚨 CONFLICT_ALERT לאדמין
 ```
 
-### 6.7 `charge_session_renewals()` — cron יומי 06:00
+### 6.7 חידוש ססיה — יזום ע"י המטפל/ת, לא cron
 
-```
-עבור כל subscription עם next_billing_date = היום ו-status = 'active':
-  1. חיוב טוקן PayPlus  →  payments (type='session_recurring')
-  2. הצליח → next_billing_date += 1 month, מייל קבלה
-  3. נכשל  → retry_count++
-       ├── ניסיון 1-2  → ניסיון חוזר מחר
-       └── ניסיון 3    → profiles.status = 'suspended' + מייל למטפל ולאדמין
-                         (ההזמנות הקיימות נשמרות, הזמנות חדשות חסומות)
-```
+אין חיוב אוטומטי (אין טוקן כרטיס שמור). 7 ימים לפני `next_billing_date` נשלחת
+תזכורת מייל (למטפל/ת ולהנהלה, cron `send-reminders`). המטפל/ת לוחצ/ת "חידוש
+מנוי" → `initiate_session_renewal_payment` → הפניה לחנות ה-Woo → webhook
+מאשר תשלום → `finalize_session_renewal` (`next_billing_date += 1 month`,
+מייל קבלה). מנוי `active` שלא חודש עד `next_billing_date` → `expired`
+אוטומטית (cron שעתי) — לא נחסמות הזמנות קיימות, רק לא נוצרות חדשות.
 
 ### 6.8 `record_overrun(booking_id, minutes, note)` — אדמין בלבד
 
@@ -647,7 +642,8 @@ COMMIT
         source = 'deposit'
         🔴 profiles → חסימת הזמנות חדשות עד השלמת פיקדון
     ELSE:
-        חיוב טוקן PayPlus
+        יצירת payment ממתין (type='overrun') — אין טוקן כרטיס שמור,
+        סימון כשולם נעשה ידנית ע"י אדמין (/admin/payments)
         source = 'charge'
 4.  INSERT overrun_charges
 5.  מייל למטפל עם פירוט
@@ -655,60 +651,52 @@ COMMIT
 
 ---
 
-## 7. אינטגרציית PayPlus
+## 7. אינטגרציית WooCommerce (תשלומים)
+
+כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (`baclinica.co.il`), לא
+ב-Cleana. Cleana לא יוצרת דפי תשלום ולא מדברת עם שום gateway ישירות; היא רק
+מפנה את המטפל/ת למוצר הנכון בחנות, וה-webhook של Woo הוא מקור האמת היחיד
+לכך ששולם בפועל. (הוחלט לזנוח אינטגרציית PayPlus ישירה — מעולם לא חוברה
+בפועל, ר' היסטוריית הפרויקט.)
 
 ### 7.1 משתני סביבה
 
 ```env
-PAYPLUS_API_KEY=
-PAYPLUS_SECRET_KEY=
-PAYPLUS_PAYMENT_PAGE_UID=
-PAYPLUS_BASE_URL=https://restapi.payplus.co.il/api/v1.0
-# sandbox: https://restapidev.payplus.co.il/api/v1.0
+WOOCOMMERCE_WEBHOOK_SECRET=
+NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
 ```
 
-> ⚠️ אלה **מפתחות API** מאזור המפתחים בחשבון הסוחר — לא התוסף של WooCommerce. יש לוודא שהם קיימים ושסביבת ה-Sandbox פעילה.
+### 7.2 מיפוי מוצרים
 
-### 7.2 אמצעי תשלום
-
-| סוג | כרטיס אשראי | ביט | PayBox |
-|---|---|---|---|
-| כרטיסייה | ✅ | ✅ | ✅ |
-| ססיה — תשלום ראשון | ✅ | ❌ | ❌ |
-| ססיה — חידוש | ✅ אוטומטי | ❌ | ❌ |
-| חריגה | ✅ אוטומטי | ❌ | ❌ |
-
-**נימוק:** ביט ו-PayBox לא תומכים בטוקניזציה וחיוב מתחדש. ססיה חייבת כרטיס אשראי.
-
-> יש לוודא מול PayPlus שביט ו-PayBox **מופעלים בחשבון הסוחר**.
+| מוצר | איפה ממופה |
+|---|---|
+| כרטיסייה (5 מדרגות) | טבלת `woo_product_tiers` (woo_product_id → tier_id), אדמין בלבד |
+| ססיה (מוצר קבוע, מחיר קבוע) | `app_settings.woo_session_product_id`, נערך ב-`/admin/settings` |
 
 ### 7.3 זרימה
 
 ```
-1. POST /PaymentPages/generateLink
-   {
-     payment_page_uid, amount, currency_code: "ILS",
-     charge_method: 1,              // חיוב
-     create_token: true,            // רק לססיה
-     customer: { customer_name, email, phone, vat_number },
-     items: [{ name, quantity, price }],
-     refURL_success / refURL_failure / refURL_callback,
-     more_info: "<payment_id שלנו>"  // 🔴 קריטי לשיוך
-   }
-2. הפניית המשתמש ל-payment_page_link
-3. PayPlus → POST לכתובת ה-callback (server-to-server)
-4. אימות ה-hash של הבקשה מול SECRET_KEY   ← 🔴 חובה
-5. עדכון payments.status
-6. הפעלת הכרטיסייה / הססיה
+1. Cleana יוצרת בקשת תשלום ממתינה (payments, status='pending') — כדי שלמסלול
+   סימון-מזומן הידני יהיה מה לסמן, גם אם התשלום המקוון לא הושלם
+2. הפניית המטפל/ת ל-add-to-cart של המוצר המתאים בחנות (redirect חיצוני מלא)
+3. תשלום מתבצע בחנות עצמה — Cleana לא מעורבת
+4. Woo → POST ל-app/api/woo/webhook (topic: Order updated) כשההזמנה paid
+5. אימות חתימת HMAC מול WOOCOMMERCE_WEBHOOK_SECRET   ← 🔴 חובה
+6. התאמה לפי טלפון/מייל (פרופיל קיים) → תשלום pending מתאים → הפעלה
 ```
+
+כרטיסייה שנרכשה **לפני** שיש חשבון Cleana (למשל דרך פרסום/שיווק) עוברת
+נתיב מעט שונה: אין פרופיל קיים להתאים אליו, אז ה-webhook שומר "רכישה
+ממתינה" (`woo_pending_purchases`) לפי טלפון/מייל, ומופעלת אוטומטית
+בהרשמה/כניסה הבאה (`claim_woo_pending_purchase`). ססיה תמיד מניחה פרופיל
+קיים (יש בקשה מאושרת מראש), כך שההפעלה שם מיידית.
 
 ### 7.4 כללי ברזל
 
-- 🔴 **מקור האמת הוא ה-callback**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף.
-- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` הוא `UNIQUE`. אותו callback פעמיים = פעולה אחת.
-- 🔴 **תמיד לאמת hash** לפני עדכון סטטוס. בלי זה כל אחד יכול "לשלם" בזיוף בקשה.
+- 🔴 **מקור האמת הוא ה-webhook**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף.
+- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` (שם השדה נשאר, מכיל גם אסמכתאות Woo) הוא `UNIQUE`. אותו webhook פעמיים = פעולה אחת.
+- 🔴 **תמיד לאמת חתימה** לפני עדכון סטטוס. בלי זה כל אחד יכול "לשלם" בזיוף בקשה.
 - כל התשלומים כוללים **מע"מ 18%** מוצג בנפרד.
-- החשבוניות מופקות ע"י PayPlus. `invoice_url` נשמר ומוצג למטפל.
 
 ---
 
@@ -759,7 +747,7 @@ PAYPLUS_BASE_URL=https://restapi.payplus.co.il/api/v1.0
 - ססיה: תג "ססיה קבועה — לביטול פנו להנהלה"
 
 ### 8.6 רכישה
-**כרטיסייה** — 5 כרטיסים עם המדרגות, פירוט מלא (מחיר + פיקדון + מע"מ) → PayPlus
+**כרטיסייה** — 5 כרטיסים עם המדרגות, פירוט מלא (מחיר + פיקדון + מע"מ) → הפניה לחנות ה-Woo
 
 **ססיה** — אשף 3 שלבים:
 1. בחירת משבצות בלוח (עם מונה שעות שבועיות ומחיר חי)
@@ -773,7 +761,7 @@ PAYPLUS_BASE_URL=https://restapi.payplus.co.il/api/v1.0
 - **תשלומים**: היסטוריה + קישורי חשבוניות
 - **חריגות**: פירוט כל חיוב חריגה
 - **פרטים אישיים** + 🔑 **קוד דלת**
-- **אמצעי תשלום**: 4 ספרות אחרונות, החלפת כרטיס
+- ~~אמצעי תשלום: 4 ספרות אחרונות, החלפת כרטיס~~ — לא רלוונטי יותר; פרטי הכרטיס נשארים אצל Woo, לא אצלנו
 - **סנכרון יומן**: קישור ICS אישי + הוראות לגוגל/אפל
 
 ### 8.8 רשימת המתנה
@@ -791,7 +779,7 @@ PAYPLUS_BASE_URL=https://restapi.payplus.co.il/api/v1.0
 | **בקשות ססיה** | תור. תצוגת המשבצות המבוקשות על הלוח → **אישור / דחייה + סיבה** |
 | **ססיות פעילות** | רשימה, מחיר, חיוב הבא, עצירה/ביטול, שינוי משבצות |
 | **חריגות** | ➕ רישום חריגה: בחירת הזמנה → דקות → הערה → תצוגה מקדימה של החיוב → אישור |
-| **תשלומים** | כל העסקאות, סינון, סימון ידני כשולם, קישור לזיכוי ב-PayPlus |
+| **תשלומים** | כל העסקאות, סינון, סימון ידני כשולם (מזומן) |
 | **סניפים וחדרים** | CRUD מלא: הוספת סניף, הוספת חדר, סוג, ציוד, תמונות, הפעלה/כיבוי |
 | **הגדרות** | מחירון כרטיסיות, תמחור ססיה, חלונות ביטול, buffer, מע"מ, גרסת תקנון |
 | **דוחות** (מינימלי) | הכנסות חודשיות · תפוסה לפי חדר · יתרות פתוחות · מטפלים לא פעילים 60 יום. הכל עם ייצוא CSV |
@@ -862,7 +850,7 @@ PAYPLUS_BASE_URL=https://restapi.payplus.co.il/api/v1.0
 | סיכון | חומרה | מענה |
 |---|---|---|
 | Double-booking בו-זמני | 🔴 גבוה | EXCLUDE constraint ברמת DB — לא לוגיקה באפליקציה |
-| Callback של PayPlus אובד | 🔴 גבוה | Cron השלמה: כל תשלום `pending` מעל 15 דק' — שאילתת סטטוס מ-PayPlus |
+| Webhook של Woo אובד | 🔴 גבוה | Woo שולח retry אוטומטית על כשל; תשלום שנשאר `pending` נראה לאדמין ב-`/admin/payments` לסימון ידני |
 | התנגשות ססיה ב-materialization | 🟡 בינוני | התראה לאדמין + חסימת אישור ססיה מתנגשת מראש |
 | חיוב כפול | 🔴 גבוה | `payplus_transaction_uid` UNIQUE + אידמפוטנטיות |
 | מטפל רואה נתוני מטפל אחר | 🔴 גבוה | RLS + `public_availability` ללא `user_id` |

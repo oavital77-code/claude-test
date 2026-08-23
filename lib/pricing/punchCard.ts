@@ -1,6 +1,6 @@
 // תצוגה בלבד — לצורך הצגת פירוט מחיר לפני רכישה. המקור הסמכותי לחישוב
-// בפועל הוא ה-RPC create_punch_card_purchase (ר' migrations), כדי שלא
-// יהיה מרווח לתמרון בצד לקוח.
+// בפועל הוא claim_woo_pending_purchase (ר' migrations) — התשלום עצמו
+// מתבצע בחנות ה-Woo, לא בקוד הזה.
 export interface PunchCardTierLike {
   hours: number;
   price_per_hour: number;
