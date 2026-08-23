@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// ⚠️ אין עדיין לוגו/מיתוג רשמי (תמונות החדרים גם חסרות — חוסם פתוח, ר' spec §12).
-// זהו סימן גרפי זמני, גיאומטרי בכוונה — לא טקסט עברי, כי לפונט ברירת המחדל
-// של ImageResponse/satori אין תמיכה בעברית בלי הטענת גופן מפורשת.
+// סימן הלוגו הרשמי (Cleana brand kit) — squircle סגול, טבעת לבנה, נקודה
+// מרכזית. בנוי מ-divs (לא SVG גולמי) כי satori/ImageResponse לא תומך
+// בכל תחביר SVG בבטחה.
 export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
@@ -16,18 +16,30 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#b5622f",
+          background: "#7A5AF8",
         }}
       >
         <div
           style={{
-            width: 240,
-            height: 240,
+            width: 266,
+            height: 266,
             borderRadius: "50%",
-            border: "32px solid #f7f1ea",
+            background: "#FFFFFF",
             display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
-        />
+        >
+          <div
+            style={{
+              width: 92,
+              height: 92,
+              borderRadius: "50%",
+              background: "#7A5AF8",
+              display: "flex",
+            }}
+          />
+        </div>
       </div>
     ),
     { ...size },

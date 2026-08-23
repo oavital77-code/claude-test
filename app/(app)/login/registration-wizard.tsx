@@ -11,6 +11,7 @@ import {
   type DetailsFormValues,
 } from "@/lib/validation/registration";
 import { TERMS_TEXT } from "@/lib/terms/current";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -170,7 +171,9 @@ export function RegistrationWizard({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-xl font-bold text-primary">Cleana</CardTitle>
+        <CardTitle>
+          <Logo markClassName="size-8" wordmarkClassName="text-xl" />
+        </CardTitle>
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

@@ -3,49 +3,53 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* פלטת המותג (Cleana brand kit) — סגול #7A5AF8/#9C82FF, לבנדר בהיר
+   #EFEAFE, שחור-נייבי #171423, לבן שבור #FAF9FC. גוונים נוספים הם רק
+   שקיפות (alpha) על חמשת הצבעים האלה — לא גוון חדש שהומצא. destructive
+   (אדום שגיאה) לא חלק מה-brand kit ונשאר ללא שינוי. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.97 0.015 75);
-  --foreground: oklch(0.28 0.03 40);
-  --card: oklch(0.995 0.008 80);
-  --card-foreground: oklch(0.28 0.03 40);
-  --popover: oklch(0.995 0.008 80);
-  --popover-foreground: oklch(0.28 0.03 40);
-  --primary: oklch(0.58 0.14 40);
-  --primary-foreground: oklch(0.98 0.01 80);
-  --secondary: oklch(0.93 0.025 70);
-  --secondary-foreground: oklch(0.32 0.03 45);
-  --muted: oklch(0.94 0.02 70);
-  --muted-foreground: oklch(0.48 0.025 50);
-  --accent: oklch(0.82 0.09 75);
-  --accent-foreground: oklch(0.28 0.03 40);
+  --background: #faf9fc;
+  --foreground: #171423;
+  --card: #ffffff;
+  --card-foreground: #171423;
+  --popover: #ffffff;
+  --popover-foreground: #171423;
+  --primary: #7a5af8;
+  --primary-foreground: #faf9fc;
+  --secondary: #efeafe;
+  --secondary-foreground: #171423;
+  --muted: #efeafe;
+  --muted-foreground: rgba(23, 20, 35, 0.65);
+  --accent: #9c82ff;
+  --accent-foreground: #171423;
   --destructive: oklch(0.577 0.19 27);
   --destructive-foreground: oklch(0.98 0.01 80);
-  --border: oklch(0.88 0.025 65);
-  --input: oklch(0.88 0.025 65);
-  --ring: oklch(0.58 0.14 40);
+  --border: rgba(23, 20, 35, 0.12);
+  --input: rgba(23, 20, 35, 0.12);
+  --ring: #7a5af8;
 }
 
 .dark {
-  --background: oklch(0.22 0.02 40);
-  --foreground: oklch(0.94 0.015 75);
-  --card: oklch(0.27 0.025 42);
-  --card-foreground: oklch(0.94 0.015 75);
-  --popover: oklch(0.27 0.025 42);
-  --popover-foreground: oklch(0.94 0.015 75);
-  --primary: oklch(0.68 0.13 45);
-  --primary-foreground: oklch(0.18 0.02 40);
-  --secondary: oklch(0.32 0.025 45);
-  --secondary-foreground: oklch(0.92 0.015 75);
-  --muted: oklch(0.3 0.02 42);
-  --muted-foreground: oklch(0.68 0.02 60);
-  --accent: oklch(0.5 0.08 70);
-  --accent-foreground: oklch(0.94 0.015 75);
+  --background: #171423;
+  --foreground: #faf9fc;
+  --card: rgba(250, 249, 252, 0.06);
+  --card-foreground: #faf9fc;
+  --popover: #171423;
+  --popover-foreground: #faf9fc;
+  --primary: #9c82ff;
+  --primary-foreground: #171423;
+  --secondary: rgba(250, 249, 252, 0.08);
+  --secondary-foreground: #faf9fc;
+  --muted: rgba(250, 249, 252, 0.06);
+  --muted-foreground: rgba(250, 249, 252, 0.6);
+  --accent: #7a5af8;
+  --accent-foreground: #faf9fc;
   --destructive: oklch(0.65 0.18 25);
   --destructive-foreground: oklch(0.18 0.02 40);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.68 0.13 45);
+  --border: rgba(250, 249, 252, 0.12);
+  --input: rgba(250, 249, 252, 0.15);
+  --ring: #9c82ff;
 }
 
 @theme inline {
@@ -80,8 +84,8 @@ body {
   background-color: var(--background);
   background-image: repeating-linear-gradient(
     135deg,
-    oklch(0.58 0.14 40 / 4%) 0px,
-    oklch(0.58 0.14 40 / 4%) 1px,
+    rgba(23, 20, 35, 0.04) 0px,
+    rgba(23, 20, 35, 0.04) 1px,
     transparent 1px,
     transparent 28px
   );
@@ -92,8 +96,8 @@ body {
 .dark body {
   background-image: repeating-linear-gradient(
     135deg,
-    oklch(0.68 0.13 45 / 6%) 0px,
-    oklch(0.68 0.13 45 / 6%) 1px,
+    rgba(250, 249, 252, 0.06) 0px,
+    rgba(250, 249, 252, 0.06) 1px,
     transparent 1px,
     transparent 28px
   );
@@ -125,7 +129,7 @@ body {
   width: 34rem;
   height: 34rem;
   opacity: 0.55;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='oklch(0.93 0.045 40)' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='%23EFEAFE' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
 }
 
 .bg-decor .blob-2 {
@@ -134,7 +138,7 @@ body {
   width: 32rem;
   height: 32rem;
   opacity: 0.6;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='oklch(0.95 0.04 75)' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='%23EFEAFE' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
 }
 
 .bg-decor .blob-3 {
@@ -143,22 +147,22 @@ body {
   width: 26rem;
   height: 26rem;
   opacity: 0.65;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='oklch(0.96 0.03 85)' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='%23EFEAFE' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
 }
 
 .dark .bg-decor .blob-1 {
   opacity: 0.16;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='oklch(0.68 0.13 45)' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='%239C82FF' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
 }
 
 .dark .bg-decor .blob-2 {
   opacity: 0.18;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='oklch(0.5 0.08 70)' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='%237A5AF8' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
 }
 
 .dark .bg-decor .blob-3 {
   opacity: 0.14;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='oklch(0.32 0.025 45)' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='%23FAF9FC' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
 }
 
 @media (prefers-reduced-motion: no-preference) {
