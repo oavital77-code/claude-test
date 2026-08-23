@@ -56,5 +56,14 @@ export async function completeRegistration(
     return { ok: false, error: "שגיאה בשמירת הפרטים. נסו שוב." };
   }
 
+  // הפעלה אוטומטית של רכישות ממתינות מחנות ה-Woo (אם נרשמו באותו טלפון/מייל).
+  // best-effort בכוונה: כישלון כאן לא אמור לחסום הרשמה שכבר הצליחה — אם לא
+  // הופעל, זה יישאר בטבלה ל-admin לטפל ידנית.
+  try {
+    await supabase.rpc("claim_woo_pending_purchase");
+  } catch {
+    // מתועד ע"י Supabase/הלוגים; לא חוסם את ההרשמה עצמה.
+  }
+
   return { ok: true };
 }

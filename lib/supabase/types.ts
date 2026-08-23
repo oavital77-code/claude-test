@@ -34,7 +34,7 @@ export type PaymentType =
   | "overrun"
   | "deposit_topup";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
-export type PaymentMethod = "credit_card" | "bit" | "paybox" | "cash";
+export type PaymentMethod = "credit_card" | "bit" | "paybox" | "cash" | "other";
 export type OverrunSource = "deposit" | "charge";
 
 export type Database = {
@@ -454,6 +454,52 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["waitlist"]["Insert"]>;
       Relationships: [];
       };
+      woo_product_tiers: {
+        Row: {
+          woo_product_id: number;
+          tier_id: string;
+          created_at: string;
+        };
+        Insert: {
+          woo_product_id: number;
+          tier_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["woo_product_tiers"]["Insert"]>;
+        Relationships: [];
+      };
+      woo_pending_purchases: {
+        Row: {
+          id: string;
+          woo_order_id: number;
+          tier_id: string;
+          phone: string | null;
+          email: string | null;
+          quantity: number;
+          amount_total: number;
+          status: "pending" | "claimed" | "expired";
+          claimed_by: string | null;
+          claimed_at: string | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          woo_order_id: number;
+          tier_id: string;
+          phone?: string | null;
+          email?: string | null;
+          quantity?: number;
+          amount_total: number;
+          status?: "pending" | "claimed" | "expired";
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["woo_pending_purchases"]["Insert"]>;
+        Relationships: [];
+      };
       audit_log: {
         Row: {
           id: number;
@@ -635,6 +681,10 @@ export type Database = {
       admin_adjust_punch_card_hours: {
         Args: { p_card_id: string; p_hours_delta: number; p_note: string };
         Returns: undefined;
+      };
+      claim_woo_pending_purchase: {
+        Args: Record<string, never>;
+        Returns: { claimed_count: number; hours_granted: number }[];
       };
       admin_add_session_slot: {
         Args: {

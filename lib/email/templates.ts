@@ -193,6 +193,20 @@ export function cronFailedAdminEmail(params: { jobName: string; detail: string }
   };
 }
 
+export function wooPurchaseReceivedEmail(params: {
+  hours: number;
+  registerUrl: string;
+}): EmailContent {
+  return {
+    subject: `הרכישה שלך התקבלה — ${params.hours} שעות מחכות לך ב-Cleana`,
+    html: emailLayout(`
+      <p>תודה על הרכישה! כרטיסייה של <strong>${params.hours} שעות</strong> ממתינה לך.</p>
+      <p>כדי להפעיל אותה, יש ליצור חשבון (או להתחבר, אם כבר יש לך אחד) באותה כתובת מייל או מספר טלפון שאיתם רכשת — הכרטיסייה תופעל אוטומטית עם ההרשמה.</p>
+      ${emailButton(params.registerUrl, "יצירת חשבון / התחברות")}
+    `),
+  };
+}
+
 export function waitlistSlotAvailableEmail(params: {
   roomName: string;
   date: string;
