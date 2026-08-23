@@ -3,7 +3,7 @@ import { verifyPayPlusCallback } from "@/lib/payplus/verify";
 import { getPayPlusConfig } from "@/lib/payplus/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { punchCardPurchasedEmail, paymentFailedEmail } from "@/lib/email/templates";
+import { punchCardPurchasedEmail, paymentFailedEmail, sessionRenewedEmail } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
 
 // 🔴 מקור האמת לתשלום. לא ה-redirect (§7.4). כל עדכון סטטוס עובר תמיד
@@ -89,15 +89,13 @@ export async function POST(request: Request) {
     }
     notifyPunchCardPurchased(payment.user_id, payment.amount_total, payload.invoice_url).catch(() => {});
   } else if (payment.type === "session_initial") {
-    if (!payload.token_uid) {
-      // ססיה חייבת כרטיס אשראי + טוקן שמור (§7.2) — בלי טוקן אין חידוש אפשרי.
-      return NextResponse.json({ error: "MISSING_TOKEN" }, { status: 400 });
-    }
+    // כבר לא נדרש טוקן — אין יותר חיוב אוטומטי לחידוש (ר' migration
+    // 20260828000002), כל חידוש הוא תשלום יזום עם קישור טרי משלו.
     const { error } = await supabase.rpc("activate_session_payment", {
       p_payment_id: paymentId,
       p_transaction_uid: payload.transaction_uid,
       p_method: payload.payment_method ?? "credit_card",
-      p_token_uid: payload.token_uid,
+      p_token_uid: payload.token_uid ?? null,
       p_card_last4: payload.card_last4 ?? null,
       p_card_expiry: payload.card_expiry ?? null,
       p_invoice_url: payload.invoice_url ?? null,
@@ -105,8 +103,20 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: "ACTIVATION_FAILED" }, { status: 500 });
     }
+  } else if (payment.type === "session_recurring") {
+    // חידוש יזום ע"י המטפל/ת (initiateSessionRenewal) — לא cron יותר.
+    const { error } = await supabase.rpc("finalize_session_renewal", {
+      p_payment_id: paymentId,
+      p_success: true,
+      p_transaction_uid: payload.transaction_uid,
+      p_invoice_url: payload.invoice_url ?? null,
+      p_method: payload.payment_method ?? "credit_card",
+    });
+    if (error) {
+      return NextResponse.json({ error: "ACTIVATION_FAILED" }, { status: 500 });
+    }
+    notifySessionRenewed(payment.user_id, payment.amount_total, payload.invoice_url).catch(() => {});
   } else {
-    // session_recurring מטופל דרך app/api/cron/charge-renewals, לא webhook נכנס.
     return NextResponse.json({ error: "UNEXPECTED_PAYMENT_TYPE" }, { status: 400 });
   }
 
@@ -136,12 +146,27 @@ async function notifyPunchCardPurchased(userId: string, amountTotal: number, inv
   await sendEmail({ to: profile.email, subject, html });
 }
 
+async function notifySessionRenewed(userId: string, amountTotal: number, invoiceUrl: string | undefined) {
+  const supabase = createAdminClient();
+  const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).maybeSingle();
+  if (!profile) return;
+  const { subject, html } = sessionRenewedEmail(amountTotal, invoiceUrl);
+  await sendEmail({ to: profile.email, subject, html });
+}
+
 async function notifyPaymentFailed(userId: string, amountTotal: number, type: string) {
   const supabase = createAdminClient();
   const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).maybeSingle();
   const adminEmails = await getAdminEmails(supabase);
 
-  const context = type === "punch_card" ? "רכישת כרטיסייה" : type === "session_initial" ? "תשלום ססיה" : type;
+  const context =
+    type === "punch_card"
+      ? "רכישת כרטיסייה"
+      : type === "session_initial"
+        ? "תשלום ססיה"
+        : type === "session_recurring"
+          ? "חידוש ססיה"
+          : type;
   const { subject, html } = paymentFailedEmail({ amountTotal, context });
 
   const recipients = [profile?.email, ...adminEmails].filter(Boolean) as string[];

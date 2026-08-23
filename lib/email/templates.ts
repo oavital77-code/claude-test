@@ -105,6 +105,25 @@ export function sessionApprovedEmail(paymentUrl: string): EmailContent {
   };
 }
 
+export function sessionRenewalReminderEmail(params: {
+  therapistName: string;
+  weeklyHours: number;
+  nextBillingDate: Date;
+  forAdmin: boolean;
+}): EmailContent {
+  const intro = params.forAdmin
+    ? `<p>המנוי של <strong>${params.therapistName}</strong> (${params.weeklyHours} שעות שבועיות) עומד להסתיים אם לא יחודש.</p>`
+    : `<p>מנוי הססיה שלך (${params.weeklyHours} שעות שבועיות) עומד להסתיים.</p>`;
+  return {
+    subject: params.forAdmin ? `תזכורת חידוש ססיה — ${params.therapistName}` : "הססיה שלך עומדת להסתיים",
+    html: emailLayout(`
+      ${intro}
+      <p style="font-weight:700;">תוקף עד ${formatDateHe(params.nextBillingDate)}</p>
+      <p>${params.forAdmin ? "אם לא יחודש עד אז, המטפל/ת לא יוכל/תוכל לקבוע ססיות חדשות." : "יש לחדש דרך \"הססיות שלי\" ב-Cleana עד לתאריך זה, אחרת לא ניתן יהיה לקבוע ססיות חדשות."}</p>
+    `),
+  };
+}
+
 export function sessionRejectedEmail(reason: string): EmailContent {
   return {
     subject: "בקשת הססיה שלך נדחתה",

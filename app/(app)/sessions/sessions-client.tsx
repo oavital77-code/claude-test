@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/format";
 import { formatDateHe, formatDateTimeHe } from "@/lib/time";
 import { WEEKDAY_LABELS } from "@/lib/pricing/session";
 import type { Database } from "@/lib/supabase/types";
-import { initiateSessionPayment, requestCancellation } from "./actions";
+import { initiateSessionPayment, initiateSessionRenewal, requestCancellation } from "./actions";
 
 type Subscription = Database["public"]["Tables"]["session_subscriptions"]["Row"];
 type SessionSlot = Database["public"]["Tables"]["session_slots"]["Row"];
@@ -63,6 +63,18 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
     setLoading(true);
     setError(null);
     const result = await initiateSessionPayment(subscription.id);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    navigateTo(result.redirectUrl);
+  }
+
+  async function handleRenew() {
+    setLoading(true);
+    setError(null);
+    const result = await initiateSessionRenewal(subscription.id);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
@@ -140,12 +152,18 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
           <div className="flex flex-col gap-1">
             {subscription.next_billing_date && (
               <p className="text-sm text-muted-foreground">
-                חיוב הבא: {formatDateHe(new Date(subscription.next_billing_date))}
+                המנוי בתוקף עד {formatDateHe(new Date(subscription.next_billing_date))} — יש לחדש עד אז כדי
+                להמשיך לקבוע ססיות.
               </p>
             )}
-            <Button size="sm" variant="outline" onClick={handleCancelRequest} disabled={loading} className="w-fit">
-              בקשת ביטול מנוי
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={handleRenew} disabled={loading} className="w-fit">
+                {loading ? "מעביר לתשלום..." : "חידוש מנוי"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleCancelRequest} disabled={loading} className="w-fit">
+                בקשת ביטול מנוי
+              </Button>
+            </div>
           </div>
         )}
 
@@ -153,6 +171,17 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
           <p className="text-sm text-muted-foreground">
             המנוי בתהליך ביטול — פעיל עד {formatDateHe(new Date(subscription.effective_end_date))}
           </p>
+        )}
+
+        {subscription.status === "expired" && (
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              המנוי פג — לא ניתן לקבוע ססיות חדשות עד לחידוש.
+            </p>
+            <Button size="sm" onClick={handleRenew} disabled={loading} className="w-fit">
+              {loading ? "מעביר לתשלום..." : "חידוש מנוי"}
+            </Button>
+          </div>
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}

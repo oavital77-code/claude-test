@@ -250,6 +250,7 @@ export type Database = {
           next_billing_date: string | null;
           cancel_requested_at: string | null;
           effective_end_date: string | null;
+          renewal_reminder_sent_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -267,6 +268,7 @@ export type Database = {
           next_billing_date?: string | null;
           cancel_requested_at?: string | null;
           effective_end_date?: string | null;
+          renewal_reminder_sent_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["session_subscriptions"]["Insert"]>;
@@ -595,7 +597,7 @@ export type Database = {
           p_payment_id: string;
           p_transaction_uid: string;
           p_method: PaymentMethod;
-          p_token_uid: string;
+          p_token_uid?: string | null;
           p_card_last4?: string | null;
           p_card_expiry?: string | null;
           p_invoice_url?: string | null;
@@ -610,9 +612,9 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
-      create_session_renewal_payment: {
+      initiate_session_renewal_payment: {
         Args: { p_subscription_id: string };
-        Returns: { payment_id: string; amount_total: number; user_id: string }[];
+        Returns: { payment_id: string; amount_total: number }[];
       };
       finalize_session_renewal: {
         Args: {
@@ -621,8 +623,9 @@ export type Database = {
           p_transaction_uid?: string | null;
           p_invoice_url?: string | null;
           p_reason?: string | null;
+          p_method?: PaymentMethod | null;
         };
-        Returns: { suspended: boolean }[];
+        Returns: undefined;
       };
       expire_session_holds_and_cancellations: {
         Args: Record<string, never>;
