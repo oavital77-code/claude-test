@@ -35,10 +35,16 @@ const STATUS_STYLES: Record<Subscription["status"], string> = {
   expired: "text-muted-foreground",
 };
 
-// עוזר קטן להשתיק ניווט חוזר מחוץ לקומפוננטה (ניווט לדומיין חיצוני אינו state).
-// נפתח בחלון/טאב נפרד כדי שהמשתמש/ת לא יאבד/תאבד את המקום באפליקציה.
-function navigateTo(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
+// פותח את כתובת התשלום שהתקבלה מהשרת בחלון/טאב שכבר נפתח מיד בתגובה
+// ללחיצה (לפני ה-await) — לא אחרי. בדפדפני מובייל (בעיקר Safari ב-iOS) חלון
+// שנפתח אחרי await מאבד את ה"user activation" מהלחיצה ונחסם בשקט ע"י חוסם
+// חלונות קופצים.
+function openPaymentWindow(existingWindow: Window | null, url: string) {
+  if (existingWindow) {
+    existingWindow.location.href = url;
+  } else {
+    window.location.href = url;
+  }
 }
 
 export function SessionsClient({ subscriptions }: { subscriptions: SubscriptionWithSlots[] }) {
@@ -63,25 +69,29 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
   async function handlePay() {
     setLoading(true);
     setError(null);
+    const paymentWindow = window.open("", "_blank", "noopener,noreferrer");
     const result = await initiateSessionPayment(subscription.id);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
+      paymentWindow?.close();
       return;
     }
-    navigateTo(result.redirectUrl);
+    openPaymentWindow(paymentWindow, result.redirectUrl);
   }
 
   async function handleRenew() {
     setLoading(true);
     setError(null);
+    const paymentWindow = window.open("", "_blank", "noopener,noreferrer");
     const result = await initiateSessionRenewal(subscription.id);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
+      paymentWindow?.close();
       return;
     }
-    navigateTo(result.redirectUrl);
+    openPaymentWindow(paymentWindow, result.redirectUrl);
   }
 
   async function handleCancelRequest() {

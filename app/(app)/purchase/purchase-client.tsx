@@ -10,10 +10,10 @@ import { initiatePunchCardPurchase } from "./actions";
 
 type Tier = Database["public"]["Tables"]["punch_card_tiers"]["Row"];
 
-// מחוץ לקומפוננטה בכוונה: ניווט לדומיין חיצוני (חנות בקליניקה) אינו state של React.
-// נפתח בחלון/טאב נפרד כדי שהמשתמש/ת לא יאבד/תאבד את המקום באפליקציה.
-function navigateTo(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
+// מחוץ לקומפוננטה בכוונה — כתיבה ל-window בתוך גוף קומפוננטה נחסמת ע"י
+// כלל ה-lint של react-compiler (immutability).
+function navigateInSameTab(url: string) {
+  window.location.href = url;
 }
 
 export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: number }) {
@@ -22,16 +22,27 @@ export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: num
 
   // הרכישה עצמה (תשלום) מתבצעת באתר בקליניקה, לא בתוך Cleana — ר' actions.ts.
   // הכרטיסייה תופיע אוטומטית בכניסה הבאה שלך למערכת אחרי התשלום.
+  //
+  // window.open נקרא כאן, *לפני* ה-await — לא אחריו. בדפדפני מובייל (בעיקר
+  // Safari ב-iOS) חלון/טאב חדש שנפתח אחרי await מאבד את ה"user activation"
+  // מהלחיצה ונחסם בשקט ע"י חוסם חלונות קופצים. פותחים חלון ריק מיד בתגובה
+  // ללחיצה, וממלאים את הכתובת רק אחרי שהיא מתקבלת מהשרת.
   async function handlePurchase(tierId: string) {
     setError(null);
     setLoadingTierId(tierId);
+    const paymentWindow = window.open("", "_blank", "noopener,noreferrer");
     const result = await initiatePunchCardPurchase(tierId);
     if (!result.ok) {
       setLoadingTierId(null);
       setError(result.error);
+      paymentWindow?.close();
       return;
     }
-    navigateTo(result.redirectUrl);
+    if (paymentWindow) {
+      paymentWindow.location.href = result.redirectUrl;
+    } else {
+      navigateInSameTab(result.redirectUrl);
+    }
   }
 
   return (
