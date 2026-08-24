@@ -55,10 +55,14 @@ where (status = 'confirmed')
 `requested → [אדמין] → awaiting_payment → [תשלום] → active`
 אין יצירת דף תשלום לפני `approve_session`. לעולם.
 
-### 6. תשלום: מקור האמת הוא ה-webhook של Woo
+### 6. תשלום: מקור האמת הוא ה-הזמנה עצמה ב-Woo
 כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (baclinica.co.il), לא
-ב-Cleana. אמת חתימת HMAC מול `WOOCOMMERCE_WEBHOOK_SECRET` לפני כל עדכון
-סטטוס. `payplus_transaction_uid` הוא `UNIQUE` — כל webhook אידמפוטנטי.
+ב-Cleana. שני מסלולי גילוי אפשריים, שניהם מזינים את אותה `processWooOrder`
+(`lib/woo/process-order.ts`): (א) webhook — אמת חתימת HMAC מול
+`WOOCOMMERCE_WEBHOOK_SECRET` לפני כל עדכון סטטוס; (ב) polling דרך REST API
+(`WOOCOMMERCE_KEY`/`WOOCOMMERCE_SECRET`, הרשאת Read בלבד) — כשאין webhook
+מוגדר בחנות. `payplus_transaction_uid` הוא `UNIQUE` — כל עדכון אידמפוטנטי,
+בלי קשר לאיך שהתגלה.
 
 ### 7. אין הזמנה בלי יתרה
 כרטיסייה בתוקף עם `hours_remaining >= hours` **וגם** `deposit_remaining = deposit_amount`.

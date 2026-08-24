@@ -1,5 +1,7 @@
+import { after } from "next/server";
 import { getAuthState } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { pollWooOrders } from "@/lib/woo/poll";
 import { AppNav } from "./nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +17,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     } catch {
       // best-effort — לא חוסם רינדור של העמוד
     }
+
+    // בדיקה יזומה מול Woo: אין webhook מוגדר בחנות כרגע, אז זו נקודת
+    // הגילוי העיקרית לתשלום שהתקבל — רצה *אחרי* שהתגובה נשלחת (after),
+    // כדי לא להוסיף זמן טעינה של קריאת HTTP חיצונית לכל כניסה למערכת.
+    // חלון קצר (90 דק') כי היא רצה כמעט בכל טעינת עמוד; ה-cron היומי
+    // (poll-woo-orders) הוא רשת הביטחון למי שלא פותח את האפליקציה בכלל.
+    after(() => pollWooOrders(90).catch(() => {}));
   }
 
   return (

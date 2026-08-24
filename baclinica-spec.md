@@ -638,15 +638,25 @@ COMMIT
 
 כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (`baclinica.co.il`), לא
 ב-Cleana. Cleana לא יוצרת דפי תשלום ולא מדברת עם שום gateway ישירות; היא רק
-מפנה את המטפל/ת למוצר הנכון בחנות, וה-webhook של Woo הוא מקור האמת היחיד
-לכך ששולם בפועל. (הוחלט לזנוח אינטגרציית PayPlus ישירה — מעולם לא חוברה
-בפועל, ר' היסטוריית הפרויקט.)
+מפנה את המטפל/ת למוצר הנכון בחנות. (הוחלט לזנוח אינטגרציית PayPlus ישירה —
+מעולם לא חוברה בפועל, ר' היסטוריית הפרויקט.)
+
+**גילוי תשלום — שני מסלולים אפשריים, אותה לוגיקה בדיוק** (`processWooOrder`,
+`lib/woo/process-order.ts`):
+- **Webhook** (push מ-Woo) — כשמוגדר webhook בחנות. מיידי, מאומת בחתימת HMAC.
+- **Polling** (pull דרך REST API) — המצב הנוכחי, כי אין webhook מוגדר בחנות.
+  `lib/woo/poll.ts` שולף הזמנות אחרונות ומריץ אותן דרך אותה `processWooOrder`.
+  שתי נקודות הפעלה: בדיקה יזומה בכל טעינת עמוד מחובר (חלון 90 דק', ר'
+  `app/(app)/layout.tsx`), ו-cron יומי כרשת ביטחון (חלון 26 שעות, ר'
+  `app/api/cron/poll-woo-orders`).
 
 ### 7.1 משתני סביבה
 
 ```env
-WOOCOMMERCE_WEBHOOK_SECRET=
 NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
+WOOCOMMERCE_WEBHOOK_SECRET=      # אופציונלי — רק אם מוגדר webhook בחנות
+WOOCOMMERCE_KEY=                 # REST API, הרשאת Read בלבד
+WOOCOMMERCE_SECRET=              # REST API, הרשאת Read בלבד
 ```
 
 ### 7.2 מיפוי מוצרים
@@ -663,8 +673,11 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
    סימון-מזומן הידני יהיה מה לסמן, גם אם התשלום המקוון לא הושלם
 2. הפניית המטפל/ת ל-add-to-cart של המוצר המתאים בחנות (redirect חיצוני מלא)
 3. תשלום מתבצע בחנות עצמה — Cleana לא מעורבת
-4. Woo → POST ל-app/api/woo/webhook (topic: Order updated) כשההזמנה paid
-5. אימות חתימת HMAC מול WOOCOMMERCE_WEBHOOK_SECRET   ← 🔴 חובה
+4. גילוי שההזמנה שולמה — או webhook (push, אם מוגדר) או polling (pull, ר'
+   למעלה) — שניהם מזינים את אותה processWooOrder
+5. אם webhook: אימות חתימת HMAC מול WOOCOMMERCE_WEBHOOK_SECRET   ← 🔴 חובה
+   אם polling: הקריאה ל-Woo REST API מאומתת ב-Consumer Key/Secret משלנו —
+   אנחנו זה שיוזם את הקריאה, לא סומכים על payload נכנס לא-מאומת
 6. התאמה לפי טלפון/מייל (פרופיל קיים) → תשלום pending מתאים → הפעלה
 ```
 
@@ -676,9 +689,9 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
 
 ### 7.4 כללי ברזל
 
-- 🔴 **מקור האמת הוא ה-webhook**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף.
-- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` (שם השדה נשאר, מכיל גם אסמכתאות Woo) הוא `UNIQUE`. אותו webhook פעמיים = פעולה אחת.
-- 🔴 **תמיד לאמת חתימה** לפני עדכון סטטוס. בלי זה כל אחד יכול "לשלם" בזיוף בקשה.
+- 🔴 **מקור האמת הוא ההזמנה עצמה ב-Woo**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף, יתגלה ב-polling הבא.
+- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` (שם השדה נשאר, מכיל גם אסמכתאות Woo) הוא `UNIQUE`. אותה הזמנה שמתגלה כמה פעמים = פעולה אחת.
+- 🔴 **תמיד לאמת** — חתימת HMAC ב-webhook, או Consumer Key/Secret משלנו ב-polling — לפני עדכון סטטוס.
 - כל התשלומים כוללים **מע"מ 18%** מוצג בנפרד.
 
 ---

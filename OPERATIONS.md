@@ -71,13 +71,17 @@ Supabase הוא Postgres (מסד נתונים) + מערכת Authentication (הת
 ### WooCommerce — סליקת תשלומים
 כל תשלום (כרטיסיות, ססיות) עובר דרך חנות ה-Woo (`baclinica.co.il`) —
 Cleana לא יוצרת דפי תשלום ולא מדברת עם gateway ישירות (הוחלט לזנוח
-אינטגרציית PayPlus ישירה — מעולם לא חוברה בפועל). דורש שני דברים בחנות:
+אינטגרציית PayPlus ישירה — מעולם לא חוברה בפועל). דורש:
 1. Product ID לכל אחד מ-5 מוצרי הכרטיסיות → נכנס ל-`woo_product_tiers`
    (SQL ידני, אין UI).
 2. Product ID למוצר הססיה (מוצר קבוע, מחיר קבוע) → נערך ב-`/admin/settings`
    (`woo_session_product_id`).
-3. Webhook בחנות (Settings → Advanced → Webhooks, topic "Order updated")
-   שמצביע ל-`/api/woo/webhook`, עם secret שנכנס ל-`WOOCOMMERCE_WEBHOOK_SECRET`.
+3. **גילוי תשלום — אין webhook מוגדר בחנות (2026-08-23), אז המסלול הפעיל
+   הוא polling**: `WOOCOMMERCE_KEY`/`WOOCOMMERCE_SECRET` (מפתחות REST API,
+   **הרשאת Read בלבד מספיקה** — Settings → Advanced → REST API → Add key).
+   בדיקה יזומה רצה בכל טעינת עמוד מחובר (best-effort, לא חוסמת רינדור),
+   ו-cron יומי כרשת ביטחון. אם בעתיד יוגדר webhook — `WOOCOMMERCE_WEBHOOK_SECRET`
+   מפעיל אותו אוטומטית, שני המסלולים עובדים במקביל בלי צורך לבחור.
 
 ---
 
