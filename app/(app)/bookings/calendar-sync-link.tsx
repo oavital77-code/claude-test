@@ -21,7 +21,7 @@ export function CalendarSyncLink({ icsToken }: { icsToken: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // דפדפן בלי clipboard API (נדיר) — הקישור עדיין מוצג לגלישה/העתקה ידנית
+      // דפדפן בלי clipboard API (נדיר) — אין תצוגה חלופית, מקרה קצה זניח
     }
   }
 
@@ -29,22 +29,19 @@ export function CalendarSyncLink({ icsToken }: { icsToken: string }) {
     <Card>
       <CardContent className="flex flex-col gap-3 p-4 text-sm">
         <p className="font-medium">סנכרון יומן</p>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <a href={webcalUrl}>הוספה ליומן (אפל / אאוטלוק)</a>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Button asChild size="sm" variant="outline" className="w-full">
+            <a href={webcalUrl}>אפל / אאוטלוק</a>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="outline" className="w-full">
             <a href={googleUrl} target="_blank" rel="noopener noreferrer">
-              הוספה ל-Google Calendar
+              Google Calendar
             </a>
           </Button>
-          <Button size="sm" variant="outline" onClick={handleCopy}>
+          <Button size="sm" variant="outline" className="w-full" onClick={handleCopy}>
             {copied ? "הועתק ✓" : "העתקת קישור"}
           </Button>
         </div>
-        <p className="break-all text-xs text-muted-foreground" dir="ltr">
-          {feedUrl}
-        </p>
         <p className="text-xs text-muted-foreground">
           קישור אישי — אין לשתף. עדכון ביומן עשוי להתעכב בכמה שעות בהתאם ליישום היומן.
         </p>
