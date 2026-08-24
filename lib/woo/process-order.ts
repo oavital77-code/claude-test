@@ -16,7 +16,21 @@ export interface WooOrderPayload {
     email?: string;
     phone?: string;
   };
-  line_items?: Array<{ product_id: number; quantity: number; total: string; total_tax?: string }>;
+  line_items?: Array<{
+    product_id: number;
+    variation_id?: number;
+    quantity: number;
+    total: string;
+    total_tax?: string;
+  }>;
+}
+
+// כרטיסייה ב-Woo היא מוצר משתנה (variable product) אחד — ל-line_item יש
+// product_id משותף לכל המדרגות (ה"הורה") ו-variation_id נפרד לכל מדרגה
+// בפועל. woo_product_tiers ממופה ל-variation_id (378–382), לא ל-product_id
+// (377) — variation_id=0/חסר (מוצר פשוט, כמו הססיה) → falls back ל-product_id.
+function effectiveProductId(item: { product_id: number; variation_id?: number }): number {
+  return item.variation_id && item.variation_id !== 0 ? item.variation_id : item.product_id;
 }
 
 export const PAID_STATUSES = new Set(["processing", "completed"]);
@@ -56,7 +70,7 @@ export async function processWooOrder(
 
   let sessionHandled = false;
   if (sessionProductId) {
-    const sessionItem = lineItems.find((li) => li.product_id === sessionProductId);
+    const sessionItem = lineItems.find((li) => effectiveProductId(li) === sessionProductId);
     if (sessionItem) {
       const amountTotal = parseFloat(sessionItem.total) + parseFloat(sessionItem.total_tax ?? "0");
       if (Number.isFinite(amountTotal)) {
@@ -76,7 +90,7 @@ export async function processWooOrder(
     .select("woo_product_id, tier_id")
     .in(
       "woo_product_id",
-      lineItems.map((li) => li.product_id),
+      lineItems.map((li) => effectiveProductId(li)),
     );
 
   if (!mappings || mappings.length === 0) {
@@ -102,7 +116,7 @@ export async function processWooOrder(
   }[] = [];
 
   for (const item of lineItems) {
-    const mapping = mappings.find((m) => m.woo_product_id === item.product_id);
+    const mapping = mappings.find((m) => m.woo_product_id === effectiveProductId(item));
     if (!mapping) continue;
     const tier = tiers?.find((t) => t.id === mapping.tier_id);
     if (!tier) continue;
