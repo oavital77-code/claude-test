@@ -1,5 +1,5 @@
 import "server-only";
-import { emailLayout, emailButton } from "./layout";
+import { emailLayout, emailButton, escapeHtml } from "./layout";
 import { formatDateHe, formatDateTimeHe, formatTimeHe } from "@/lib/time";
 import { formatCurrency } from "@/lib/format";
 
@@ -89,7 +89,7 @@ export function sessionRequestedAdminEmail(params: {
     subject: `בקשת ססיה חדשה — ${params.therapistName}`,
     html: emailLayout(`
       <p>התקבלה בקשת ססיה חדשה:</p>
-      <p style="font-weight:700;">${params.therapistName} · ${params.weeklyHours} שעות שבועיות · ${formatCurrency(params.monthlyPrice)}/חודש</p>
+      <p style="font-weight:700;">${escapeHtml(params.therapistName)} · ${params.weeklyHours} שעות שבועיות · ${formatCurrency(params.monthlyPrice)}/חודש</p>
       <p>יש לבדוק זמינות ולאשר/לדחות בפאנל הניהול.</p>
     `),
   };
@@ -112,7 +112,7 @@ export function sessionRenewalReminderEmail(params: {
   forAdmin: boolean;
 }): EmailContent {
   const intro = params.forAdmin
-    ? `<p>המנוי של <strong>${params.therapistName}</strong> (${params.weeklyHours} שעות שבועיות) עומד להסתיים אם לא יחודש.</p>`
+    ? `<p>המנוי של <strong>${escapeHtml(params.therapistName)}</strong> (${params.weeklyHours} שעות שבועיות) עומד להסתיים אם לא יחודש.</p>`
     : `<p>מנוי הססיה שלך (${params.weeklyHours} שעות שבועיות) עומד להסתיים.</p>`;
   return {
     subject: params.forAdmin ? `תזכורת חידוש ססיה — ${params.therapistName}` : "הססיה שלך עומדת להסתיים",
