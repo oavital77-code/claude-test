@@ -56,10 +56,12 @@ export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: num
                   <span className="text-muted-foreground">כרטיסייה</span>
                   <span>{formatCurrency(pricing.price)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">פיקדון ({tier.deposit_hours} ש׳)</span>
-                  <span>{formatCurrency(pricing.deposit)}</span>
-                </div>
+                {pricing.deposit > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">פיקדון ({tier.deposit_hours} ש׳)</span>
+                    <span>{formatCurrency(pricing.deposit)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">מע״מ ({Math.round(vatRate * 100)}%)</span>
                   <span>{formatCurrency(pricing.vat)}</span>
