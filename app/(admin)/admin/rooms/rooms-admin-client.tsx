@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
-import { saveBranch, saveRoom } from "./actions";
+import { saveBranch, saveRoom, uploadRoomImage, removeRoomImage } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -117,6 +117,9 @@ export function RoomsAdminClient({
         )}
 
         <div className="flex flex-col gap-2">
+          {rooms.filter((r) => r.branch_id === roomBranchId).length === 0 && editingRoom !== "new" && (
+            <p className="text-sm text-muted-foreground">אין עדיין חדרים בסניף הזה</p>
+          )}
           {rooms
             .filter((r) => r.branch_id === roomBranchId)
             .map((r) =>
@@ -131,17 +134,20 @@ export function RoomsAdminClient({
                 />
               ) : (
                 <Card key={r.id}>
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <p className="font-medium">
-                        {r.name} · {ROOM_TYPE_LABELS[r.room_type]}{" "}
-                        {!r.active && <span className="text-muted-foreground">(כבוי)</span>}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{r.description}</p>
+                  <CardContent className="flex flex-col gap-3 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">
+                          {r.name} · {ROOM_TYPE_LABELS[r.room_type]}{" "}
+                          {!r.active && <span className="text-muted-foreground">(כבוי)</span>}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{r.description}</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setEditingRoom(r)}>
+                        עריכה
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setEditingRoom(r)}>
-                      עריכה
-                    </Button>
+                    <RoomImagesEditor room={r} onChanged={() => router.refresh()} />
                   </CardContent>
                 </Card>
               ),
@@ -359,5 +365,73 @@ function RoomForm({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function RoomImagesEditor({ room, onChanged }: { room: Room; onChanged: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const images = (room.images ?? []) as string[];
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    const formData = new FormData();
+    formData.set("file", file);
+    const result = await uploadRoomImage(room.id, formData);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onChanged();
+  }
+
+  async function handleRemove(url: string) {
+    setLoading(true);
+    setError(null);
+    const result = await removeRoomImage(room.id, url);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onChanged();
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {images.map((url) => (
+          <div key={url} className="group relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={room.name} className="size-20 rounded-md border object-cover" />
+            <button
+              type="button"
+              onClick={() => handleRemove(url)}
+              disabled={loading}
+              className="absolute -left-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground opacity-0 group-hover:opacity-100"
+              aria-label="הסרת תמונה"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <label className="flex size-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed text-xs text-muted-foreground hover:bg-muted">
+          {loading ? "מעלה..." : "+ תמונה"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={loading}
+          />
+        </label>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   );
 }

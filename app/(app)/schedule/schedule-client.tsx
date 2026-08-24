@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
+import { he } from "date-fns/locale";
 
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { accessWindow, TIMEZONE } from "@/lib/time";
 import {
   fetchRooms,
   fetchRoomAvailability,
   slotStatus,
+  sourceAt,
 } from "@/lib/availability/queries";
 import {
   daySlots,
@@ -18,10 +21,10 @@ import {
   weekDatesStartingSunday,
 } from "@/lib/availability/grid";
 import type { Database } from "@/lib/supabase/types";
-import type { AvailabilityInterval } from "@/lib/availability/types";
+import type { AvailabilityInterval, SlotStatus } from "@/lib/availability/types";
 import type { Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
-import { AvailabilityGrid, Legend, type GridColumn } from "./availability-grid";
+import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
 import { bookSlot } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
@@ -33,6 +36,15 @@ const ROOM_TYPE_LABELS: Record<Room["room_type"], string> = {
   podcast: "פודקאסט",
   group: "קבוצתי",
 };
+
+// צבע ייחודי לכל סניף (לפי סדר הופעה) — כדי שיהיה ברור מיד באיזה סניף
+// מסתכלים / קבעו תור, בלי צורך בעמודת color נפרדת בטבלת branches.
+const BRANCH_COLORS = [
+  { dot: "bg-sky-500", active: "border-sky-600 bg-sky-600 text-white hover:bg-sky-600" },
+  { dot: "bg-violet-500", active: "border-violet-600 bg-violet-600 text-white hover:bg-violet-600" },
+  { dot: "bg-amber-500", active: "border-amber-600 bg-amber-600 text-white hover:bg-amber-600" },
+  { dot: "bg-emerald-500", active: "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600" },
+];
 
 export function ScheduleClient({
   branches,
@@ -90,7 +102,7 @@ export function ScheduleClient({
     const end = dayBoundaries(weekDates[6]).end;
     const cols: GridColumn[] = weekDates.map((d) => ({
       key: d,
-      label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM"),
+      label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM", { locale: he }),
     }));
     return {
       rangeStart: start,
@@ -151,60 +163,137 @@ export function ScheduleClient({
     return { roomId: selectedRoomId, start, end };
   }
 
-  function handleSlotClick(columnKey: string, slot: Slot) {
-    const { roomId, start, end } = resolveSlot(columnKey, slot);
-    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
-    setSelected({ columnKey, roomId, roomName, start, end });
+  function intervalsFor(columnKey: string, roomId: string) {
+    return view === "day"
+      ? availability.get(roomId)
+      : (availability.get(roomId) ?? []).filter((iv) => {
+          const dayStart = dayBoundaries(columnKey).start;
+          const dayEnd = dayBoundaries(columnKey).end;
+          return iv.startsAt < dayEnd && iv.endsAt > dayStart;
+        });
   }
 
   function statusFor(columnKey: string, slot: Slot) {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
-    const dayIntervals =
-      view === "day"
-        ? availability.get(roomId)
-        : (availability.get(roomId) ?? []).filter((iv) => {
-            const dayStart = dayBoundaries(columnKey).start;
-            const dayEnd = dayBoundaries(columnKey).end;
-            return iv.startsAt < dayEnd && iv.endsAt > dayStart;
-          });
-    return slotStatus(start, end, dayIntervals);
+    return slotStatus(start, end, intervalsFor(columnKey, roomId));
   }
+
+  /** צובע הזמנה "שלי" לפי סוגה (ססיה/כרטיסייה) — לעולם לא על הזמנת מטפל אחר. */
+  function colorFor(columnKey: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status !== "mine") return undefined;
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const source = sourceAt(start, end, intervalsFor(columnKey, roomId));
+    if (source === "session") return SESSION_COLOR;
+    if (source === "punch_card") return CARD_COLOR;
+    return undefined;
+  }
+
+  /**
+   * לחיצה על משבצת פנויה נוספת באותה עמודה מרחיבה את הבחירה הקיימת (במקום
+   * להחליף אותה) — כך אפשר לסמן כמה משבצות ברצף ולהזמין אותן כטווח אחד.
+   * מרחיבים רק אם כל המשבצות בטווח המאוחד עדיין פנויות; אחרת מתחילים בחירה חדשה.
+   */
+  function handleSlotClick(columnKey: string, slot: Slot) {
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
+
+    if (selected && selected.columnKey === columnKey) {
+      const rangeStart = selected.start < start ? selected.start : start;
+      const rangeEnd = selected.end > end ? selected.end : end;
+      const allFree = slots.every((s) => {
+        const resolved = resolveSlot(columnKey, s);
+        if (resolved.start < rangeStart || resolved.end > rangeEnd) return true;
+        return statusFor(columnKey, s) === "free";
+      });
+      if (allFree) {
+        setSelected({ columnKey, roomId, roomName, start: rangeStart, end: rangeEnd });
+        return;
+      }
+    }
+    setSelected({ columnKey, roomId, roomName, start, end });
+  }
+
+  const currentBranchName = branches.find((b) => b.id === branchId)?.name ?? "";
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {branches.map((b) => (
-          <Button
-            key={b.id}
-            size="sm"
-            variant={b.id === branchId ? "default" : "outline"}
-            onClick={() => setBranchId(b.id)}
-          >
-            {b.name}
-          </Button>
-        ))}
+        {branches.map((b, i) => {
+          const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
+          const active = b.id === branchId;
+          return (
+            <Button
+              key={b.id}
+              size="sm"
+              variant={active ? "default" : "outline"}
+              className={active ? color.active : ""}
+              onClick={() => {
+                setSelected(null);
+                setBranchId(b.id);
+              }}
+            >
+              <span className={cn("ml-1.5 inline-block size-2 rounded-full", color.dot)} />
+              {b.name}
+            </Button>
+          );
+        })}
 
         <div className="mx-2 h-6 w-px bg-border" />
 
-        <Button size="sm" variant={view === "day" ? "default" : "outline"} onClick={() => setView("day")}>
+        <Button
+          size="sm"
+          variant={view === "day" ? "default" : "outline"}
+          onClick={() => {
+            setSelected(null);
+            setView("day");
+          }}
+        >
           יום
         </Button>
-        <Button size="sm" variant={view === "week" ? "default" : "outline"} onClick={() => setView("week")}>
+        <Button
+          size="sm"
+          variant={view === "week" ? "default" : "outline"}
+          onClick={() => {
+            setSelected(null);
+            setView("week");
+          }}
+        >
           שבוע
         </Button>
 
         <div className="mx-2 h-6 w-px bg-border" />
 
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? -1 : -7))}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSelected(null);
+            setDate(addDaysToDateStr(date, view === "day" ? -1 : -7));
+          }}
+        >
           הקודם
         </Button>
         <span className="text-sm font-medium">
-          {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "dd/MM/yyyy")}
+          {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
         </span>
-        <Button size="sm" variant="outline" onClick={() => setDate(addDaysToDateStr(date, view === "day" ? 1 : 7))}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setSelected(null);
+            setDate(addDaysToDateStr(date, view === "day" ? 1 : 7));
+          }}
+        >
           הבא
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setSelected(null);
+            setDate(todayInIsrael());
+          }}
+        >
           היום
         </Button>
 
@@ -213,7 +302,10 @@ export function ScheduleClient({
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
           value={roomTypeFilter}
-          onChange={(e) => setRoomTypeFilter(e.target.value as Room["room_type"] | "all")}
+          onChange={(e) => {
+            setSelected(null);
+            setRoomTypeFilter(e.target.value as Room["room_type"] | "all");
+          }}
         >
           <option value="all">כל סוגי החדרים</option>
           {Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => (
@@ -227,7 +319,10 @@ export function ScheduleClient({
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={selectedRoomId}
-            onChange={(e) => setSelectedRoomId(e.target.value)}
+            onChange={(e) => {
+              setSelected(null);
+              setSelectedRoomId(e.target.value);
+            }}
           >
             {filteredRooms.map((r) => (
               <option key={r.id} value={r.id}>
@@ -238,28 +333,46 @@ export function ScheduleClient({
         )}
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
+        ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
+      </p>
       <Legend />
 
       <AvailabilityGrid
         columns={columns}
         slots={slots}
         statusFor={statusFor}
+        colorFor={colorFor}
         onSlotClick={handleSlotClick}
-        selectedKey={selected ? `${selected.roomId}|${selected.start.toISOString()}` : null}
+        isSelected={(columnKey, slot) => {
+          if (!selected || selected.columnKey !== columnKey) return false;
+          const { start, end } = resolveSlot(columnKey, slot);
+          return start >= selected.start && end <= selected.end;
+        }}
       />
 
       {selected && (
-        <SlotPreview
-          roomId={selected.roomId}
-          roomName={selected.roomName}
-          start={selected.start}
-          end={selected.end}
-          onClose={() => setSelected(null)}
-          onBooked={() => {
-            setSelected(null);
-            reload();
-          }}
-        />
+        // pointer-events-none על העטיפה כדי שלחיצות על שאר הלוח (מחוץ לכרטיס)
+        // ימשיכו להגיע למשבצות — כך אפשר להמשיך ולהרחיב את הבחירה בזמן
+        // שהכרטיס פתוח, ולא רק לבטל אותו. הכרטיס עצמו קבוע בתחתית המסך כדי
+        // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
+          <div className="pointer-events-auto w-full max-w-sm shadow-lg">
+            <SlotPreview
+              roomId={selected.roomId}
+              roomName={selected.roomName}
+              branchName={currentBranchName}
+              start={selected.start}
+              end={selected.end}
+              onClose={() => setSelected(null)}
+              onBooked={() => {
+                setSelected(null);
+                reload();
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -268,6 +381,7 @@ export function ScheduleClient({
 function SlotPreview({
   roomId,
   roomName,
+  branchName,
   start,
   end,
   onClose,
@@ -275,6 +389,7 @@ function SlotPreview({
 }: {
   roomId: string;
   roomName: string;
+  branchName: string;
   start: Date;
   end: Date;
   onClose: () => void;
@@ -301,18 +416,22 @@ function SlotPreview({
     <div className="rounded-md border bg-card p-4 text-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
-          {roomName} · {formatInTimeZone(start, TIMEZONE, "dd/MM/yyyy")}
+          {branchName ? `${branchName} · ` : ""}
+          {roomName} · {formatInTimeZone(start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
         </span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
           ✕
         </button>
       </div>
-      <p>
+      <p dir="ltr" className="text-right">
         {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
       </p>
+      <p className="text-muted-foreground">משך: {(end.getTime() - start.getTime()) / (60 * 60 * 1000)} שעות</p>
+      <p className="text-xs text-muted-foreground">אפשר עדיין ללחוץ על משבצות פנויות נוספות כדי להאריך.</p>
       <p className="text-muted-foreground">
-        🔑 כניסה בפועל: {formatInTimeZone(accessStart, TIMEZONE, "HH:mm")} · פינוי:{" "}
-        {formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}
+        🔑 כניסה בפועל:{" "}
+        <span dir="ltr">{formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}</span> · פינוי:{" "}
+        <span dir="ltr">{formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}</span>
       </p>
 
       {confirmed ? (

@@ -16,19 +16,16 @@ export default async function AdminReportsPage() {
     { data: recentPayments },
     { data: recentBookings },
     { data: rooms },
-    { data: punchCards },
+    { data: branches },
     { data: therapists },
     { data: recentBookingsByUser },
+    { data: allActiveCards },
+    { data: subscriptions },
   ] = await Promise.all([
     supabase.from("payments").select("amount_total, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo),
     supabase.from("bookings").select("room_id").eq("status", "confirmed").gte("starts_at", thirtyDaysAgo),
-    supabase.from("rooms").select("id, name"),
-    supabase
-      .from("punch_cards")
-      .select("user_id, hours_remaining")
-      .eq("active", true)
-      .gt("hours_remaining", 0)
-      .gt("expires_at", new Date().toISOString()),
+    supabase.from("rooms").select("id, name, branch_id"),
+    supabase.from("branches").select("id, name").order("sort_order", { ascending: true }),
     supabase
       .from("profiles")
       .select("id, full_name, phone, created_at")
@@ -36,6 +33,15 @@ export default async function AdminReportsPage() {
       .eq("status", "active")
       .lt("created_at", sixtyDaysAgo),
     supabase.from("bookings").select("user_id, starts_at").eq("status", "confirmed").gte("starts_at", sixtyDaysAgo),
+    supabase
+      .from("punch_cards")
+      .select("user_id, hours_remaining, hours_purchased")
+      .eq("active", true)
+      .gt("expires_at", new Date().toISOString()),
+    supabase
+      .from("session_subscriptions")
+      .select("user_id, status, weekly_hours, monthly_price, created_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   // הכנסות חודשיות
@@ -47,29 +53,50 @@ export default async function AdminReportsPage() {
   }
   const monthlyRevenue = [...revenueByMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
 
-  // תפוסה לפי חדר (30 יום אחרונים)
-  const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]));
+  // תפוסה לפי חדר (30 יום אחרונים) — לפי סניף, כי שני סניפים יכולים
+  // להשתמש באותו שם חדר ("Room 2" וכו') על room_id שונה לגמרי.
+  const roomById = new Map((rooms ?? []).map((r) => [r.id, r]));
   const occupancyByRoom = new Map<string, number>();
   for (const b of recentBookings ?? []) {
     occupancyByRoom.set(b.room_id, (occupancyByRoom.get(b.room_id) ?? 0) + 1);
   }
   const occupancy = [...occupancyByRoom.entries()]
-    .map(([roomId, count]) => ({ room: roomNameById.get(roomId) ?? roomId, count }))
+    .map(([roomId, count]) => {
+      const room = roomById.get(roomId);
+      return { room: room?.name ?? roomId, branchId: room?.branch_id ?? "", count };
+    })
     .sort((a, b) => b.count - a.count);
 
-  // יתרות פתוחות
-  const hoursByUser = new Map<string, number>();
-  for (const c of punchCards ?? []) {
-    hoursByUser.set(c.user_id, (hoursByUser.get(c.user_id) ?? 0) + c.hours_remaining);
+  // שעות כרטיסיות לפי מטפל/ת (נותרו + נרכשו, כולל יתרה 0)
+  const cardHoursByUser = new Map<string, { remaining: number; purchased: number }>();
+  for (const c of allActiveCards ?? []) {
+    const cur = cardHoursByUser.get(c.user_id) ?? { remaining: 0, purchased: 0 };
+    cur.remaining += c.hours_remaining;
+    cur.purchased += c.hours_purchased;
+    cardHoursByUser.set(c.user_id, cur);
   }
-  const userIds = [...hoursByUser.keys()];
-  const { data: userProfiles } = userIds.length
-    ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
+
+  // כל השמות הדרושים (שעות כרטיסיות + ססיות) בשליפה אחת
+  const allNeededUserIds = [
+    ...new Set([...cardHoursByUser.keys(), ...(subscriptions ?? []).map((s) => s.user_id)]),
+  ];
+  const { data: userProfiles } = allNeededUserIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", allNeededUserIds)
     : { data: [] };
   const nameById = new Map((userProfiles ?? []).map((p) => [p.id, p.full_name]));
-  const openBalances = userIds
-    .map((id) => ({ name: nameById.get(id) ?? id, hours: hoursByUser.get(id)! }))
-    .sort((a, b) => b.hours - a.hours);
+
+  const cardHoursByTherapist = [...cardHoursByUser.entries()]
+    .map(([id, h]) => ({ name: nameById.get(id) ?? id, remaining: h.remaining, purchased: h.purchased }))
+    .sort((a, b) => a.name.localeCompare(b.name, "he"));
+
+  const sessionsByTherapist = (subscriptions ?? [])
+    .map((s) => ({
+      name: nameById.get(s.user_id) ?? s.user_id,
+      status: s.status,
+      weeklyHours: s.weekly_hours,
+      monthlyPrice: s.monthly_price,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "he"));
 
   // מטפלים לא פעילים 60 יום
   const activeUserIds = new Set((recentBookingsByUser ?? []).map((b) => b.user_id));
@@ -83,8 +110,10 @@ export default async function AdminReportsPage() {
       <ReportsClient
         monthlyRevenue={monthlyRevenue}
         occupancy={occupancy}
-        openBalances={openBalances}
+        branches={branches ?? []}
         inactiveTherapists={inactive}
+        cardHoursByTherapist={cardHoursByTherapist}
+        sessionsByTherapist={sessionsByTherapist}
       />
     </div>
   );

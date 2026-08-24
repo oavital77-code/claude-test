@@ -82,9 +82,17 @@ export function AdminPaymentsClient({ rows }: { rows: PaymentRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
-              <PaymentRowLine key={p.id} payment={p} onChanged={() => router.refresh()} />
-            ))}
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
+                  אין תשלומים להצגה
+                </td>
+              </tr>
+            ) : (
+              filtered.map((p) => (
+                <PaymentRowLine key={p.id} payment={p} onChanged={() => router.refresh()} />
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -119,11 +127,17 @@ function PaymentRowLine({ payment, onChanged }: { payment: PaymentRow; onChanged
         {payment.payplus_transaction_uid ?? "-"}
       </td>
       <td className="p-2">
-        {payment.status === "pending" && (
+        {(payment.status === "pending" ||
+          (payment.status === "failed" && payment.type === "session_recurring")) && (
           <div className="flex flex-col gap-1">
             <Button size="sm" variant="outline" onClick={handleMarkPaid} disabled={loading}>
-              {loading ? "מעדכן..." : "סימון כשולם"}
+              {loading ? "מעדכן..." : "סימון כשולם (מזומן)"}
             </Button>
+            {payment.status === "failed" && (
+              <span className="text-xs text-muted-foreground">
+                חידוש שנכשל אוטומטית — כנראה מנוי שהופעל במזומן, בלי כרטיס שמור
+              </span>
+            )}
             {error && <span className="text-xs text-destructive">{error}</span>}
           </div>
         )}

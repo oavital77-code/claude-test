@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   SELF_OVERLAP: "יש לך כבר הזמנה בטווח הזמן הזה.",
   TOO_FAR_AHEAD: "לא ניתן להזמין כל כך הרבה קדימה.",
   INVALID_SLOT: "המשבצת אינה תקינה.",
+  SESSION_HOURS_FIXED: "ססיה היא תמיד בהיקף קבוע של שעות שבועיות — סך המשבצות שנבחרו לא תואם.",
   BOOKING_PASSED: "המועד כבר עבר.",
   SESSION_NOT_CANCELLABLE: "מפגש ססיה לא ניתן לביטול עצמאי. לביטול פנו להנהלה.",
   USER_SUSPENDED: "החשבון מושעה זמנית.",
@@ -18,5 +19,9 @@ const MESSAGES: Record<string, string> = {
 
 export function bookingErrorMessage(code: string | undefined): string {
   if (!code) return "משהו השתבש. נסו שוב.";
-  return MESSAGES[code] ?? "משהו השתבש. נסו שוב.";
+  const known = MESSAGES[code];
+  if (known) return known;
+  // קוד לא מוכר (לא אחד מהקודים שה-RPCs זורקים בכוונה) — מציגים את הודעת
+  // השגיאה הגולמית כדי שאפשר יהיה לאבחן מה קרה בפועל, במקום הודעה עיוורת.
+  return `משהו השתבש. נסו שוב. (${code})`;
 }

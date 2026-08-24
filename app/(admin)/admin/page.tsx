@@ -1,11 +1,19 @@
-import Link from "next/link";
 import { formatInTimeZone } from "date-fns-tz";
+import { he } from "date-fns/locale";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency } from "@/lib/format";
 import { TIMEZONE } from "@/lib/time";
-import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
+import { dayBoundaries, todayInIsrael, weekDatesStartingSunday } from "@/lib/availability/grid";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Database } from "@/lib/supabase/types";
+
+type BookingSource = Database["public"]["Tables"]["bookings"]["Row"]["source"];
+
+const SOURCE_LABELS: Record<BookingSource, string> = {
+  punch_card: "כרטיסייה",
+  session: "ססיה",
+  admin_comp: "שיבוץ אדמין",
+};
 
 export default async function AdminDashboardPage() {
   const { profile } = await requireAdmin();
@@ -15,102 +23,169 @@ export default async function AdminDashboardPage() {
   const { start: todayStartDate, end: todayEndDate } = dayBoundaries(today);
   const todayStart = todayStartDate.toISOString();
   const todayEnd = todayEndDate.toISOString();
-  const monthStartDateStr = formatInTimeZone(todayStartDate, TIMEZONE, "yyyy-MM") + "-01";
-  const monthStart = dayBoundaries(monthStartDateStr).start.toISOString();
-  const in30Days = dayBoundaries(addDaysToDateStr(today, 30)).start.toISOString();
+
+  const weekDates = weekDatesStartingSunday(today);
+  const weekStart = dayBoundaries(weekDates[0]).start.toISOString();
+  const weekEnd = dayBoundaries(weekDates[6]).end.toISOString();
 
   const [
-    { count: roomsCount },
-    { count: todayBookings },
-    { data: monthPayments },
-    { count: pendingSessions },
-    { data: failedPayments },
-    { data: expiringCards },
+    { data: todayBookingsList },
+    { count: newPunchCardBookingsToday },
+    { count: newSessionRequestsToday },
+    { data: expiringCardsThisWeek },
+    { data: endingSessionsThisWeek },
+    { data: rooms },
+    { data: branches },
   ] = await Promise.all([
-    supabase.from("rooms").select("id", { count: "exact", head: true }).eq("active", true),
+    // כל הפעילות (הזמנות) של היום — מתי ה*תור* מתקיים (starts_at).
+    supabase
+      .from("bookings")
+      .select("id, room_id, user_id, starts_at, ends_at, source")
+      .eq("status", "confirmed")
+      .gte("starts_at", todayStart)
+      .lt("starts_at", todayEnd)
+      .order("starts_at", { ascending: true }),
+    // הזמנת כרטיסייה חדשה שנוצרה היום — פעולה אמיתית של מטפל/ת.
     supabase
       .from("bookings")
       .select("id", { count: "exact", head: true })
       .eq("status", "confirmed")
-      .gte("starts_at", todayStart)
-      .lt("starts_at", todayEnd),
-    supabase.from("payments").select("amount_total").eq("status", "paid").gte("paid_at", monthStart),
-    supabase.from("session_subscriptions").select("id", { count: "exact", head: true }).eq("status", "requested"),
+      .eq("source", "punch_card")
+      .gte("created_at", todayStart)
+      .lt("created_at", todayEnd),
+    // בקשת ססיה חדשה שהוגשה היום. לא סופרים שורות bookings של source='session' —
+    // אלה נוצרות בעשרות בכל לילה ע"י ה-cron materialize_session_bookings שממלא
+    // רולינג 90 יום מראש לכל ססיה פעילה, ולא משקפות פעולה שמישהו ביצע היום.
     supabase
-      .from("payments")
-      .select("id, user_id, amount_total, created_at")
-      .eq("status", "failed")
-      .order("created_at", { ascending: false })
-      .limit(5),
+      .from("session_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .gte("requested_at", todayStart)
+      .lt("requested_at", todayEnd),
+    // כרטיסיות שפגות בשבוע הנוכחי (ראשון-שבת)
     supabase
       .from("punch_cards")
       .select("id, user_id, expires_at")
       .eq("active", true)
-      .lte("expires_at", in30Days)
-      .gte("expires_at", todayStart)
-      .limit(5),
+      .gte("expires_at", weekStart)
+      .lt("expires_at", weekEnd)
+      .order("expires_at", { ascending: true }),
+    // ססיות (מנויים) שמסתיימות בשבוע הנוכחי — בביטול, effective_end_date בטווח
+    supabase
+      .from("session_subscriptions")
+      .select("id, user_id, effective_end_date")
+      .eq("status", "pending_cancellation")
+      .gte("effective_end_date", weekDates[0])
+      .lte("effective_end_date", weekDates[6])
+      .order("effective_end_date", { ascending: true }),
+    supabase.from("rooms").select("id, name, branch_id"),
+    supabase.from("branches").select("id, name"),
   ]);
 
-  const monthRevenue = (monthPayments ?? []).reduce((sum, p) => sum + p.amount_total, 0);
+  const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const roomById = new Map((rooms ?? []).map((r) => [r.id, r]));
+
+  const therapistIds = [
+    ...new Set([
+      ...(todayBookingsList ?? []).map((b) => b.user_id),
+      ...(expiringCardsThisWeek ?? []).map((c) => c.user_id),
+      ...(endingSessionsThisWeek ?? []).map((s) => s.user_id),
+    ]),
+  ];
+  const { data: therapistProfiles } = therapistIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", therapistIds)
+    : { data: [] };
+  const therapistNameById = new Map((therapistProfiles ?? []).map((p) => [p.id, p.full_name]));
+
+  const todayActivity = (todayBookingsList ?? []).map((b) => {
+    const room = roomById.get(b.room_id);
+    return {
+      id: b.id,
+      startsAt: b.starts_at,
+      endsAt: b.ends_at,
+      roomName: room?.name ?? b.room_id,
+      branchName: room ? (branchNameById.get(room.branch_id) ?? "") : "",
+      therapistName: therapistNameById.get(b.user_id) ?? "מטפל/ת",
+      source: b.source,
+    };
+  });
+
+  const newTodayTotal = (newPunchCardBookingsToday ?? 0) + (newSessionRequestsToday ?? 0);
+
+  const endingThisWeek = [
+    ...(expiringCardsThisWeek ?? []).map((c) => ({
+      id: `card-${c.id}`,
+      kind: "כרטיסייה",
+      date: c.expires_at,
+      therapistName: therapistNameById.get(c.user_id) ?? "מטפל/ת",
+    })),
+    ...(endingSessionsThisWeek ?? []).map((s) => ({
+      id: `session-${s.id}`,
+      kind: "ססיה",
+      date: dayBoundaries(s.effective_end_date!).start.toISOString(),
+      therapistName: therapistNameById.get(s.user_id) ?? "מטפל/ת",
+    })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4">
       <h1 className="text-xl font-semibold">דשבורד — שלום, {profile.full_name}</h1>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="הזמנות היום" value={String(todayBookings ?? 0)} sub={`מתוך ${roomsCount ?? 0} חדרים פעילים`} />
-        <Metric label="הכנסות החודש" value={formatCurrency(monthRevenue)} />
-        <Metric
-          label="בקשות ססיה ממתינות"
-          value={String(pendingSessions ?? 0)}
-          highlight={Boolean(pendingSessions)}
-          href="/admin/sessions"
-        />
-        <Metric label="כרטיסיות פגות תוך 30 יום" value={String(expiringCards?.length ?? 0)} />
-      </div>
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <p className="font-medium">הזמנות חדשות היום</p>
+          <p className="text-2xl font-semibold">{newTodayTotal}</p>
+          <p className="text-sm text-muted-foreground">
+            {newPunchCardBookingsToday ?? 0} כרטיסייה · {newSessionRequestsToday ?? 0} בקשות ססיה
+          </p>
+        </CardContent>
+      </Card>
 
-      {failedPayments && failedPayments.length > 0 && (
-        <Card>
-          <CardContent className="flex flex-col gap-2 p-4">
-            <p className="font-medium text-destructive">חיובים שנכשלו לאחרונה</p>
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <p className="font-medium">כל הפעילות היום</p>
+          {todayActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">אין הזמנות היום.</p>
+          ) : (
             <ul className="flex flex-col gap-1 text-sm">
-              {failedPayments.map((p) => (
-                <li key={p.id}>
-                  {formatCurrency(p.amount_total)} · {new Date(p.created_at).toLocaleDateString("he-IL")}
+              {todayActivity.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-md border p-2">
+                  <span>
+                    <span dir="ltr">
+                      {formatInTimeZone(new Date(a.startsAt), TIMEZONE, "HH:mm")}–
+                      {formatInTimeZone(new Date(a.endsAt), TIMEZONE, "HH:mm")}
+                    </span>{" "}
+                    · {a.branchName ? `${a.branchName} · ` : ""}
+                    {a.roomName} · {a.therapistName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{SOURCE_LABELS[a.source]}</span>
                 </li>
               ))}
             </ul>
-            <Link href="/admin/payments" className="text-sm text-primary underline-offset-4 hover:underline">
-              לכל התשלומים
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <p className="font-medium">מסתיימות השבוע</p>
+          {endingThisWeek.length === 0 ? (
+            <p className="text-sm text-muted-foreground">אין כרטיסיות או ססיות שמסתיימות השבוע.</p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-sm">
+              {endingThisWeek.map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-2 rounded-md border p-2">
+                  <span>
+                    {e.therapistName} · {e.kind}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatInTimeZone(new Date(e.date), TIMEZONE, "EEEE, dd/MM", { locale: he })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-function Metric({
-  label,
-  value,
-  sub,
-  highlight,
-  href,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  highlight?: boolean;
-  href?: string;
-}) {
-  const content = (
-    <Card className={highlight ? "border-amber-500" : undefined}>
-      <CardContent className="flex flex-col gap-1 p-4">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-      </CardContent>
-    </Card>
-  );
-  return href ? <Link href={href}>{content}</Link> : content;
 }

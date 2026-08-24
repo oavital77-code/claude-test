@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/client";
-import { toE164Israel } from "@/lib/phone";
 import {
-  phoneFormSchema,
-  otpFormSchema,
+  authFormSchema,
   detailsFormSchema,
   type DetailsFormValues,
 } from "@/lib/validation/registration";
 import { TERMS_TEXT } from "@/lib/terms/current";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,85 +25,116 @@ import {
 } from "@/components/ui/card";
 import { completeRegistration } from "./actions";
 
-type Step = "phone" | "otp" | "details" | "terms";
+type Step = "auth" | "details" | "terms";
 
 const emptyDetails: DetailsFormValues = {
   full_name: "",
-  email: "",
+  phone: "",
   national_id: "",
   profession: "",
   business_number: "",
 };
 
-export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }) {
+export function RegistrationWizard({
+  skipToDetails,
+  linkExpiredError,
+}: {
+  skipToDetails: boolean;
+  linkExpiredError?: boolean;
+}) {
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "phone");
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
+  const [step, setStep] = useState<Step>(skipToDetails ? "details" : "auth");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [details, setDetails] = useState<DetailsFormValues>(emptyDetails);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    linkExpiredError ? "הקישור פג תוקף או שכבר נעשה בו שימוש." : null,
+  );
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    const parsed = phoneFormSchema.safeParse({ phone });
-    if (!parsed.success) {
-      setError(z.prettifyError(parsed.error));
-      return;
-    }
-
-    const e164 = toE164Israel(phone)!;
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
-    setLoading(false);
-
-    if (error) {
-      setError("שליחת הקוד נכשלה. בדקו את המספר ונסו שוב.");
-      return;
-    }
-    setPhone(e164);
-    setStep("otp");
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    const parsed = otpFormSchema.safeParse({ code });
-    if (!parsed.success) {
-      setError(z.prettifyError(parsed.error));
-      return;
-    }
-
-    setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone,
-      token: code,
-      type: "sms",
-    });
-    if (error || !data.user) {
-      setLoading(false);
-      setError("קוד שגוי או שפג תוקפו. נסו שוב.");
-      return;
-    }
-
+  /** בודק אם למשתמש שהתחבר/נרשם כרגע כבר יש פרופיל, ומנתב בהתאם. */
+  async function proceedAfterAuth(userId: string) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("id")
-      .eq("id", data.user.id)
+      .eq("id", userId)
       .maybeSingle();
-    setLoading(false);
 
     if (profile) {
       router.push("/");
+      router.refresh();
       return;
     }
     setStep("details");
+  }
+
+  async function handleRegister(e?: React.FormEvent) {
+    e?.preventDefault();
+    setError(null);
+
+    const parsed = authFormSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      setError(z.prettifyError(parsed.error));
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
+    setLoading(false);
+
+    if (error) {
+      if (/already registered|already exists|user_already_exists/i.test(error.message)) {
+        setError("כתובת המייל כבר בשימוש. אם זה אתה — לחץ/י על \"התחברות\" במקום.");
+      } else {
+        setError(`ההרשמה נכשלה: ${error.message}`);
+      }
+      return;
+    }
+    if (!data.user) {
+      setError("ההרשמה נכשלה. נסו שוב.");
+      return;
+    }
+    if (!data.session) {
+      // נדרש אישור מייל בצד Supabase (עדיין לא כובה בהגדרות) — אין לנו כרגע
+      // דרך לשלוח את המייל הזה בפועל (ר' באג Resend sandbox).
+      setError("ההרשמה נוצרה אך נדרש אישור מייל בצד השרת. יש לפנות למנהל המערכת.");
+      return;
+    }
+
+    setEmail(parsed.data.email);
+    await proceedAfterAuth(data.user.id);
+  }
+
+  async function handleLogin(e?: React.FormEvent) {
+    e?.preventDefault();
+    setError(null);
+
+    const parsed = authFormSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      setError(z.prettifyError(parsed.error));
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: parsed.data.email,
+      password: parsed.data.password,
+    });
+    setLoading(false);
+
+    if (error || !data.user) {
+      setError("אימייל או סיסמה שגויים.");
+      return;
+    }
+
+    setEmail(parsed.data.email);
+    await proceedAfterAuth(data.user.id);
   }
 
   function handleSubmitDetails(e: React.FormEvent) {
@@ -141,67 +171,55 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-xl">בקליניקה</CardTitle>
+        <CardTitle>
+          <Logo markClassName="size-12" wordmarkClassName="text-2xl" />
+        </CardTitle>
         <CardDescription>{stepDescription(step)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {step === "phone" && (
-          <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+        {step === "auth" && (
+          <form onSubmit={handleRegister} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">מספר טלפון</Label>
+              <Label htmlFor="email">כתובת מייל</Label>
               <Input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                placeholder="05X-XXXXXXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                id="email"
+                type="email"
+                inputMode="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 dir="ltr"
                 className="text-left"
                 autoFocus
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "שולח..." : "שליחת קוד אימות"}
-            </Button>
-          </form>
-        )}
-
-        {step === "otp" && (
-          <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              נשלח קוד בן 6 ספרות למספר {phone}
-            </p>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="code">קוד אימות</Label>
+              <Label htmlFor="password">סיסמה</Label>
               <Input
-                id="code"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                id="password"
+                type="password"
                 dir="ltr"
-                className="text-center tracking-[0.5em]"
-                autoFocus
+                className="text-left"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">לפחות 8 תווים</p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "מאמת..." : "אימות"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setStep("phone");
-                setCode("");
-                setError(null);
-              }}
-            >
-              שינוי מספר טלפון
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? "נרשם/ת..." : "הרשמה"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                className="flex-1"
+                onClick={() => handleLogin()}
+              >
+                {loading ? "מתחבר/ת..." : "התחברות"}
+              </Button>
+            </div>
           </form>
         )}
 
@@ -217,14 +235,15 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">מייל *</Label>
+              <Label htmlFor="details_phone">מספר טלפון *</Label>
               <Input
-                id="email"
-                type="email"
+                id="details_phone"
+                type="tel"
                 dir="ltr"
                 className="text-left"
-                value={details.email}
-                onChange={(e) => setDetails({ ...details, email: e.target.value })}
+                placeholder="05X-XXXXXXX"
+                value={details.phone}
+                onChange={(e) => setDetails({ ...details, phone: e.target.value })}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -277,6 +296,14 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
                 קראתי, הבנתי ואני מסכים/ה לתנאי הסכם השירות
               </Label>
             </div>
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              מדיניות הפרטיות
+            </a>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button onClick={handleConfirmTerms} disabled={loading || !accepted}>
               {loading ? "שומר..." : "אני מאשר/ת וחותם/ת"}
@@ -293,10 +320,8 @@ export function RegistrationWizard({ skipToDetails }: { skipToDetails: boolean }
 
 function stepDescription(step: Step) {
   switch (step) {
-    case "phone":
-      return "התחברות / הרשמה באמצעות מספר טלפון";
-    case "otp":
-      return "אימות מספר הטלפון";
+    case "auth":
+      return "התחברות / הרשמה עם מייל וסיסמה";
     case "details":
       return "פרטים אישיים";
     case "terms":

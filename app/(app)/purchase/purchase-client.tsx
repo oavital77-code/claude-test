@@ -10,25 +10,30 @@ import { initiatePunchCardPurchase } from "./actions";
 
 type Tier = Database["public"]["Tables"]["punch_card_tiers"]["Row"];
 
-// מחוץ לקומפוננטה בכוונה: ניווט לדומיין חיצוני (PayPlus) אינו state של React.
-function navigateTo(url: string) {
-  window.location.href = url;
-}
-
 export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: number }) {
   const [loadingTierId, setLoadingTierId] = useState<string | null>(null);
+  const [redirect, setRedirect] = useState<{ tierId: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // הרכישה עצמה (תשלום) מתבצעת באתר בקליניקה, לא בתוך Cleana — ר' actions.ts.
+  // הכרטיסייה תופיע אוטומטית בכניסה הבאה שלך למערכת אחרי התשלום.
+  //
+  // לא פותחים טאב אוטומטית: בדפדפני מובייל (בעיקר Safari ב-iOS) גם window.open
+  // וגם כתיבה מאוחרת ל-location.href של חלון שנפתח מראש נכשלים בשקט אחרי
+  // await (מאבדים את ה-user activation מהלחיצה) — לפעמים עד כדי טאב ריק
+  // שנשאר תקוע. הפתרון האמין היחיד: קישור <a target="_blank"> אמיתי
+  // שהמשתמש/ת לוחצ/ת עליו בעצמו/ה, לא פתיחה יזומה מקוד.
   async function handlePurchase(tierId: string) {
     setError(null);
+    setRedirect(null);
     setLoadingTierId(tierId);
     const result = await initiatePunchCardPurchase(tierId);
+    setLoadingTierId(null);
     if (!result.ok) {
-      setLoadingTierId(null);
       setError(result.error);
       return;
     }
-    navigateTo(result.redirectUrl);
+    setRedirect({ tierId, url: result.redirectUrl });
   }
 
   return (
@@ -37,6 +42,7 @@ export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: num
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tiers.map((tier) => {
           const pricing = computePunchCardPricing(tier, vatRate);
+          const isRedirectReady = redirect?.tierId === tier.id;
           return (
             <Card key={tier.id}>
               <CardHeader>
@@ -64,13 +70,21 @@ export function PurchaseClient({ tiers, vatRate }: { tiers: Tier[]; vatRate: num
                 </div>
               </CardContent>
               <CardFooter>
-                <Button
-                  className="w-full"
-                  disabled={loadingTierId !== null}
-                  onClick={() => handlePurchase(tier.id)}
-                >
-                  {loadingTierId === tier.id ? "מעביר לתשלום..." : "רכישה"}
-                </Button>
+                {isRedirectReady ? (
+                  <Button asChild className="w-full">
+                    <a href={redirect.url} target="_blank" rel="noopener noreferrer">
+                      המשך לתשלום ↗
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full"
+                    disabled={loadingTierId !== null}
+                    onClick={() => handlePurchase(tier.id)}
+                  >
+                    {loadingTierId === tier.id ? "טוען..." : "רכישה"}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           );

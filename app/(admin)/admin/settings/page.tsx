@@ -8,10 +8,10 @@ const SETTING_LABELS: Record<string, string> = {
   booking_horizon_days: "טווח הזמנה מראש (ימים)",
   cancel_window_hours: "חלון ביטול כרטיסייה (שעות)",
   sub_cancel_notice_days: "הודעה מראש לביטול ססיה (ימים)",
-  session_base_price: "מחיר בסיס ססיה (₪)",
-  session_base_hours: "שעות בסיס ססיה",
-  session_marginal_price: "מחיר לשעה נוספת בססיה (₪)",
+  session_base_price: "מחיר ססיה חודשי (₪, לפני מע״מ)",
+  session_base_hours: "היקף ססיה קבוע (שעות שבועיות)",
   session_hold_hours: "תוקף hold לססיה (שעות)",
+  woo_session_product_id: "Product ID של מוצר הססיה בחנות Woo",
 };
 
 export default async function AdminSettingsPage() {

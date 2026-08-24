@@ -2,44 +2,30 @@
 
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { generatePaymentLink } from "@/lib/payplus/client";
 
 export type PurchaseResult = { ok: true; redirectUrl: string } | { ok: false; error: string };
 
+// רכישת כרטיסייה מתבצעת באתר בקליניקה (WooCommerce + PayPlus) — לא בתוך
+// Cleana. אנחנו רק מפנים לשם עם המוצר הנכון כבר בעגלה. אחרי תשלום מוצלח,
+// webhook (app/api/woo/webhook) יוצר "רכישה ממתינה", וזו מופעלת אוטומטית
+// בהרשמה (completeRegistration) או בכניסה הבאה למי שכבר רשום/ה (ר' AppLayout).
 export async function initiatePunchCardPurchase(tierId: string): Promise<PurchaseResult> {
-  const { profile } = await requireTherapistProfile();
+  await requireTherapistProfile();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .rpc("create_punch_card_purchase", { p_tier_id: tierId })
-    .single();
+  const { data: mapping } = await supabase
+    .from("woo_product_tiers")
+    .select("woo_product_id")
+    .eq("tier_id", tierId)
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !data) {
-    return { ok: false, error: "יצירת בקשת הרכישה נכשלה. נסו שוב." };
+  if (!mapping) {
+    return { ok: false, error: "לא ניתן לרכוש כרגע — יש לפנות להנהלה." };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const storeUrl = process.env.NEXT_PUBLIC_WOOCOMMERCE_STORE_URL ?? "https://baclinica.co.il";
+  const redirectUrl = `${storeUrl}/checkout/?add-to-cart=${mapping.woo_product_id}&quantity=1`;
 
-  try {
-    const link = await generatePaymentLink({
-      amountTotal: data.amount_total,
-      customerName: profile.full_name,
-      customerEmail: profile.email,
-      customerPhone: profile.phone,
-      itemName: "רכישת כרטיסייה — בקליניקה",
-      moreInfo: data.payment_id,
-      successUrl: `${baseUrl}/purchase/success?payment_id=${data.payment_id}`,
-      failureUrl: `${baseUrl}/purchase/failure?payment_id=${data.payment_id}`,
-      callbackUrl: `${baseUrl}/api/payplus/callback`,
-    });
-
-    await supabase.rpc("set_payment_page_uid", {
-      p_payment_id: data.payment_id,
-      p_page_uid: link.pageRequestUid,
-    });
-
-    return { ok: true, redirectUrl: link.paymentPageLink };
-  } catch {
-    return { ok: false, error: "יצירת דף התשלום נכשלה. נסו שוב מאוחר יותר." };
-  }
+  return { ok: true, redirectUrl };
 }

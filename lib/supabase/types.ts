@@ -34,7 +34,7 @@ export type PaymentType =
   | "overrun"
   | "deposit_topup";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
-export type PaymentMethod = "credit_card" | "bit" | "paybox";
+export type PaymentMethod = "credit_card" | "bit" | "paybox" | "cash" | "other";
 export type OverrunSource = "deposit" | "charge";
 
 export type Database = {
@@ -250,6 +250,7 @@ export type Database = {
           next_billing_date: string | null;
           cancel_requested_at: string | null;
           effective_end_date: string | null;
+          renewal_reminder_sent_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -267,6 +268,7 @@ export type Database = {
           next_billing_date?: string | null;
           cancel_requested_at?: string | null;
           effective_end_date?: string | null;
+          renewal_reminder_sent_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["session_subscriptions"]["Insert"]>;
@@ -426,33 +428,51 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["overrun_charges"]["Insert"]>;
       Relationships: [];
       };
-      waitlist: {
+      woo_product_tiers: {
         Row: {
-          id: string;
-          user_id: string;
-          branch_id: string | null;
-          room_id: string | null;
-          date: string;
-          start_time: string;
-          end_time: string;
-          notified_at: string | null;
-          fulfilled: boolean;
+          woo_product_id: number;
+          tier_id: string;
           created_at: string;
         };
         Insert: {
-          id?: string;
-          user_id: string;
-          branch_id?: string | null;
-          room_id?: string | null;
-          date: string;
-          start_time: string;
-          end_time: string;
-          notified_at?: string | null;
-          fulfilled?: boolean;
+          woo_product_id: number;
+          tier_id: string;
           created_at?: string;
         };
-        Update: Partial<Database["public"]["Tables"]["waitlist"]["Insert"]>;
-      Relationships: [];
+        Update: Partial<Database["public"]["Tables"]["woo_product_tiers"]["Insert"]>;
+        Relationships: [];
+      };
+      woo_pending_purchases: {
+        Row: {
+          id: string;
+          woo_order_id: number;
+          tier_id: string;
+          phone: string | null;
+          email: string | null;
+          quantity: number;
+          amount_total: number;
+          status: "pending" | "claimed" | "expired";
+          claimed_by: string | null;
+          claimed_at: string | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          woo_order_id: number;
+          tier_id: string;
+          phone?: string | null;
+          email?: string | null;
+          quantity?: number;
+          amount_total: number;
+          status?: "pending" | "claimed" | "expired";
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["woo_pending_purchases"]["Insert"]>;
+        Relationships: [];
       };
       audit_log: {
         Row: {
@@ -491,27 +511,6 @@ export type Database = {
       };
     };
     Functions: {
-      create_punch_card_purchase: {
-        Args: { p_tier_id: string };
-        Returns: { payment_id: string; punch_card_id: string; amount_total: number }[];
-      };
-      set_payment_page_uid: {
-        Args: { p_payment_id: string; p_page_uid: string };
-        Returns: undefined;
-      };
-      activate_punch_card_payment: {
-        Args: {
-          p_payment_id: string;
-          p_transaction_uid: string;
-          p_method: PaymentMethod;
-          p_invoice_url?: string | null;
-        };
-        Returns: undefined;
-      };
-      mark_payment_failed: {
-        Args: { p_payment_id: string; p_reason: string };
-        Returns: undefined;
-      };
       create_booking: {
         Args: { p_room_id: string; p_starts_at: string; p_ends_at: string };
         Returns: { booking_id: string; hours_charged: number; hours_remaining: number }[];
@@ -536,12 +535,20 @@ export type Database = {
         Args: { p_subscription_id: string };
         Returns: { payment_id: string; amount_total: number }[];
       };
+      admin_activate_session_cash_payment: {
+        Args: { p_payment_id: string; p_method: PaymentMethod; p_transaction_uid: string };
+        Returns: undefined;
+      };
+      admin_mark_session_recurring_paid_cash: {
+        Args: { p_payment_id: string; p_method: PaymentMethod; p_transaction_uid: string };
+        Returns: undefined;
+      };
       activate_session_payment: {
         Args: {
           p_payment_id: string;
           p_transaction_uid: string;
           p_method: PaymentMethod;
-          p_token_uid: string;
+          p_token_uid?: string | null;
           p_card_last4?: string | null;
           p_card_expiry?: string | null;
           p_invoice_url?: string | null;
@@ -556,9 +563,9 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
-      create_session_renewal_payment: {
+      initiate_session_renewal_payment: {
         Args: { p_subscription_id: string };
-        Returns: { payment_id: string; amount_total: number; user_id: string }[];
+        Returns: { payment_id: string; amount_total: number }[];
       };
       finalize_session_renewal: {
         Args: {
@@ -567,8 +574,9 @@ export type Database = {
           p_transaction_uid?: string | null;
           p_invoice_url?: string | null;
           p_reason?: string | null;
+          p_method?: PaymentMethod | null;
         };
-        Returns: { suspended: boolean }[];
+        Returns: undefined;
       };
       expire_session_holds_and_cancellations: {
         Args: Record<string, never>;
@@ -623,6 +631,24 @@ export type Database = {
           p_note?: string | null;
         };
         Returns: { booking_id: string }[];
+      };
+      admin_adjust_punch_card_hours: {
+        Args: { p_card_id: string; p_hours_delta: number; p_note: string };
+        Returns: undefined;
+      };
+      claim_woo_pending_purchase: {
+        Args: Record<string, never>;
+        Returns: { claimed_count: number; hours_granted: number }[];
+      };
+      admin_add_session_slot: {
+        Args: {
+          p_subscription_id: string;
+          p_room_id: string;
+          p_weekday: number;
+          p_start_time: string;
+          p_end_time: string;
+        };
+        Returns: undefined;
       };
     };
     Enums: {

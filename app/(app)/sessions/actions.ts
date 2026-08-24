@@ -6,7 +6,11 @@ import { bookingErrorMessage } from "@/lib/booking-errors";
 import { sendEmail } from "@/lib/email/resend";
 import { sessionRequestedAdminEmail } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
-import { createSessionInitialPaymentLink, type SessionPaymentLinkResult } from "@/lib/payments/session-initial";
+import {
+  createSessionInitialPaymentLink,
+  createSessionRenewalPaymentLink,
+  type SessionPaymentLinkResult,
+} from "@/lib/payments/session-initial";
 import type { SessionSlotDraft } from "@/lib/pricing/session";
 
 export type ActionResult<T = undefined> =
@@ -48,13 +52,15 @@ async function notifyAdminOfSessionRequest(therapistName: string, weeklyHours: n
 export type PaymentRedirect = SessionPaymentLinkResult;
 
 export async function initiateSessionPayment(subscriptionId: string): Promise<PaymentRedirect> {
-  const { profile } = await requireTherapistProfile();
+  await requireTherapistProfile();
   const supabase = await createClient();
-  return createSessionInitialPaymentLink(supabase, subscriptionId, {
-    fullName: profile.full_name,
-    email: profile.email,
-    phone: profile.phone,
-  });
+  return createSessionInitialPaymentLink(supabase, subscriptionId);
+}
+
+export async function initiateSessionRenewal(subscriptionId: string): Promise<PaymentRedirect> {
+  await requireTherapistProfile();
+  const supabase = await createClient();
+  return createSessionRenewalPaymentLink(supabase, subscriptionId);
 }
 
 export async function requestCancellation(

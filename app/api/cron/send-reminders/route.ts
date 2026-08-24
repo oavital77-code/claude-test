@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
-import { bookingReminderEmail, lowBalanceEmail, cardExpiringEmail } from "@/lib/email/templates";
+import { bookingReminderEmail, lowBalanceEmail, cardExpiringEmail, sessionRenewalReminderEmail } from "@/lib/email/templates";
+import { getAdminEmails } from "@/lib/email/recipients";
 import { accessWindow } from "@/lib/time";
 import { dayBoundaries, todayInIsrael, addDaysToDateStr } from "@/lib/availability/grid";
+import { withCronAlert } from "@/lib/cron/guard";
 
-// יומי 09:00 — תזכורות 24 שעות לפני + התראות יתרה נמוכה/כרטיסייה פגה. ר' spec §10.
+// יומי 09:00 — תזכורות 24 שעות לפני + התראות יתרה נמוכה/כרטיסייה פגה +
+// תזכורת חידוש ססיה (7 ימים מראש, למטפל/ת ולהנהלה). ר' spec §10.
 // כל התראה מסומנת עם *_notified_at כדי שלא תישלח שוב בכל ריצה (§20260824000001).
-export async function GET() {
+export const GET = withCronAlert("send-reminders", async () => {
   const supabase = createAdminClient();
   const today = todayInIsrael();
   const tomorrow = addDaysToDateStr(today, 1);
@@ -89,5 +92,55 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ reminders, lowBalance, expiring });
-}
+  // תזכורת חידוש ססיה — 7 ימים לפני next_billing_date, למטפל/ת ולהנהלה
+  const in7Days = addDaysToDateStr(today, 7);
+  let sessionReminders = 0;
+  const { data: expiringSubs } = await supabase
+    .from("session_subscriptions")
+    .select("id, user_id, weekly_hours, next_billing_date")
+    .eq("status", "active")
+    .is("renewal_reminder_sent_at", null)
+    .not("next_billing_date", "is", null)
+    .lte("next_billing_date", in7Days)
+    .gte("next_billing_date", today);
+
+  if (expiringSubs && expiringSubs.length > 0) {
+    const adminEmails = await getAdminEmails(supabase);
+    for (const sub of expiringSubs) {
+      if (!sub.next_billing_date) continue;
+      const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("id", sub.user_id).maybeSingle();
+      if (!profile) continue;
+
+      const nextBillingDate = new Date(sub.next_billing_date);
+      const therapistEmail = sessionRenewalReminderEmail({
+        therapistName: profile.full_name,
+        weeklyHours: sub.weekly_hours,
+        nextBillingDate,
+        forAdmin: false,
+      });
+      const adminEmail = sessionRenewalReminderEmail({
+        therapistName: profile.full_name,
+        weeklyHours: sub.weekly_hours,
+        nextBillingDate,
+        forAdmin: true,
+      });
+
+      const results = await Promise.all([
+        sendEmail({ to: profile.email, subject: therapistEmail.subject, html: therapistEmail.html }),
+        adminEmails.length > 0
+          ? sendEmail({ to: adminEmails, subject: adminEmail.subject, html: adminEmail.html })
+          : Promise.resolve({ ok: true as const }),
+      ]);
+
+      if (results.every((r) => r.ok)) {
+        await supabase
+          .from("session_subscriptions")
+          .update({ renewal_reminder_sent_at: new Date().toISOString() })
+          .eq("id", sub.id);
+        sessionReminders++;
+      }
+    }
+  }
+
+  return NextResponse.json({ reminders, lowBalance, expiring, sessionReminders });
+});

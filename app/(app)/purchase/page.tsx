@@ -16,6 +16,9 @@ export default async function PurchasePage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">רכישת כרטיסייה</h1>
+      <p className="text-sm text-muted-foreground">
+        התשלום מתבצע באתר בקליניקה — הכרטיסייה תופעל אצלכם אוטומטית עם סיום התשלום.
+      </p>
       <PurchaseClient tiers={tiers ?? []} vatRate={vatRate} />
     </div>
   );

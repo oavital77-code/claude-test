@@ -3,9 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/resend";
 import { materializationConflictAdminEmail } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
+import { withCronAlert } from "@/lib/cron/guard";
 
 // יומי 03:00 — materialize_session_bookings(), רולינג 90 יום. ר' spec §6.6.
-export async function GET() {
+export const GET = withCronAlert("materialize-sessions", async () => {
   const supabase = createAdminClient();
   const runStartedAt = new Date().toISOString();
 
@@ -39,4 +40,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ ok: true, conflicts: conflicts?.length ?? 0 });
-}
+});

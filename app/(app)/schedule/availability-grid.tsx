@@ -18,6 +18,13 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
   blocked: "bg-zinc-800 dark:bg-zinc-700",
 };
 
+// צבעים לפי סוג הזמנה (ססיה/כרטיסייה) — רכים ולא רוויים בכוונה ("לא צועק").
+// מוצג רק היכן שסוג ההזמנה גלוי לצופה: הלוח המלא של האדמין, וההזמנות
+// של המטפל/ת עצמו/ה בלוח שלו/ה. לעולם לא על הזמנה "תפוסה" של מטפל אחר —
+// public_availability לא חושף source בכלל (CLAUDE.md: אין סוג הזמנה).
+export const SESSION_COLOR = "bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200";
+export const CARD_COLOR = "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200";
+
 export function Legend() {
   const items: { status: SlotStatus; label: string }[] = [
     { status: "free", label: "פנוי" },
@@ -33,6 +40,14 @@ export function Legend() {
           {item.label}
         </div>
       ))}
+      <div className="flex items-center gap-1.5">
+        <span className={cn("size-3 rounded-sm", SESSION_COLOR)} />
+        ססיה
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className={cn("size-3 rounded-sm", CARD_COLOR)} />
+        כרטיסייה
+      </div>
     </div>
   );
 }
@@ -42,13 +57,25 @@ export function AvailabilityGrid({
   slots,
   statusFor,
   onSlotClick,
-  selectedKey,
+  isSelected,
+  titleFor,
+  labelFor,
+  colorFor,
+  rowHeightClass = "h-5",
 }: {
   columns: GridColumn[];
   slots: Slot[];
   statusFor: (columnKey: string, slot: Slot) => SlotStatus;
-  onSlotClick: (columnKey: string, slot: Slot, status: SlotStatus) => void;
-  selectedKey?: string | null;
+  onSlotClick?: (columnKey: string, slot: Slot, status: SlotStatus) => void;
+  isSelected?: (columnKey: string, slot: Slot) => boolean;
+  /** טקסט tooltip (title) לתא — למשל שם המטפל/ת בתא תפוס, לתצוגות read-only. */
+  titleFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** טקסט קבוע בתוך התא (למשל שם קצר) — בניגוד ל-titleFor שדורש ריחוף. */
+  labelFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** דריסת צבע התא (למשל לפי סוג הזמנה) — ברירת המחדל היא STATUS_STYLES[status]. */
+  colorFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** גובה שורה — ברירת מחדל h-5 (מתאים ללוח המטפל בלי טקסט); לוח עם labelFor כדאי גבוה יותר. */
+  rowHeightClass?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -77,27 +104,37 @@ export function AvailabilityGrid({
               </div>
               {columns.map((col) => {
                 const status = statusFor(col.key, slot);
-                const key = `${col.key}|${slot.start.toISOString()}`;
-                const isFree = status === "free";
+                const isFree = status === "free" && Boolean(onSlotClick);
+                const selected = isSelected?.(col.key, slot) ?? false;
+                const label = labelFor?.(col.key, slot, status);
+                const colorOverride = colorFor?.(col.key, slot, status);
                 return (
                   <div
                     key={col.key}
                     role={isFree ? "button" : undefined}
                     tabIndex={isFree ? 0 : undefined}
-                    onClick={() => isFree && onSlotClick(col.key, slot, status)}
+                    title={titleFor?.(col.key, slot, status)}
+                    onClick={() => isFree && onSlotClick?.(col.key, slot, status)}
                     onKeyDown={(e) => {
                       if (isFree && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault();
-                        onSlotClick(col.key, slot, status);
+                        onSlotClick?.(col.key, slot, status);
                       }
                     }}
                     className={cn(
-                      "h-5 border-b border-l last:border-l-0",
+                      rowHeightClass,
+                      "flex items-center overflow-hidden border-b border-l last:border-l-0",
                       isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
-                      STATUS_STYLES[status],
-                      selectedKey === key && "ring-2 ring-inset ring-primary",
+                      colorOverride ?? STATUS_STYLES[status],
+                      selected && "ring-2 ring-inset ring-primary",
                     )}
-                  />
+                  >
+                    {label && (
+                      <span className="truncate px-1 text-[9px] leading-none text-foreground/80 select-none">
+                        {label}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </FragmentRow>

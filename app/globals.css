@@ -3,49 +3,53 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* פלטת המותג (Cleana brand kit) — סגול #7A5AF8/#9C82FF, לבנדר בהיר
+   #EFEAFE, שחור-נייבי #171423, לבן שבור #FAF9FC. גוונים נוספים הם רק
+   שקיפות (alpha) על חמשת הצבעים האלה — לא גוון חדש שהומצא. destructive
+   (אדום שגיאה) לא חלק מה-brand kit ונשאר ללא שינוי. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: #faf9fc;
+  --foreground: #171423;
+  --card: #ffffff;
+  --card-foreground: #171423;
+  --popover: #ffffff;
+  --popover-foreground: #171423;
+  --primary: #7a5af8;
+  --primary-foreground: #faf9fc;
+  --secondary: #efeafe;
+  --secondary-foreground: #171423;
+  --muted: #efeafe;
+  --muted-foreground: rgba(23, 20, 35, 0.65);
+  --accent: #9c82ff;
+  --accent-foreground: #171423;
+  --destructive: oklch(0.577 0.19 27);
+  --destructive-foreground: oklch(0.98 0.01 80);
+  --border: rgba(23, 20, 35, 0.12);
+  --input: rgba(23, 20, 35, 0.12);
+  --ring: #7a5af8;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #171423;
+  --foreground: #faf9fc;
+  --card: rgba(250, 249, 252, 0.06);
+  --card-foreground: #faf9fc;
+  --popover: #171423;
+  --popover-foreground: #faf9fc;
+  --primary: #9c82ff;
+  --primary-foreground: #171423;
+  --secondary: rgba(250, 249, 252, 0.08);
+  --secondary-foreground: #faf9fc;
+  --muted: rgba(250, 249, 252, 0.06);
+  --muted-foreground: rgba(250, 249, 252, 0.6);
+  --accent: #7a5af8;
+  --accent-foreground: #faf9fc;
+  --destructive: oklch(0.65 0.18 25);
+  --destructive-foreground: oklch(0.18 0.02 40);
+  --border: rgba(250, 249, 252, 0.12);
+  --input: rgba(250, 249, 252, 0.15);
+  --ring: #9c82ff;
 }
 
 @theme inline {
@@ -77,7 +81,166 @@
 
 /* אתר עברי, RTL בלבד */
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(23, 20, 35, 0.04) 0px,
+    rgba(23, 20, 35, 0.04) 1px,
+    transparent 1px,
+    transparent 28px
+  );
   color: var(--foreground);
   font-family: var(--font-heebo), Arial, Helvetica, sans-serif;
+}
+
+.dark body {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(250, 249, 252, 0.06) 0px,
+    rgba(250, 249, 252, 0.06) 1px,
+    transparent 1px,
+    transparent 28px
+  );
+}
+
+/* כתמי רקע רכים ומטושטשים — קצת עניין ויזואלי, בלי להסיח דעת מהתוכן.
+   הצבע חייב להיות מוטבע ישירות ב-SVG (לא currentColor/CSS var): כש-SVG
+   נטען כ-background-image הוא מטופל כמסמך עצמאי בלי גישה לצבעי הדף
+   המארח, אז currentColor שם היה נופל תמיד לשחור. בהיר מהרקע עצמו
+   (לא primary/secondary הכהים) כדי שיאירו את הרקע במקום להכהות אותו. */
+.bg-decor {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-decor span {
+  position: absolute;
+  display: block;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.bg-decor .blob-1 {
+  top: -9rem;
+  inset-inline-end: -7rem;
+  width: 34rem;
+  height: 34rem;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='%23EFEAFE' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+}
+
+.bg-decor .blob-2 {
+  bottom: -11rem;
+  inset-inline-start: -9rem;
+  width: 32rem;
+  height: 32rem;
+  opacity: 0.6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='%23EFEAFE' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
+}
+
+.bg-decor .blob-3 {
+  top: 30%;
+  inset-inline-start: 38%;
+  width: 26rem;
+  height: 26rem;
+  opacity: 0.65;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='%23EFEAFE' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .blob-1 {
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='a' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='38'/%3E%3C/filter%3E%3Cpath filter='url(%23a)' fill='%239C82FF' d='M300,60 C370,110 380,260 310,330 C240,400 100,390 55,300 C10,210 40,90 130,50 C220,10 260,30 300,60 Z'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .blob-2 {
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='b' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='42'/%3E%3C/filter%3E%3Cpath filter='url(%23b)' fill='%237A5AF8' d='M90,90 C160,30 300,40 350,120 C400,200 360,320 270,360 C180,400 60,360 40,270 C20,180 30,140 90,90 Z'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .blob-3 {
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeGaussianBlur stdDeviation='36'/%3E%3C/filter%3E%3Cpath filter='url(%23c)' fill='%23FAF9FC' d='M140,60 C230,30 340,90 350,180 C360,270 280,350 190,350 C100,350 40,280 50,190 C60,110 70,85 140,60 Z'/%3E%3C/svg%3E");
+}
+
+/* ציורי קו רכים — קווים זורמים וגרסת מתאר של סימן הלוגו, כתוספת עדינה
+   לכתמי הצבע. stroke בלבד (בלי fill), אז אפילו בגוון סגול על רקע בהיר
+   זה נשאר "קו דק" ולא "כתם" שמכהה את הרקע. */
+.bg-decor .mark-outline {
+  bottom: -6rem;
+  inset-inline-end: -4rem;
+  width: 22rem;
+  height: 22rem;
+  opacity: 0.07;
+  transform: rotate(-8deg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='6' y='6' width='88' height='88' rx='22' fill='none' stroke='%237A5AF8' stroke-width='2.2'/%3E%3Ccircle cx='50' cy='50' r='23' fill='none' stroke='%237A5AF8' stroke-width='2.2'/%3E%3C/svg%3E");
+}
+
+.bg-decor .line-1 {
+  top: 12%;
+  inset-inline-start: -4rem;
+  width: 40rem;
+  height: 14rem;
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 240'%3E%3Cpath d='M0,150 C100,60 180,220 300,120 C400,40 480,160 600,80' fill='none' stroke='%237A5AF8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.bg-decor .line-2 {
+  bottom: 8%;
+  inset-inline-end: -2rem;
+  width: 28rem;
+  height: 12rem;
+  opacity: 0.1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'%3E%3Cpath d='M0,40 C80,140 160,10 240,100 C300,170 340,60 400,120' fill='none' stroke='%237A5AF8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.bg-decor .ring-1 {
+  top: 16%;
+  inset-inline-start: 6%;
+  width: 7rem;
+  height: 7rem;
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='34' fill='none' stroke='%237A5AF8' stroke-width='2.5'/%3E%3C/svg%3E");
+}
+
+.bg-decor .ring-2 {
+  top: 62%;
+  inset-inline-end: 14%;
+  width: 5rem;
+  height: 5rem;
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='34' fill='none' stroke='%239C82FF' stroke-width='2.5'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .mark-outline {
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='6' y='6' width='88' height='88' rx='22' fill='none' stroke='%23FAF9FC' stroke-width='2.2'/%3E%3Ccircle cx='50' cy='50' r='23' fill='none' stroke='%23FAF9FC' stroke-width='2.2'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .line-1 {
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 240'%3E%3Cpath d='M0,150 C100,60 180,220 300,120 C400,40 480,160 600,80' fill='none' stroke='%239C82FF' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .line-2 {
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'%3E%3Cpath d='M0,40 C80,140 160,10 240,100 C300,170 340,60 400,120' fill='none' stroke='%239C82FF' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .ring-1 {
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='34' fill='none' stroke='%239C82FF' stroke-width='2.5'/%3E%3C/svg%3E");
+}
+
+.dark .bg-decor .ring-2 {
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='34' fill='none' stroke='%237A5AF8' stroke-width='2.5'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bg-decor span {
+    transition: opacity 0.6s ease;
+  }
 }

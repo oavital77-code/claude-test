@@ -9,8 +9,8 @@ describe("bookingErrorMessage", () => {
     expect(bookingErrorMessage("NO_CREDIT")).toBe("אין לך יתרת שעות בתוקף. יש לרכוש כרטיסייה.");
   });
 
-  it("קוד לא מוכר מחזיר הודעת ברירת מחדל", () => {
-    expect(bookingErrorMessage("SOME_UNKNOWN_CODE")).toBe("משהו השתבש. נסו שוב.");
+  it("קוד לא מוכר מחזיר הודעת ברירת מחדל שכוללת את הקוד הגולמי לאבחון", () => {
+    expect(bookingErrorMessage("SOME_UNKNOWN_CODE")).toBe("משהו השתבש. נסו שוב. (SOME_UNKNOWN_CODE)");
   });
 
   it("undefined מחזיר הודעת ברירת מחדל", () => {

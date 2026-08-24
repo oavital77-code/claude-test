@@ -49,7 +49,7 @@ export async function fetchRoomAvailability(
       .gt("ends_at", rangeStart.toISOString()),
     client
       .from("bookings")
-      .select("room_id, starts_at, ends_at")
+      .select("room_id, starts_at, ends_at, source")
       .in("room_id", roomIds)
       .eq("user_id", currentUserId)
       .eq("status", "confirmed")
@@ -60,14 +60,21 @@ export async function fetchRoomAvailability(
   if (pubError) throw pubError;
   if (mineError) throw mineError;
 
-  const mineKeys = new Set((mine ?? []).map((b) => `${b.room_id}|${b.starts_at}|${b.ends_at}`));
+  const mineSourceByKey = new Map(
+    (mine ?? []).map((b) => [`${b.room_id}|${b.starts_at}|${b.ends_at}`, b.source]),
+  );
 
   for (const row of pub ?? []) {
     const key = `${row.room_id}|${row.starts_at}|${row.ends_at}`;
-    const status: SlotStatus =
-      row.kind === "blocked" ? "blocked" : mineKeys.has(key) ? "mine" : "taken";
+    const mineSource = mineSourceByKey.get(key);
+    const status: SlotStatus = row.kind === "blocked" ? "blocked" : mineSource ? "mine" : "taken";
     const list = byRoom.get(row.room_id) ?? [];
-    list.push({ startsAt: new Date(row.starts_at), endsAt: new Date(row.ends_at), status });
+    list.push({
+      startsAt: new Date(row.starts_at),
+      endsAt: new Date(row.ends_at),
+      status,
+      source: status === "mine" ? mineSource : undefined,
+    });
     byRoom.set(row.room_id, list);
   }
 
@@ -89,4 +96,19 @@ export function slotStatus(
     }
   }
   return result;
+}
+
+/** מקור ההזמנה החופפת (ססיה/כרטיסייה) — רק להזמנות "mine", לצביעת התא. */
+export function sourceAt(
+  slotStart: Date,
+  slotEnd: Date,
+  intervals: AvailabilityInterval[] | undefined,
+) {
+  if (!intervals) return undefined;
+  for (const interval of intervals) {
+    if (interval.status === "mine" && interval.startsAt < slotEnd && interval.endsAt > slotStart) {
+      return interval.source;
+    }
+  }
+  return undefined;
 }

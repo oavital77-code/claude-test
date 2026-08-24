@@ -3,6 +3,10 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -82,5 +86,65 @@ export async function saveRoom(formValues: unknown): Promise<ActionResult> {
     }
     return { ok: false, error: "שמירת החדר נכשלה" };
   }
+  return { ok: true };
+}
+
+export type UploadRoomImageResult = { ok: true; url: string } | { ok: false; error: string };
+
+export async function uploadRoomImage(roomId: string, formData: FormData): Promise<UploadRoomImageResult> {
+  await requireAdmin();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "לא נבחר קובץ" };
+  }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return { ok: false, error: "מותר רק קבצי JPG, PNG או WEBP" };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { ok: false, error: "הקובץ גדול מדי (מקסימום 5MB)" };
+  }
+
+  const admin = createAdminClient();
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `${roomId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await admin.storage
+    .from("room-images")
+    .upload(path, file, { contentType: file.type });
+  if (uploadError) {
+    return { ok: false, error: "העלאת התמונה נכשלה" };
+  }
+
+  const {
+    data: { publicUrl },
+  } = admin.storage.from("room-images").getPublicUrl(path);
+
+  const { data: room } = await admin.from("rooms").select("images").eq("id", roomId).maybeSingle();
+  const nextImages = [...((room?.images as string[] | null) ?? []), publicUrl];
+
+  const { error: updateError } = await admin.from("rooms").update({ images: nextImages }).eq("id", roomId);
+  if (updateError) {
+    return { ok: false, error: "התמונה הועלתה אך שמירתה בחדר נכשלה" };
+  }
+
+  return { ok: true, url: publicUrl };
+}
+
+export async function removeRoomImage(roomId: string, url: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  const admin = createAdminClient();
+  const { data: room } = await admin.from("rooms").select("images").eq("id", roomId).maybeSingle();
+  const nextImages = ((room?.images as string[] | null) ?? []).filter((u) => u !== url);
+
+  const { error: updateError } = await admin.from("rooms").update({ images: nextImages }).eq("id", roomId);
+  if (updateError) return { ok: false, error: "עדכון החדר נכשל" };
+
+  const path = url.split("/room-images/")[1];
+  if (path) {
+    await admin.storage.from("room-images").remove([path]);
+  }
+
   return { ok: true };
 }

@@ -105,6 +105,25 @@ export function sessionApprovedEmail(paymentUrl: string): EmailContent {
   };
 }
 
+export function sessionRenewalReminderEmail(params: {
+  therapistName: string;
+  weeklyHours: number;
+  nextBillingDate: Date;
+  forAdmin: boolean;
+}): EmailContent {
+  const intro = params.forAdmin
+    ? `<p>המנוי של <strong>${params.therapistName}</strong> (${params.weeklyHours} שעות שבועיות) עומד להסתיים אם לא יחודש.</p>`
+    : `<p>מנוי הססיה שלך (${params.weeklyHours} שעות שבועיות) עומד להסתיים.</p>`;
+  return {
+    subject: params.forAdmin ? `תזכורת חידוש ססיה — ${params.therapistName}` : "הססיה שלך עומדת להסתיים",
+    html: emailLayout(`
+      ${intro}
+      <p style="font-weight:700;">תוקף עד ${formatDateHe(params.nextBillingDate)}</p>
+      <p>${params.forAdmin ? "אם לא יחודש עד אז, המטפל/ת לא יוכל/תוכל לקבוע ססיות חדשות." : "יש לחדש דרך \"הססיות שלי\" ב-Cleana עד לתאריך זה, אחרת לא ניתן יהיה לקבוע ססיות חדשות."}</p>
+    `),
+  };
+}
+
 export function sessionRejectedEmail(reason: string): EmailContent {
   return {
     subject: "בקשת הססיה שלך נדחתה",
@@ -182,15 +201,28 @@ export function bookingReminderEmail(params: {
   };
 }
 
-export function waitlistSlotAvailableEmail(params: {
-  roomName: string;
-  date: string;
-}): EmailContent {
+export function cronFailedAdminEmail(params: { jobName: string; detail: string }): EmailContent {
   return {
-    subject: "התפנה חלון שביקשת",
+    subject: `🚨 משימת cron נכשלה — ${params.jobName}`,
     html: emailLayout(`
-      <p>התפנתה משבצת בחדר <strong>${params.roomName}</strong> בתאריך ${params.date}.</p>
-      <p>ההזמנה בלוח הזמנים היא לפי כל הקודם זוכה — מומלץ להזדרז.</p>
+      <p>משימת ה-cron הבאה נכשלה ודורשת בדיקה:</p>
+      <p style="font-weight:700;">${params.jobName}</p>
+      <p style="color:#6b7570;font-family:monospace;font-size:13px;">${params.detail}</p>
     `),
   };
 }
+
+export function wooPurchaseReceivedEmail(params: {
+  hours: number;
+  registerUrl: string;
+}): EmailContent {
+  return {
+    subject: `הרכישה שלך התקבלה — ${params.hours} שעות מחכות לך ב-Cleana`,
+    html: emailLayout(`
+      <p>תודה על הרכישה! כרטיסייה של <strong>${params.hours} שעות</strong> ממתינה לך.</p>
+      <p>כדי להפעיל אותה, יש ליצור חשבון (או להתחבר, אם כבר יש לך אחד) באותה כתובת מייל או מספר טלפון שאיתם רכשת — הכרטיסייה תופעל אוטומטית עם ההרשמה.</p>
+      ${emailButton(params.registerUrl, "יצירת חשבון / התחברות")}
+    `),
+  };
+}
+

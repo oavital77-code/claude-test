@@ -11,7 +11,7 @@
 - Supabase (Postgres 15, Auth, Realtime, RLS)
 - Tailwind + shadcn/ui, **RTL**
 - Vercel + Vercel Cron
-- PayPlus (תשלומים), Resend (מיילים)
+- WooCommerce (baclinica.co.il — תשלומים, כל סוגי הרכישה), Resend (מיילים)
 
 ## מבנה
 
@@ -55,9 +55,10 @@ where (status = 'confirmed')
 `requested → [אדמין] → awaiting_payment → [תשלום] → active`
 אין יצירת דף תשלום לפני `approve_session`. לעולם.
 
-### 6. תשלום: מקור האמת הוא ה-callback
-לא ה-redirect. אמת hash מול `PAYPLUS_SECRET_KEY` לפני כל עדכון סטטוס.
-`payplus_transaction_uid` הוא `UNIQUE` — כל callback אידמפוטנטי.
+### 6. תשלום: מקור האמת הוא ה-webhook של Woo
+כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (baclinica.co.il), לא
+ב-Cleana. אמת חתימת HMAC מול `WOOCOMMERCE_WEBHOOK_SECRET` לפני כל עדכון
+סטטוס. `payplus_transaction_uid` הוא `UNIQUE` — כל webhook אידמפוטנטי.
 
 ### 7. אין הזמנה בלי יתרה
 כרטיסייה בתוקף עם `hours_remaining >= hours` **וגם** `deposit_remaining = deposit_amount`.
@@ -79,8 +80,8 @@ where (status = 'confirmed')
 // 10ש'/55 · 20ש'/50 · 30ש'/45 · 40ש'/40 · 50ש'/35   (לפני מע"מ)
 // פיקדון = 2 × price_per_hour, משולם מראש
 
-// ססיה — שעות שבועיות
-monthlyPrice = 600 + Math.max(0, weeklyHours - 5) * 110
+// ססיה — היקף קבוע (5 שעות שבועיות בדיוק), מחיר קבוע. אין תמחור שולי.
+monthlyPrice = 600
 
 // מע"מ 18%, תמיד מוצג בנפרד
 ```
@@ -111,10 +112,8 @@ monthlyPrice = 600 + Math.max(0, weeklyHours - 5) * 110
 | מתי | מה |
 |---|---|
 | 03:00 | `materialize_session_bookings` — רולינג 90 יום |
-| 06:00 | `charge_session_renewals` |
-| 09:00 | תזכורות 24 שעות + התראות יתרה נמוכה |
-| כל 15 דק' | סנכרון תשלומים `pending` מול PayPlus |
-| כל שעה | ניקוי holds פגי תוקף של ססיות |
+| 09:00 | תזכורות 24 שעות + התראות יתרה נמוכה + תזכורת חידוש ססיה (7 ימים מראש, למטפל/ת ולהנהלה) |
+| כל שעה | ניקוי holds פגי תוקף + סגירת ביטולים + פקיעת מנוי ססיה שלא חודש |
 
 ## סדר עבודה
 

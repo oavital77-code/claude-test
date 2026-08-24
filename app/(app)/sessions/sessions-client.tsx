@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/format";
 import { formatDateHe, formatDateTimeHe } from "@/lib/time";
 import { WEEKDAY_LABELS } from "@/lib/pricing/session";
 import type { Database } from "@/lib/supabase/types";
-import { initiateSessionPayment, requestCancellation } from "./actions";
+import { initiateSessionPayment, initiateSessionRenewal, requestCancellation } from "./actions";
 
 type Subscription = Database["public"]["Tables"]["session_subscriptions"]["Row"];
 type SessionSlot = Database["public"]["Tables"]["session_slots"]["Row"];
@@ -35,9 +35,31 @@ const STATUS_STYLES: Record<Subscription["status"], string> = {
   expired: "text-muted-foreground",
 };
 
-// עוזר קטן להשתיק ניווט חוזר מחוץ לקומפוננטה (ניווט לדומיין חיצוני אינו state).
-function navigateTo(url: string) {
-  window.location.href = url;
+function PaymentButton({
+  label,
+  loading,
+  redirectUrl,
+  onStart,
+}: {
+  label: string;
+  loading: boolean;
+  redirectUrl: string | null;
+  onStart: () => void;
+}) {
+  if (redirectUrl) {
+    return (
+      <Button size="sm" asChild className="w-fit">
+        <a href={redirectUrl} target="_blank" rel="noopener noreferrer">
+          המשך לתשלום ↗
+        </a>
+      </Button>
+    );
+  }
+  return (
+    <Button size="sm" onClick={onStart} disabled={loading} className="w-fit">
+      {loading ? "טוען..." : label}
+    </Button>
+  );
 }
 
 export function SessionsClient({ subscriptions }: { subscriptions: SubscriptionWithSlots[] }) {
@@ -57,18 +79,38 @@ export function SessionsClient({ subscriptions }: { subscriptions: SubscriptionW
 function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlots }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // לא פותחים טאב אוטומטית: בדפדפני מובייל (בעיקר Safari ב-iOS) גם
+  // window.open וגם כתיבה מאוחרת ל-location.href של חלון שנפתח מראש נכשלים
+  // בשקט אחרי await (מאבדים את ה-user activation מהלחיצה) — לפעמים עד כדי
+  // טאב ריק שנשאר תקוע. הפתרון האמין היחיד: קישור <a target="_blank"> אמיתי
+  // שהמשתמש/ת לוחצ/ת עליו בעצמו/ה, לא פתיחה יזומה מקוד.
   async function handlePay() {
     setLoading(true);
     setError(null);
+    setRedirectUrl(null);
     const result = await initiateSessionPayment(subscription.id);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    navigateTo(result.redirectUrl);
+    setRedirectUrl(result.redirectUrl);
+  }
+
+  async function handleRenew() {
+    setLoading(true);
+    setError(null);
+    setRedirectUrl(null);
+    const result = await initiateSessionRenewal(subscription.id);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setRedirectUrl(result.redirectUrl);
   }
 
   async function handleCancelRequest() {
@@ -130,9 +172,7 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
                 תפוג.
               </p>
             )}
-            <Button size="sm" onClick={handlePay} disabled={loading} className="w-fit">
-              {loading ? "מעביר לתשלום..." : "מעבר לתשלום"}
-            </Button>
+            <PaymentButton label="מעבר לתשלום" loading={loading} redirectUrl={redirectUrl} onStart={handlePay} />
           </div>
         )}
 
@@ -140,12 +180,16 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
           <div className="flex flex-col gap-1">
             {subscription.next_billing_date && (
               <p className="text-sm text-muted-foreground">
-                חיוב הבא: {formatDateHe(new Date(subscription.next_billing_date))}
+                המנוי בתוקף עד {formatDateHe(new Date(subscription.next_billing_date))} — יש לחדש עד אז כדי
+                להמשיך לקבוע ססיות.
               </p>
             )}
-            <Button size="sm" variant="outline" onClick={handleCancelRequest} disabled={loading} className="w-fit">
-              בקשת ביטול מנוי
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <PaymentButton label="חידוש מנוי" loading={loading} redirectUrl={redirectUrl} onStart={handleRenew} />
+              <Button size="sm" variant="outline" onClick={handleCancelRequest} disabled={loading} className="w-fit">
+                בקשת ביטול מנוי
+              </Button>
+            </div>
           </div>
         )}
 
@@ -153,6 +197,15 @@ function SubscriptionCard({ subscription }: { subscription: SubscriptionWithSlot
           <p className="text-sm text-muted-foreground">
             המנוי בתהליך ביטול — פעיל עד {formatDateHe(new Date(subscription.effective_end_date))}
           </p>
+        )}
+
+        {subscription.status === "expired" && (
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              המנוי פג — לא ניתן לקבוע ססיות חדשות עד לחידוש.
+            </p>
+            <PaymentButton label="חידוש מנוי" loading={loading} redirectUrl={redirectUrl} onStart={handleRenew} />
+          </div>
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
