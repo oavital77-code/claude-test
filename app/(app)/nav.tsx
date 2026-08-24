@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   Repeat,
   CreditCard,
+  UserRound,
   Shield,
   LogOut,
   Menu,
@@ -26,6 +27,7 @@ const LINKS = [
   { href: "/purchase", label: "רכישת כרטיסייה", icon: ShoppingCart },
   { href: "/sessions", label: "הססיות שלי", icon: Repeat },
   { href: "/payments", label: "תשלומים", icon: CreditCard },
+  { href: "/profile", label: "הכרטיס שלי", icon: UserRound },
 ];
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy"];

@@ -203,18 +203,23 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
     return { start, end };
   }
 
-  // ═══ תצוגה חודשית: כמה הזמנות יש בכל יום (כל החדרים בסניף), לחיצה עוברת ל"רשימה" של אותו יום ═══
+  // ═══ תצוגה חודשית: כמה הזמנות ווכמה חסימות תחזוקה יש בכל יום (כל החדרים
+  // בסניף), לחיצה עוברת ל"רשימה" של אותו יום. חסימות נספרות בנפרד מהזמנות —
+  // יום שכולו סגור לתחזוקה חייב להיראות שונה מיום עמוס. ═══
   const monthCountsByDate = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { bookings: number; blocks: number }>();
     for (const d of monthDates) {
       const { start: dayStart, end: dayEnd } = dayBoundaries(d);
-      const count = bookings.filter(
-        (b) => new Date(b.starts_at) < dayEnd && new Date(b.ends_at) > dayStart,
-      ).length;
-      if (count > 0) map.set(d, count);
+      const overlapsDay = (from: string, to: string) =>
+        new Date(from) < dayEnd && new Date(to) > dayStart;
+      const bookingCount = bookings.filter((b) => overlapsDay(b.starts_at, b.ends_at)).length;
+      const blockCount = blocks.filter((b) => overlapsDay(b.starts_at, b.ends_at)).length;
+      if (bookingCount > 0 || blockCount > 0) {
+        map.set(d, { bookings: bookingCount, blocks: blockCount });
+      }
     }
     return map;
-  }, [monthDates, bookings]);
+  }, [monthDates, bookings, blocks]);
 
   function goToPrev() {
     if (viewMode === "week") setDate(addDaysToDateStr(date, -7));
@@ -338,7 +343,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
             {monthDates.map((d) => {
               const inCurrentMonth = d.slice(0, 7) === startOfMonth(date).slice(0, 7);
               const isToday = d === todayInIsrael();
-              const count = monthCountsByDate.get(d) ?? 0;
+              const counts = monthCountsByDate.get(d);
               return (
                 <button
                   key={d}
@@ -355,9 +360,14 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                   <span className={cn("text-xs", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>
                     {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
                   </span>
-                  {count > 0 && (
+                  {counts && counts.bookings > 0 && (
                     <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">
-                      {count} הזמנות
+                      {counts.bookings} הזמנות
+                    </span>
+                  )}
+                  {counts && counts.blocks > 0 && (
+                    <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[11px] text-destructive">
+                      {counts.blocks === 1 ? "חסימה" : `${counts.blocks} חסימות`}
                     </span>
                   )}
                 </button>

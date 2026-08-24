@@ -17,6 +17,7 @@ const LINKS = [
   { href: "/admin/rooms", label: "סניפים וחדרים" },
   { href: "/admin/settings", label: "הגדרות" },
   { href: "/admin/reports", label: "דוחות" },
+  { href: "/admin/audit", label: "יומן פעולות" },
 ];
 
 export function AdminNav() {
