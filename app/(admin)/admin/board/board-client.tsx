@@ -7,7 +7,7 @@ import { he } from "date-fns/locale";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { TIMEZONE } from "@/lib/time";
+import { TIMEZONE, formatTimeHe } from "@/lib/time";
 import {
   dayBoundaries,
   daySlots,
@@ -203,23 +203,35 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
     return { start, end };
   }
 
-  // ═══ תצוגה חודשית: כמה הזמנות ווכמה חסימות תחזוקה יש בכל יום (כל החדרים
-  // בסניף), לחיצה עוברת ל"רשימה" של אותו יום. חסימות נספרות בנפרד מהזמנות —
-  // יום שכולו סגור לתחזוקה חייב להיראות שונה מיום עמוס. ═══
-  const monthCountsByDate = useMemo(() => {
-    const map = new Map<string, { bookings: number; blocks: number }>();
+  // ═══ תצוגה חודשית: שעה + שם מטפל/ת לכל הזמנה באותו יום (כל החדרים בסניף),
+  // ממוינות לפי שעת התחלה. לחיצה עוברת ל"רשימה" של אותו יום לפירוט מלא.
+  // חסימות תחזוקה נספרות בנפרד — יום שסגור לתחזוקה חייב להיראות שונה מיום
+  // עמוס. שמות מוצגים כאן כי זה לוח האדמין (חוק ברזל #3 חל על מה שמטפל/ת
+  // רואה, לא על האדמין). ═══
+  const MONTH_PREVIEW_LIMIT = 3;
+
+  const monthEntriesByDate = useMemo(() => {
+    const map = new Map<string, { entries: { time: string; name: string }[]; blocks: number }>();
     for (const d of monthDates) {
       const { start: dayStart, end: dayEnd } = dayBoundaries(d);
       const overlapsDay = (from: string, to: string) =>
         new Date(from) < dayEnd && new Date(to) > dayStart;
-      const bookingCount = bookings.filter((b) => overlapsDay(b.starts_at, b.ends_at)).length;
+
+      const entries = bookings
+        .filter((b) => overlapsDay(b.starts_at, b.ends_at))
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+        .map((b) => ({
+          time: formatTimeHe(new Date(b.starts_at)),
+          name: therapistById.get(b.user_id)?.full_name ?? "—",
+        }));
       const blockCount = blocks.filter((b) => overlapsDay(b.starts_at, b.ends_at)).length;
-      if (bookingCount > 0 || blockCount > 0) {
-        map.set(d, { bookings: bookingCount, blocks: blockCount });
+
+      if (entries.length > 0 || blockCount > 0) {
+        map.set(d, { entries, blocks: blockCount });
       }
     }
     return map;
-  }, [monthDates, bookings, blocks]);
+  }, [monthDates, bookings, blocks, therapistById]);
 
   function goToPrev() {
     if (viewMode === "week") setDate(addDaysToDateStr(date, -7));
@@ -343,7 +355,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
             {monthDates.map((d) => {
               const inCurrentMonth = d.slice(0, 7) === startOfMonth(date).slice(0, 7);
               const isToday = d === todayInIsrael();
-              const counts = monthCountsByDate.get(d);
+              const day = monthEntriesByDate.get(d);
               return (
                 <button
                   key={d}
@@ -353,21 +365,39 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                     setViewMode("list");
                   }}
                   className={cn(
-                    "flex h-20 flex-col items-start gap-1 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
+                    "flex min-h-28 w-full flex-col items-stretch gap-0.5 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
                     !inCurrentMonth && "bg-muted/20 text-muted-foreground",
                   )}
                 >
-                  <span className={cn("text-xs", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>
+                  <span
+                    className={cn(
+                      "self-start text-xs",
+                      isToday && "rounded-full bg-primary px-1.5 text-primary-foreground",
+                    )}
+                  >
                     {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
                   </span>
-                  {counts && counts.bookings > 0 && (
-                    <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[11px] text-primary">
-                      {counts.bookings} הזמנות
+
+                  {day?.blocks ? (
+                    <span className="truncate rounded-sm bg-destructive/15 px-1 text-[11px] text-destructive">
+                      {day.blocks === 1 ? "חסימה" : `${day.blocks} חסימות`}
                     </span>
-                  )}
-                  {counts && counts.blocks > 0 && (
-                    <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[11px] text-destructive">
-                      {counts.blocks === 1 ? "חסימה" : `${counts.blocks} חסימות`}
+                  ) : null}
+
+                  {day?.entries.slice(0, MONTH_PREVIEW_LIMIT).map((entry, i) => (
+                    <span
+                      key={i}
+                      className="flex items-baseline gap-1 truncate text-[11px] leading-tight"
+                      title={`${entry.time} · ${entry.name}`}
+                    >
+                      <span className="shrink-0 tabular-nums text-primary">{entry.time}</span>
+                      <span className="truncate text-muted-foreground">{entry.name}</span>
+                    </span>
+                  ))}
+
+                  {day && day.entries.length > MONTH_PREVIEW_LIMIT && (
+                    <span className="text-[11px] text-muted-foreground">
+                      +{day.entries.length - MONTH_PREVIEW_LIMIT} נוספות
                     </span>
                   )}
                 </button>
