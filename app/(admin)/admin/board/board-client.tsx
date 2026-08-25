@@ -203,35 +203,58 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
     return { start, end };
   }
 
-  // ═══ תצוגה חודשית: שעה + שם מטפל/ת לכל הזמנה באותו יום (כל החדרים בסניף),
-  // ממוינות לפי שעת התחלה. לחיצה עוברת ל"רשימה" של אותו יום לפירוט מלא.
-  // חסימות תחזוקה נספרות בנפרד — יום שסגור לתחזוקה חייב להיראות שונה מיום
-  // עמוס. שמות מוצגים כאן כי זה לוח האדמין (חוק ברזל #3 חל על מה שמטפל/ת
-  // רואה, לא על האדמין). ═══
+  // ═══ תצוגה חודשית: כל מה שקורה באותו יום בסניף — הזמנות *וחסימות* יחד,
+  // ממוינות לפי שעת התחלה, כל אחת עם שעה · מי/מה · סוג · חדר. לחיצה עוברת
+  // ל"רשימה" של אותו יום לפירוט מלא.
+  //
+  // חסימה מוצגת עם ה-reason שלה (למשל שם המטפל/ת מייבוא Skedda) — "חסימה"
+  // בלי הסבר לא אומר לאדמין כלום. שמות מוצגים כאן כי זה לוח האדמין: חוק
+  // ברזל #3 חל על מה שמטפל/ת רואה (public_availability), לא על האדמין. ═══
   const MONTH_PREVIEW_LIMIT = 3;
 
+  type MonthEntry = { time: string; what: string; kind: "booking" | "block"; room: string };
+
   const monthEntriesByDate = useMemo(() => {
-    const map = new Map<string, { entries: { time: string; name: string }[]; blocks: number }>();
+    const roomNameById = new Map(rooms.map((r) => [r.id, r.name]));
+    const map = new Map<string, MonthEntry[]>();
     for (const d of monthDates) {
       const { start: dayStart, end: dayEnd } = dayBoundaries(d);
       const overlapsDay = (from: string, to: string) =>
         new Date(from) < dayEnd && new Date(to) > dayStart;
 
-      const entries = bookings
-        .filter((b) => overlapsDay(b.starts_at, b.ends_at))
-        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-        .map((b) => ({
-          time: formatTimeHe(new Date(b.starts_at)),
-          name: therapistById.get(b.user_id)?.full_name ?? "—",
-        }));
-      const blockCount = blocks.filter((b) => overlapsDay(b.starts_at, b.ends_at)).length;
+      const entries: (MonthEntry & { sort: string })[] = [];
 
-      if (entries.length > 0 || blockCount > 0) {
-        map.set(d, { entries, blocks: blockCount });
+      for (const b of bookings) {
+        if (!overlapsDay(b.starts_at, b.ends_at)) continue;
+        entries.push({
+          sort: b.starts_at,
+          time: formatTimeHe(new Date(b.starts_at)),
+          what: `${therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · ${SOURCE_LABELS[b.source]}`,
+          kind: "booking",
+          room: roomNameById.get(b.room_id) ?? "",
+        });
+      }
+      for (const rb of blocks) {
+        if (!overlapsDay(rb.starts_at, rb.ends_at)) continue;
+        entries.push({
+          sort: rb.starts_at,
+          time: formatTimeHe(new Date(rb.starts_at)),
+          what: `חסימה · ${rb.reason}`,
+          kind: "block",
+          room: roomNameById.get(rb.room_id) ?? "",
+        });
+      }
+
+      if (entries.length > 0) {
+        entries.sort((a, b) => a.sort.localeCompare(b.sort));
+        map.set(
+          d,
+          entries.map((e) => ({ time: e.time, what: e.what, kind: e.kind, room: e.room })),
+        );
       }
     }
     return map;
-  }, [monthDates, bookings, blocks, therapistById]);
+  }, [monthDates, bookings, blocks, therapistById, rooms]);
 
   function goToPrev() {
     if (viewMode === "week") setDate(addDaysToDateStr(date, -7));
@@ -355,7 +378,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
             {monthDates.map((d) => {
               const inCurrentMonth = d.slice(0, 7) === startOfMonth(date).slice(0, 7);
               const isToday = d === todayInIsrael();
-              const day = monthEntriesByDate.get(d);
+              const dayEntries = monthEntriesByDate.get(d) ?? [];
               return (
                 <button
                   key={d}
@@ -365,7 +388,7 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                     setViewMode("list");
                   }}
                   className={cn(
-                    "flex min-h-28 w-full flex-col items-stretch gap-0.5 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
+                    "flex min-h-32 w-full flex-col items-stretch gap-0.5 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
                     !inCurrentMonth && "bg-muted/20 text-muted-foreground",
                   )}
                 >
@@ -378,26 +401,28 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
                     {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
                   </span>
 
-                  {day?.blocks ? (
-                    <span className="truncate rounded-sm bg-destructive/15 px-1 text-[11px] text-destructive">
-                      {day.blocks === 1 ? "חסימה" : `${day.blocks} חסימות`}
-                    </span>
-                  ) : null}
-
-                  {day?.entries.slice(0, MONTH_PREVIEW_LIMIT).map((entry, i) => (
+                  {dayEntries.slice(0, MONTH_PREVIEW_LIMIT).map((entry, i) => (
                     <span
                       key={i}
-                      className="flex items-baseline gap-1 truncate text-[11px] leading-tight"
-                      title={`${entry.time} · ${entry.name}`}
+                      className={cn(
+                        "flex items-baseline gap-1 truncate rounded-sm px-1 text-[11px] leading-tight",
+                        entry.kind === "block"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-primary/10 text-foreground",
+                      )}
+                      title={`${entry.time} · ${entry.what}${entry.room ? ` · ${entry.room}` : ""}`}
                     >
-                      <span className="shrink-0 tabular-nums text-primary">{entry.time}</span>
-                      <span className="truncate text-muted-foreground">{entry.name}</span>
+                      <span className="shrink-0 tabular-nums font-medium">{entry.time}</span>
+                      <span className="truncate">
+                        {entry.what}
+                        {entry.room ? ` · ${entry.room}` : ""}
+                      </span>
                     </span>
                   ))}
 
-                  {day && day.entries.length > MONTH_PREVIEW_LIMIT && (
-                    <span className="text-[11px] text-muted-foreground">
-                      +{day.entries.length - MONTH_PREVIEW_LIMIT} נוספות
+                  {dayEntries.length > MONTH_PREVIEW_LIMIT && (
+                    <span className="px-1 text-[11px] text-muted-foreground">
+                      +{dayEntries.length - MONTH_PREVIEW_LIMIT} נוספים
                     </span>
                   )}
                 </button>

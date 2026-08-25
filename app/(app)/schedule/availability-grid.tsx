@@ -15,7 +15,9 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
   free: "bg-emerald-100 hover:bg-emerald-200 cursor-pointer dark:bg-emerald-950 dark:hover:bg-emerald-900",
   taken: "bg-muted",
   mine: "bg-blue-200 dark:bg-blue-900",
-  blocked: "bg-zinc-800 dark:bg-zinc-700",
+  // רקע כהה — הטקסט חייב להיות בהיר במפורש, אחרת הוא יורש את צבע הגוף
+  // ונבלע ברקע (חסימה עם reason ארוך הייתה בלתי קריאה בלוח האדמין).
+  blocked: "bg-zinc-800 text-zinc-50 dark:bg-zinc-700 dark:text-zinc-50",
 };
 
 // צבעים לפי סוג הזמנה (ססיה/כרטיסייה) — רכים ולא רוויים בכוונה ("לא צועק").
