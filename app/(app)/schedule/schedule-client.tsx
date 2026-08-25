@@ -12,6 +12,7 @@ import {
   fetchRoomAvailability,
   slotStatus,
   sourceAt,
+  mineIntervalAt,
 } from "@/lib/availability/queries";
 import {
   daySlots,
@@ -49,9 +50,11 @@ const BRANCH_COLORS = [
 export function ScheduleClient({
   branches,
   userId,
+  fullName,
 }: {
   branches: Branch[];
   userId: string;
+  fullName: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
@@ -173,9 +176,26 @@ export function ScheduleClient({
         });
   }
 
-  function statusFor(columnKey: string, slot: Slot) {
+  /**
+   * "תפוס" (הזמנה של מטפל/ת אחר/ת) מוצג כ"לא זמין" — מבחינת המטפל/ת אין
+   * הבדל מעשי בין השניים, ולא חושפים שקיימת שם הזמנה בכלל. המסך מציג שלושה
+   * מצבים בלבד: פנוי · ההזמנה שלי · לא זמין.
+   */
+  function statusFor(columnKey: string, slot: Slot): SlotStatus {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
-    return slotStatus(start, end, intervalsFor(columnKey, roomId));
+    const status = slotStatus(start, end, intervalsFor(columnKey, roomId));
+    return status === "taken" ? "blocked" : status;
+  }
+
+  /** תווית על ההזמנות שלי בלבד: שם + שעות ההזמנה המלאות. */
+  function labelFor(columnKey: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status !== "mine") return undefined;
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const iv = mineIntervalAt(start, end, intervalsFor(columnKey, roomId));
+    if (!iv) return fullName;
+    const from = formatInTimeZone(iv.startsAt, TIMEZONE, "HH:mm");
+    const to = formatInTimeZone(iv.endsAt, TIMEZONE, "HH:mm");
+    return `${fullName} · ${from}–${to}`;
   }
 
   /** צובע הזמנה "שלי" לפי סוגה (ססיה/כרטיסייה) — לעולם לא על הזמנת מטפל אחר. */
@@ -337,13 +357,18 @@ export function ScheduleClient({
         לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
         ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
       </p>
-      <Legend />
+      <Legend statuses={["free", "mine", "blocked"]} />
 
       <AvailabilityGrid
         columns={columns}
         slots={slots}
+        // h-6 ולא ברירת המחדל h-5: מאז שיש תווית (שם + שעות) על ההזמנות שלי,
+        // השורה צריכה גובה שהטקסט נכנס בו.
+        rowHeightClass="h-6"
         statusFor={statusFor}
         colorFor={colorFor}
+        labelFor={labelFor}
+        titleFor={labelFor}
         onSlotClick={handleSlotClick}
         isSelected={(columnKey, slot) => {
           if (!selected || selected.columnKey !== columnKey) return false;

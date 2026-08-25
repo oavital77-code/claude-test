@@ -27,13 +27,24 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
 export const SESSION_COLOR = "bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200";
 export const CARD_COLOR = "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200";
 
-export function Legend() {
-  const items: { status: SlotStatus; label: string }[] = [
-    { status: "free", label: "פנוי" },
-    { status: "taken", label: "תפוס" },
-    { status: "mine", label: "ההזמנה שלי" },
-    { status: "blocked", label: "לא זמין" },
-  ];
+const STATUS_TITLES: Record<SlotStatus, string> = {
+  free: "פנוי",
+  taken: "תפוס",
+  mine: "ההזמנה שלי",
+  blocked: "לא זמין",
+};
+
+/**
+ * `statuses` מאפשר להסתיר מצבים שלא רלוונטיים למסך מסוים. בלוח של המטפל/ת
+ * "תפוס" מוצג כ"לא זמין" (אין הבדל מעשי מבחינתו/ה, ולא חושפים שקיימת
+ * הזמנה של מישהו אחר), ולכן אין טעם להציג את שניהם במקרא.
+ */
+export function Legend({
+  statuses = ["free", "taken", "mine", "blocked"],
+}: {
+  statuses?: SlotStatus[];
+}) {
+  const items = statuses.map((status) => ({ status, label: STATUS_TITLES[status] }));
   return (
     <div className="flex flex-wrap gap-4 text-sm">
       {items.map((item) => (
