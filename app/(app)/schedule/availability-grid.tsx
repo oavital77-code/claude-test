@@ -142,8 +142,11 @@ export function AvailabilityGrid({
                       selected && "ring-2 ring-inset ring-primary",
                     )}
                   >
+                    {/* בלי text-* משלו: הצבע נורש מהתא, כדי שרקע כהה (blocked)
+                        יקבל טקסט בהיר ורקע בהיר יקבל טקסט כהה. הגדרת צבע כאן
+                        דרסה את של התא והפכה חסימות לבלתי קריאות. */}
                     {label && (
-                      <span className="truncate px-1 text-[9px] leading-none text-foreground/80 select-none">
+                      <span className="truncate px-1 text-[9px] leading-none opacity-90 select-none">
                         {label}
                       </span>
                     )}
