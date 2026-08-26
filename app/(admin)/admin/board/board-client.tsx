@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { he } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -283,12 +284,12 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
           </Button>
         ))}
         <div className="mx-2 h-6 w-px bg-border" />
-        <Button size="sm" variant="outline" onClick={goToPrev}>
-          הקודם
+        <Button size="sm" variant="outline" onClick={goToPrev} aria-label="הקודם">
+          <ChevronRight className="size-4" />
         </Button>
         <span className="text-sm font-medium">{dateLabel}</span>
-        <Button size="sm" variant="outline" onClick={goToNext}>
-          הבא
+        <Button size="sm" variant="outline" onClick={goToNext} aria-label="הבא">
+          <ChevronLeft className="size-4" />
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
           היום

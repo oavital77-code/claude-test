@@ -47,7 +47,7 @@ const roomSchema = z.object({
   id: z.string().uuid().optional(),
   branch_id: z.string().uuid(),
   name: z.string().trim().min(1, "יש להזין שם חדר"),
-  room_type: z.enum(["talk", "touch", "podcast", "group"]),
+  room_type: z.array(z.enum(["talk", "touch", "podcast", "group"])).min(1, "יש לבחור לפחות סוג חדר אחד"),
   capacity: z.coerce.number().int().min(1).max(20),
   description: z.string().trim().optional().or(z.literal("")),
   equipment: z.string().trim().optional().or(z.literal("")), // מופרד בפסיקים

@@ -97,7 +97,7 @@ export type Database = {
           id: string;
           branch_id: string;
           name: string;
-          room_type: RoomType;
+          room_type: RoomType[];
           capacity: number;
           description: string | null;
           equipment: Json;
@@ -110,7 +110,7 @@ export type Database = {
           id?: string;
           branch_id: string;
           name: string;
-          room_type?: RoomType;
+          room_type?: RoomType[];
           capacity?: number;
           description?: string | null;
           equipment?: Json;

@@ -9,7 +9,7 @@ import { signOut } from "@/lib/auth/actions";
 import { Logo } from "@/components/logo";
 
 const LINKS = [
-  { href: "/admin", label: "דשבורד" },
+  { href: "/admin", label: "מסך הבית" },
   { href: "/admin/board", label: "לוח מלא" },
   { href: "/admin/therapists", label: "מטפלים" },
   { href: "/admin/sessions", label: "בקשות ססיה" },

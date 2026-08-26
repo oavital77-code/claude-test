@@ -128,7 +128,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4">
-      <h1 className="text-xl font-semibold">דשבורד — שלום, {profile.full_name}</h1>
+      <h1 className="text-xl font-semibold">שלום, {profile.full_name}</h1>
 
       <Card>
         <CardContent className="flex flex-col gap-2 p-4">

@@ -270,7 +270,9 @@ create table rooms (
   id           uuid primary key default gen_random_uuid(),
   branch_id    uuid not null references branches(id) on delete restrict,
   name         text not null,
-  room_type    room_type not null default 'talk',
+  room_type    room_type[] not null default array['talk']::room_type[],
+    -- מערך, לא ערך יחיד: חדר יכול לשרת יותר מסוג טיפול אחד (למשל חדר עם
+    -- מיטת טיפולים שגם מתאים לשיח) — ר' migration 20260828000011.
   capacity     int default 2,
   description  text,
   equipment    jsonb default '[]'::jsonb,  -- ["מיטת טיפולים","כיור","פרגוד","לוח מחיק","מזגן נפרד"]
