@@ -120,7 +120,15 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["rooms"]["Insert"]>;
-      Relationships: [];
+      Relationships: [
+        {
+          foreignKeyName: "rooms_branch_id_fkey";
+          columns: ["branch_id"];
+          isOneToOne: false;
+          referencedRelation: "branches";
+          referencedColumns: ["id"];
+        },
+      ];
       };
       profiles: {
         Row: {
@@ -332,7 +340,15 @@ export type Database = {
           reminder_sent_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "bookings_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       room_blocks: {
         Row: {

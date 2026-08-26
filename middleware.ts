@@ -41,6 +41,14 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// ה-middleware מרענן session — כלומר משלם round-trip ל-Auth של Supabase בכל
+// בקשה שהוא תופס. לכן הוא מוחרג מכל מה שאינו ניווט: קבצי build, ה-service
+// worker, ה-manifest והאייקונים. ב-PWA אלה כמה בקשות בכל פתיחת אפליקציה,
+// וכולן שילמו עד היום את אותו round-trip בלי צורך.
+// בונוס: /icon, /apple-icon ו-/manifest.webmanifest יושבים ב-app/ (לא בתוך
+// (admin)), אז ה-rewrite לפי host היה שולח אותם ב-admin ל-/admin/icon שלא קיים.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api|sw\\.js|manifest\\.webmanifest|icon|apple-icon).*)",
+  ],
 };

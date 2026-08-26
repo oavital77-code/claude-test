@@ -42,7 +42,9 @@ export default async function HomePage() {
       .gt("expires_at", new Date().toISOString()),
     supabase
       .from("bookings")
-      .select("id, room_id, starts_at, ends_at")
+      // שם החדר והסניף נשלפים באותה שאילתה (embed לפי ה-FK) במקום
+      // שתי שאילתות עוקבות אחריה — חוסך שני round-trips לכל טעינת בית.
+      .select("id, starts_at, ends_at, rooms(name, branches(name))")
       .eq("user_id", userId)
       .eq("status", "confirmed")
       .gt("starts_at", new Date().toISOString())
@@ -63,24 +65,8 @@ export default async function HomePage() {
     .map((c) => new Date(c.expires_at))
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
-  let nextRoomName: string | null = null;
-  let nextBranchName: string | null = null;
-  if (nextBooking) {
-    const { data: room } = await supabase
-      .from("rooms")
-      .select("name, branch_id")
-      .eq("id", nextBooking.room_id)
-      .maybeSingle();
-    nextRoomName = room?.name ?? null;
-    if (room) {
-      const { data: branch } = await supabase
-        .from("branches")
-        .select("name")
-        .eq("id", room.branch_id)
-        .maybeSingle();
-      nextBranchName = branch?.name ?? null;
-    }
-  }
+  const nextRoomName = nextBooking?.rooms?.name ?? null;
+  const nextBranchName = nextBooking?.rooms?.branches?.name ?? null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
