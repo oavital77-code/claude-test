@@ -30,7 +30,7 @@ const LINKS = [
   { href: "/profile", label: "הכרטיס שלי", icon: UserRound },
 ];
 
-const HIDDEN_ON = ["/login", "/suspended", "/privacy"];
+const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
 export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();

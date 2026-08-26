@@ -181,19 +181,60 @@ Resend (ספק המיילים) מגביל את הדומיין ברירת המח�
 - **Allow new users to sign up** — דלוק.
 - **Confirm email** — כבוי (אחרת `signUp` מחכה לאישור מייל שלא יישלח).
 
-**מגבלה שנשארה:** אין "שכחתי סיסמה" — גם זה דורש מייל. אם מישהו ננעל,
-צריך לאפס לו סיסמה ידנית דרך SQL:
+**הקוד לאימות מייל ולאיפוס סיסמה כבר קיים** — שני המסכים בנויים ועובדים.
+מה שחסר זה **הגדרות בשני דשבורדים**. עד שיוגדרו, אסור להדליק Confirm email:
+המשתמשות ייתקעו במסך "שלחנו לך קישור" שלעולם לא יגיע.
+
+### מה עושים כדי להדליק (סדר הפעולות חשוב)
+
+**שלב 1 — לאמת דומיין ב-Resend.** *לא* צריך לקנות דומיין; `cleana.co.il`
+כבר שלנו. Resend → Domains → Add Domain → `cleana.co.il`. Resend נותנת
+רשומות DNS (SPF + DKIM). ה-DNS של הדומיין יושב על ה-nameservers של Vercel,
+אז מוסיפים אותן ב-**Vercel → Domains → cleana.co.il → DNS Records** — לא
+אצל הרשם. האימות לוקח דקות.
+
+**שלב 2 — SMTP ב-Supabase.** מייל של אימות/איפוס נשלח ע"י **Supabase**, לא
+ע"י הקוד שלנו. ברירת המחדל של Supabase היא SMTP פנימי שמוגבל בכוונה
+לבדיקות בלבד ולא ישלח ל-300 מטפלות. לכן: Authentication → Emails → SMTP
+Settings → פרטי ה-SMTP של Resend, שולח `noreply@cleana.co.il`.
+
+**שלב 3 — תבניות המייל.** Authentication → Emails → Templates. בתבניות
+*Confirm signup* ו-*Reset password* להשתמש ב-`{{ .TokenHash }}`:
+
+```
+{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&next=/login
+{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password
+```
+
+**זה לא קישוט.** ברירת המחדל של Supabase שולחת קישור בזרימת PKCE, שעובדת
+רק בדפדפן שממנו נרשמו — מי שנרשמת במחשב ופותחת את המייל בנייד תקבל שגיאה.
+`token_hash` עובד בין מכשירים. ה-route תומך בשתי הצורות, אבל רק אחת מהן
+עובדת בפועל בשביל אנשים אמיתיים.
+
+**שלב 4 — Redirect URLs.** Authentication → URL Configuration → Redirect
+URLs: להוסיף `https://app.baclinica.co.il/auth/callback` (וכל דומיין נוסף
+שממנו נכנסים). בלי זה Supabase תסרב להפנות חזרה.
+
+**שלב 5 — רק עכשיו:** Authentication → Sign In / Providers → **Confirm
+email = דלוק**.
+
+**שלב 6 — Vercel:** `RESEND_FROM_EMAIL` לכתובת בדומיין המאומת, ואז
+**Redeploy** (משתנה סביבה לא נכנס לתוקף בלי זה).
+
+### עד שזה מוגדר — איפוס ידני
+
 ```sql
 update auth.users
 set encrypted_password = crypt('סיסמה-חדשה', gen_salt('bf'))
 where email = 'the-email@example.com';
 ```
 
-**הפתרון הקבוע:** לרכוש דומיין, לאמת אותו ב-Resend (Domains → Add Domain
-→ להוסיף רשומות DNS שResend נותן), ואז לעדכן את כתובת השולח גם ב-Supabase
-(Authentication → Emails/SMTP) וגם ב-Vercel (`RESEND_FROM_EMAIL`). אחרי זה
-אפשר לחזור לזרימת OTP אם רוצים, או פשוט להפעיל "שכחתי סיסמה" עם המצב
-הנוכחי.
+### שימו לב
+
+אימות הדומיין לא פותח רק אימות והרשמה — הוא מדליק את **כל** המיילים
+במערכת. אישורי הזמנה, תזכורות 24 שעות, התראות יתרה נמוכה, מיילי ססיה
+ותזכורות חידוש כולם כתובים ועובדים, ואף אחת לא מקבלת אותם כרגע כי Resend
+ב-sandbox שולחת רק לכתובת בעלת החשבון.
 
 ---
 
@@ -201,8 +242,8 @@ where email = 'the-email@example.com';
 
 | # | נושא | מצב |
 |---|---|---|
-| 1 | דומיין מייל מאומת | ❌ לא קיים — Resend ב-sandbox, שליחה רק לחשבון הבעלים |
-| 2 | שכחתי סיסמה | ❌ לא זמין (תלוי בסעיף 1) |
+| 1 | דומיין מייל מאומת | ❌ לא קיים — Resend ב-sandbox, שליחה רק לחשבון הבעלים. **חוסם את כל המיילים במערכת**, לא רק אימות. ר' סעיף 7 |
+| 2 | שכחתי סיסמה + אימות מייל בהרשמה | ⚠️ הקוד קיים ועובד; ממתין להגדרות בדשבורדים (ר' סעיף 7). Confirm email עדיין כבוי |
 | 3 | Product ID-ים ב-Woo | ⚠️ טרם הוזנו — `woo_product_tiers` ריקה (5 כרטיסיות) ו-`woo_session_product_id` = 0 (ססיה). עד שיוזנו, רכישה/תשלום ססיה נכשלים בהודעה ברורה — לא בשקט. |
 | 4 | Vercel Cron | ⚠️ מוגבל לפעם ביום (תוכנית Hobby) |
 | 5 | הרשאות אדמין | רק בינארי (admin/therapist) — אין תפקידים מדורגים |
