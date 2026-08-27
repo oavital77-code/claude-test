@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, MoreHorizontal, Shield, X } from "lucide-react";
+import { LogOut, Menu, Shield, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth/actions";
 import { Logo } from "@/components/logo";
 import type { NavItem } from "@/components/nav-types";
-import { APP_NAV_ITEMS, APP_MOBILE_HREFS } from "@/app/(app)/nav";
-import { ADMIN_NAV_ITEMS, ADMIN_MOBILE_HREFS } from "@/app/(admin)/admin/admin-nav";
+import { APP_NAV_ITEMS } from "@/app/(app)/nav";
+import { ADMIN_NAV_ITEMS } from "@/app/(admin)/admin/admin-nav";
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
@@ -18,15 +18,14 @@ const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 // כי React לא יכול לסריאלז פונקציות דרך גבול server→client. ה-layout מעביר
 // רק מחרוזת (variant) שבטוחה לגמרי לעבור.
 const VARIANTS = {
-  app: { items: APP_NAV_ITEMS, mobileHrefs: APP_MOBILE_HREFS },
-  admin: { items: ADMIN_NAV_ITEMS, mobileHrefs: ADMIN_MOBILE_HREFS },
+  app: APP_NAV_ITEMS,
+  admin: ADMIN_NAV_ITEMS,
 } as const;
 
 /**
- * שלד אפליקציה משותף למטפלים ולאדמין — לפי מסמך השפה העיצובית: "שני סוגי
- * משתמשים... באותה מערכת עם אותם רכיבים, רק ההרשאות והנתונים משתנים".
- * סרגל צד קבוע מימין בדסקטופ (220px); במובייל הופך לניווט תחתון עד 5
- * פריטים + "עוד" למגירה עם השאר, כדי שלא יאבד גישה לאף מסך.
+ * שלד אפליקציה — סרגל צד קבוע מימין בדסקטופ (220px), משותף למטפלים
+ * ולאדמין. במובייל אין סרגל צד: כותרת עליונה עם לוגו + המבורגר שפותח
+ * פאנל נפתח מתחת לכותרת (בדיוק כמו הניווט הקודם) — בלי ניווט תחתון קבוע.
  */
 export function AppShell({
   variant,
@@ -39,20 +38,13 @@ export function AppShell({
   homeHref?: string;
   children: React.ReactNode;
 }) {
-  const { items, mobileHrefs } = VARIANTS[variant];
+  const items = VARIANTS[variant];
   const pathname = usePathname();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return <>{children}</>;
   }
-
-  const bottomHrefs = mobileHrefs.slice(0, 5);
-  const bottomItems = bottomHrefs
-    .map((href) => items.find((i) => i.href === href))
-    .filter((i): i is NavItem => Boolean(i));
-  const overflowItems = items.filter((i) => !bottomHrefs.includes(i.href));
 
   return (
     <div className="flex min-h-screen w-full">
@@ -80,80 +72,53 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        {/* ראש עמוד — מובייל בלבד: לוגו + המבורגר לתפריט המלא */}
-        <header className="sticky top-0 z-20 flex h-[68px] shrink-0 items-center gap-2 border-b border-border bg-surface px-4 md:hidden">
-          <Link href={homeHref} className="flex items-center">
-            <Logo markClassName="size-8" wordmarkClassName="text-base" />
-          </Link>
-          <button
-            type="button"
-            className="ms-auto flex size-11 items-center justify-center rounded-button hover:bg-subtle"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="פתיחת תפריט"
-          >
-            <Menu className="size-5" />
-          </button>
-        </header>
-
-        <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col px-4 pb-24 pt-4 md:px-8 md:py-8 md:pb-8">
-          {children}
-        </main>
-
-        {/* ניווט תחתון — מובייל בלבד, עד 5 פריטים + "עוד" */}
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex h-16 items-stretch border-t border-border bg-surface md:hidden">
-          {bottomItems.map((item) => (
-            <BottomNavLink key={item.href} item={item} active={pathname === item.href} />
-          ))}
-          {overflowItems.length > 0 && (
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        {/* ראש עמוד — מובייל בלבד: לוגו + המבורגר שפותח/סוגר פאנל תחתיו */}
+        <header className="sticky top-0 z-20 flex flex-col border-b border-border bg-surface md:hidden">
+          <div className="flex h-[68px] shrink-0 items-center gap-2 px-4">
+            <Link href={homeHref} className="flex items-center">
+              <Logo markClassName="size-8" wordmarkClassName="text-base" />
+            </Link>
             <button
               type="button"
-              onClick={() => setMoreOpen(true)}
-              className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-text-muted"
+              className="ms-auto flex size-11 items-center justify-center rounded-button hover:bg-subtle"
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "סגירת תפריט" : "פתיחת תפריט"}
+              aria-expanded={open}
             >
-              <MoreHorizontal className="size-5" strokeWidth={1.5} />
-              עוד
+              {open ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>
+          </div>
+
+          {open && (
+            <nav className="flex flex-col gap-0.5 border-t border-border p-2">
+              {items.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  active={pathname === item.href}
+                  onClick={() => setOpen(false)}
+                />
+              ))}
+              {adminEntryHref && (
+                <Link
+                  href={adminEntryHref}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 rounded-button px-3 py-2.5 text-[14.5px] font-medium text-violet-600 hover:bg-violet-50"
+                >
+                  <Shield className="size-5" strokeWidth={1.5} />
+                  ניהול המערכת
+                </Link>
+              )}
+              <SignOutButton />
+            </nav>
           )}
-        </nav>
+        </header>
+
+        <main className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-1 flex-col px-4 py-4 md:px-8 md:py-8">
+          {children}
+        </main>
       </div>
-
-      {drawerOpen && (
-        <MobileSheet title="תפריט" onClose={() => setDrawerOpen(false)}>
-          {items.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={pathname === item.href}
-              onClick={() => setDrawerOpen(false)}
-            />
-          ))}
-          {adminEntryHref && (
-            <Link
-              href={adminEntryHref}
-              onClick={() => setDrawerOpen(false)}
-              className="flex items-center gap-2.5 rounded-button px-3 py-2.5 text-[14.5px] font-medium text-violet-600 hover:bg-violet-50"
-            >
-              <Shield className="size-5" strokeWidth={1.5} />
-              ניהול המערכת
-            </Link>
-          )}
-          <SignOutButton />
-        </MobileSheet>
-      )}
-
-      {moreOpen && overflowItems.length > 0 && (
-        <MobileSheet title="עוד" onClose={() => setMoreOpen(false)}>
-          {overflowItems.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={pathname === item.href}
-              onClick={() => setMoreOpen(false)}
-            />
-          ))}
-        </MobileSheet>
-      )}
     </div>
   );
 }
@@ -183,22 +148,6 @@ function NavLink({
   );
 }
 
-function BottomNavLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon;
-  return (
-    <Link
-      href={item.href}
-      className={cn(
-        "flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-text-muted",
-        active && "text-violet-700",
-      )}
-    >
-      <Icon className="size-5" strokeWidth={active ? 2 : 1.5} />
-      {item.label}
-    </Link>
-  );
-}
-
 function SignOutButton() {
   return (
     <form action={signOut}>
@@ -210,41 +159,5 @@ function SignOutButton() {
         התנתקות
       </button>
     </form>
-  );
-}
-
-/** מגירה תחתונה למובייל (תפריט מלא / "עוד") — e-3, r-modal בפינות העליונות. */
-function MobileSheet({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-30 md:hidden">
-      <button
-        type="button"
-        aria-label="סגירה"
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-      />
-      <div className="absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col rounded-t-modal bg-surface shadow-e3">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-base font-semibold text-foreground">{title}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-9 items-center justify-center rounded-button hover:bg-subtle"
-            aria-label="סגירה"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
-        <div className="flex flex-col gap-0.5 overflow-y-auto p-3">{children}</div>
-      </div>
-    </div>
   );
 }

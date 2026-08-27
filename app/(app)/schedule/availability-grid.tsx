@@ -91,7 +91,7 @@ export function AvailabilityGrid({
   rowHeightClass?: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="w-full min-w-0 overflow-x-auto rounded-md border">
       <div
         className="grid"
         style={{

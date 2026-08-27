@@ -22,7 +22,3 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/reports", label: "דוחות", icon: BarChart3 },
   { href: "/admin/audit", label: "יומן פעולות", icon: ScrollText },
 ];
-
-// לוח האדמין הוא desktop-first (ר' CLAUDE.md) — ניווט תחתון במובייל נשאר
-// מוגבל ל-5 הכי נחוצים; שאר המסכים נגישים דרך "עוד".
-export const ADMIN_MOBILE_HREFS = ["/admin", "/admin/board", "/admin/therapists", "/admin/payments", "/admin/settings"];

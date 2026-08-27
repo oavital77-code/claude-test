@@ -9,7 +9,7 @@ export default async function SchedulePage() {
   const branches = await fetchBranches(supabase);
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex min-w-0 flex-1 flex-col p-4">
       <h1 className="mb-4 text-xl font-semibold">לוח זמנים</h1>
       <ScheduleClient branches={branches} userId={userId} fullName={profile.full_name} />
     </div>
