@@ -277,13 +277,18 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
 
   return (
     <div className="flex flex-col gap-4">
+      {/* שלוש שורות נפרדות, לא שורה אחת עם flex-wrap: קבוצה (למשל חצי הניווט
+          והתאריך ביניהם) שנחצית ע"י גלישה נראית שבורה — כל קבוצה נשארת
+          יחד בשורה שלה, ורק בין הקבוצות יש גלישה חופשית. */}
       <div className="flex flex-wrap items-center gap-2">
         {branches.map((b) => (
           <Button key={b.id} size="sm" variant={b.id === branchId ? "default" : "outline"} onClick={() => setBranchId(b.id)}>
             {b.name}
           </Button>
         ))}
-        <div className="mx-2 h-6 w-px bg-border" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" onClick={goToPrev} aria-label="הקודם">
           <ChevronRight className="size-4" />
         </Button>
@@ -294,7 +299,9 @@ export function BoardClient({ branches, therapists }: { branches: Branch[]; ther
         <Button size="sm" variant="ghost" onClick={() => setDate(todayInIsrael())}>
           היום
         </Button>
-        <div className="mx-2 h-6 w-px bg-border" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} onClick={() => setViewMode("list")}>
           רשימה
         </Button>

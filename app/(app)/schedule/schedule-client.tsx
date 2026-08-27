@@ -307,6 +307,9 @@ export function ScheduleClient({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* שורות נפרדות, לא שורה אחת עם flex-wrap: קבוצה (למשל חצי הניווט
+          והתאריך ביניהם) שנחצית ע"י גלישה נראית שבורה — כל קבוצה נשארת
+          יחד בשורה שלה, ורק בין הקבוצות יש גלישה חופשית. */}
       <div className="flex flex-wrap items-center gap-2">
         {branches.map((b, i) => {
           const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
@@ -327,9 +330,9 @@ export function ScheduleClient({
             </Button>
           );
         })}
+      </div>
 
-        <div className="mx-2 h-6 w-px bg-border" />
-
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           variant={view === "day" ? "default" : "outline"}
@@ -360,9 +363,9 @@ export function ScheduleClient({
         >
           חודש
         </Button>
+      </div>
 
-        <div className="mx-2 h-6 w-px bg-border" />
-
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" onClick={goToPrev} aria-label="הקודם">
           <ChevronRight className="size-4" />
         </Button>
@@ -380,9 +383,9 @@ export function ScheduleClient({
         >
           היום
         </Button>
+      </div>
 
-        <div className="mx-2 h-6 w-px bg-border" />
-
+      <div className="flex flex-wrap items-center gap-2">
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
           value={roomTypeFilter}
