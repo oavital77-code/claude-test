@@ -12,6 +12,7 @@ export type AuditSeverity =
 export const AUDIT_LABELS: Record<string, { label: string; severity: AuditSeverity }> = {
   // ── הזמנות ──
   booking_created: { label: "הזמנת חדר", severity: "therapist" },
+  booking_created_retroactively: { label: "הזמנת חדר רטרואקטיבית", severity: "alert" },
   booking_cancelled: { label: "ביטול הזמנה", severity: "therapist" },
   booking_created_by_admin: { label: "שיבוץ ידני ע״י אדמין", severity: "admin" },
   booking_cancelled_by_admin: { label: "ביטול הזמנה ע״י אדמין", severity: "admin" },

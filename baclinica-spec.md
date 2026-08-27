@@ -528,7 +528,9 @@ BEGIN TRANSACTION
 
 1.  ולידציות זמן:
     - starts_at % 30min = 0  ומשך  ≥ 30min  ומשך ≤ 8h
-    - starts_at > now()
+    - starts_at > now() - 30 יום  (אחרת TOO_FAR_PAST) — מאפשר גם התחלה
+      בעבר (הארכה באותו רגע / רישום רטרואקטיבי), ר' CLAUDE.md
+      "הזמנה רטרואקטיבית". starts_at ≤ now() אינו נבדק יותר.
     - starts_at ≤ now() + booking_horizon_days
 2.  ולידציית משתמש:
     - status = 'active'  (אחרת: USER_SUSPENDED)
@@ -891,8 +893,9 @@ ROOM_TAKEN             המשבצת נתפסה זה עתה
 ROOM_UNAVAILABLE       החדר חסום / לא פעיל
 SELF_OVERLAP           חפיפה עם הזמנה קיימת שלך
 TOO_FAR_AHEAD          מעבר ל-30 יום
+TOO_FAR_PAST           התחלה מלפני יותר מ-30 יום (create_booking בלבד)
 INVALID_SLOT           לא מיושר ל-30 דקות
-BOOKING_PASSED         המועד עבר
+BOOKING_PASSED         המועד עבר (cancel_booking בלבד)
 SESSION_NOT_CANCELLABLE  מפגש ססיה לא ניתן לביטול עצמי
 SESSION_HOURS_FIXED     סך המשבצות לא שווה בדיוק session_base_hours
 USER_SUSPENDED         החשבון מושעה

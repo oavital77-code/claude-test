@@ -8,6 +8,7 @@ const MESSAGES: Record<string, string> = {
   ROOM_UNAVAILABLE: "החדר אינו זמין כרגע.",
   SELF_OVERLAP: "יש לך כבר הזמנה בטווח הזמן הזה.",
   TOO_FAR_AHEAD: "לא ניתן להזמין כל כך הרבה קדימה.",
+  TOO_FAR_PAST: "אי אפשר להזמין הזמנה מלפני יותר מחודש.",
   INVALID_SLOT: "המשבצת אינה תקינה.",
   SESSION_HOURS_FIXED: "ססיה היא תמיד בהיקף קבוע של שעות שבועיות — סך המשבצות שנבחרו לא תואם.",
   BOOKING_PASSED: "המועד כבר עבר.",
