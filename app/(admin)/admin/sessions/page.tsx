@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/button";
 import { AdminSessionsClient, type AdminSubscriptionRow } from "./admin-sessions-client";
 
 export default async function AdminSessionsPage() {
@@ -43,7 +45,12 @@ export default async function AdminSessionsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">בקשות ססיה</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">בקשות ססיה</h1>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/admin/sessions/new">קביעת ססיה חופשית</Link>
+        </Button>
+      </div>
       <AdminSessionsClient rows={rows} />
     </div>
   );

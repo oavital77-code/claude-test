@@ -571,34 +571,57 @@ COMMIT
 7.  מייל אישור ביטול (מציין אם זוכה או לא)
 ```
 
-### 6.3 `request_session(slots[])`
+### 6.3 `request_session(slots[], start_date?)`
 
 ```
 1.  weekly_hours = Σ משך כל המשבצות; חייב להיות שווה בדיוק ל-session_base_hours אחרת SESSION_HOURS_FIXED
-2.  כל משבצת פנויה ב-90 הימים הקרובים (bookings + session_slots פעילים + holds)
-3.  monthly_price = session_base_price (קבוע)
-4.  INSERT session_subscriptions (status='requested', hold_expires_at = now()+72h)
-5.  INSERT session_slots
-6.  מייל לאדמין
+2.  🔴 אין בדיקת זמינות משבצות בשלב הזה (ר' הערה למטה) — הבקשה תמיד עוברת לאדמין
+3.  start_date אופציונלי (ברירת מחדל: היום); < היום → INVALID_START_DATE
+4.  monthly_price = session_base_price (קבוע)
+5.  INSERT session_subscriptions (status='requested', start_date, hold_expires_at = now()+72h)
+6.  INSERT session_slots
+7.  מייל לאדמין
 ```
+
+> **למה בלי בדיקת זמינות בשלב הבקשה:** אם המשבצת המבוקשת תפוסה, המטפל/ת לא
+> אמור/ה לגלות "מישהו אחר כבר סגר את המשבצת הזו" — זה חושף מידע על מטפל/ת
+> אחר/ת (🔴 חוק ברזל #3). הבקשה תמיד נשלחת לאדמין; אם יש התנגשות אמיתית,
+> `approve_session` הרגיל ייחסם (ר' 6.4) והאדמין פותר דרך `admin_create_session`
+> (ר' 6.4.1) בבחירת חדר/יום/שעה חלופיים.
 
 ### 6.4 `approve_session(subscription_id)` — אדמין בלבד
 
 ```
 1.  is_admin()  אחרת FORBIDDEN
 2.  status = 'requested'
-3.  בדיקה חוזרת שהמשבצות עדיין פנויות
+3.  בדיקה חוזרת שהמשבצות עדיין פנויות — 🔴 נשאר ללא שינוי, לא מדלגים על זה כאן
 4.  status = 'awaiting_payment', hold_expires_at = now() + 72h
 5.  יצירת בקשת תשלום ממתינה (create_session_initial_payment) + קישור לדף המוצר בחנות ה-Woo
 6.  מייל למטפל עם הקישור
+```
+
+### 6.4.1 `admin_create_session(user_id, slots[], start_date?)` — אדמין בלבד, קביעה חופשית
+
+```
+1.  is_admin()  אחרת FORBIDDEN; המטפל/ת חייב/ת status='active'
+2.  weekly_hours = Σ משך כל המשבצות; חייב session_base_hours בדיוק (SESSION_HOURS_FIXED)
+3.  🔴 בלי שום בדיקת התנגשות — קביעה חופשית לגמרי (כל חדר/יום/שעה)
+4.  start_date אופציונלי (ברירת מחדל: היום)
+5.  INSERT session_subscriptions ישירות ב-status='awaiting_payment' — מדלג
+    על 'requested' (הקביעה ע"י אדמין היא עצמה האישור)
+6.  🔴 התשלום עצמו לא מדולג: אותו מסלול בדיוק (create_session_initial_payment
+    + חנות ה-Woo) — חוק ברזל #5 עדיין בתוקף, רק שלב 'requested' מדולג
+7.  audit_log: session_created_by_admin
+8.  מייל למטפל עם קישור תשלום (זהה ל-6.4 שלב 5–6)
 ```
 
 ### 6.5 `activate_session_payment(payment_id, ...)` — מ-webhook תשלום (Woo)
 
 ```
 1.  status = 'active'
-2.  start_date = היום,  next_billing_date = היום + 1 חודש
-3.  materialize_session_bookings(subscription_id, 90 days)
+2.  start_date = coalesce(start_date, היום) — לא דורס אם כבר נקבע בבקשה
+3.  next_billing_date = start_date + 1 חודש
+4.  materialize_session_bookings(subscription_id, 90 days)
 ```
 
 ### 6.6 `materialize_session_bookings()` — cron יומי
@@ -609,6 +632,7 @@ COMMIT
 עבור כל subscription במצב active או pending_cancellation:
   עבור כל slot:
     עבור כל מופע ב-90 הימים הקרובים:
+      אם start_date קיים ומועד המופע לפניו → דלג
       אם effective_end_date קיים ומועד המופע אחריו → דלג
       אם כבר קיימת הזמנה → דלג
       INSERT bookings (source='session', hours_charged=0)

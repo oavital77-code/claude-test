@@ -536,7 +536,11 @@ export type Database = {
         Returns: { hours_refunded: boolean }[];
       };
       request_session: {
-        Args: { p_slots: Json };
+        Args: { p_slots: Json; p_start_date?: string | null };
+        Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
+      };
+      admin_create_session: {
+        Args: { p_user_id: string; p_slots: Json; p_start_date?: string | null };
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
       };
       approve_session: {

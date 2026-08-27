@@ -38,6 +38,7 @@ export const AUDIT_LABELS: Record<string, { label: string; severity: AuditSeveri
   session_renewal_paid_manually: { label: "חידוש ססיה סומן ידנית", severity: "admin" },
   session_renewal_failed: { label: "חידוש ססיה נכשל", severity: "alert" },
   admin_added_session_slot: { label: "הוספת משבצת לססיה", severity: "admin" },
+  session_created_by_admin: { label: "ססיה נקבעה ישירות ע״י אדמין", severity: "admin" },
   session_materialization_conflict: { label: "התנגשות בשיבוץ ססיה", severity: "alert" },
 
   // ── חריגות והשעיות ──

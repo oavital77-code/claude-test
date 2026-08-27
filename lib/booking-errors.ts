@@ -10,6 +10,7 @@ const MESSAGES: Record<string, string> = {
   TOO_FAR_AHEAD: "לא ניתן להזמין כל כך הרבה קדימה.",
   TOO_FAR_PAST: "אי אפשר להזמין הזמנה מלפני יותר מחודש.",
   INVALID_SLOT: "המשבצת אינה תקינה.",
+  INVALID_START_DATE: "תאריך ההתחלה חייב להיות היום או מאוחר יותר.",
   SESSION_HOURS_FIXED: "ססיה היא תמיד בהיקף קבוע של שעות שבועיות — סך המשבצות שנבחרו לא תואם.",
   BOOKING_PASSED: "המועד כבר עבר.",
   SESSION_NOT_CANCELLABLE: "מפגש ססיה לא ניתן לביטול עצמאי. לביטול פנו להנהלה.",

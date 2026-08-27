@@ -9,6 +9,35 @@ import { createSessionInitialPaymentLink } from "@/lib/payments/session-initial"
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+export async function adminCreateSessionAction(
+  userId: string,
+  slots: { roomId: string; weekday: number; startTime: string; endTime: string }[],
+  startDate?: string | null,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const payload = slots.map((s) => ({
+    room_id: s.roomId,
+    weekday: s.weekday,
+    start_time: s.startTime,
+    end_time: s.endTime,
+  }));
+
+  const { data, error } = await supabase
+    .rpc("admin_create_session", { p_user_id: userId, p_slots: payload, p_start_date: startDate ?? null })
+    .single();
+
+  if (error || !data) return { ok: false, error: bookingErrorMessage(error?.message) };
+
+  // נחיתה ישירה ב-awaiting_payment (מדלגים על 'requested' — קביעה ע"י אדמין
+  // היא עצמה האישור, §5) — אבל התשלום עצמו עדיין עובר כרגיל, בדיוק כמו אישור
+  // בקשה רגילה: יצירת קישור תשלום + מייל, אותה פונקציה בדיוק.
+  notifyTherapistOfApproval(data.subscription_id).catch(() => {});
+
+  return { ok: true };
+}
+
 export async function approveSessionAction(subscriptionId: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
