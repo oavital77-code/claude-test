@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/lib/auth/guards";
+import { LoginBackdrop } from "@/components/login-backdrop";
 import { ResetPasswordForm } from "./reset-password-form";
 
 // מגיעים לכאן דרך הקישור במייל האיפוס: /auth/callback כבר החליף את הטוקן
@@ -11,6 +12,7 @@ export default async function ResetPasswordPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center p-4">
+      <LoginBackdrop />
       <ResetPasswordForm />
     </div>
   );

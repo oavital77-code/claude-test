@@ -524,12 +524,13 @@ export function ScheduleClient({
       )}
 
       {selected && (
-        // pointer-events-none על העטיפה כדי שלחיצות על שאר הלוח (מחוץ לכרטיס)
+        // pointer-events-none על העטיפה כדי שלחיצות על שאר הלוח (מחוץ למגירה)
         // ימשיכו להגיע למשבצות — כך אפשר להמשיך ולהרחיב את הבחירה בזמן
-        // שהכרטיס פתוח, ולא רק לבטל אותו. הכרטיס עצמו קבוע בתחתית המסך כדי
-        // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
-          <div className="pointer-events-auto w-full max-w-sm shadow-lg">
+        // שהמגירה פתוחה, ולא רק לבטל אותה. בלי backdrop בכוונה — זו ההתנהגות
+        // הקיימת (לא מודל חוסם), רק שהמיקום עבר לצד (מגירה, לפי §7.3
+        // במסמך השפה העיצובית) במקום כרטיס שצף למטה.
+        <div className="pointer-events-none fixed inset-y-0 start-0 z-50 flex items-stretch p-4">
+          <div className="pointer-events-auto w-full max-w-[480px] overflow-y-auto rounded-modal bg-surface shadow-e3">
             <SlotPreview
               roomId={selected.roomId}
               roomName={selected.roomName}
@@ -583,45 +584,64 @@ function SlotPreview({
     setConfirmed({ hoursRemaining: result.hoursRemaining });
   }
 
+  const hours = (end.getTime() - start.getTime()) / (60 * 60 * 1000);
+
   return (
-    <div className="rounded-md border bg-card p-4 text-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-medium">
-          {branchName ? `${branchName} · ` : ""}
-          {roomName} · {formatInTimeZone(start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
-        </span>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col text-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div>
+          <p className="text-lg font-semibold text-foreground">אישור הזמנה</p>
+          <p className="text-[13px] text-text-muted">
+            {branchName ? `${branchName} · ` : ""}
+            {roomName} · {formatInTimeZone(start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex size-8 shrink-0 items-center justify-center rounded-button text-text-muted hover:bg-subtle hover:text-foreground"
+          aria-label="סגירה"
+        >
           ✕
         </button>
       </div>
-      <p dir="ltr" className="text-right">
-        {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
-      </p>
-      <p className="text-muted-foreground">משך: {(end.getTime() - start.getTime()) / (60 * 60 * 1000)} שעות</p>
-      <p className="text-xs text-muted-foreground">אפשר עדיין ללחוץ על משבצות פנויות נוספות כדי להאריך.</p>
-      <p className="text-muted-foreground">
-        🔑 כניסה בפועל:{" "}
-        <span dir="ltr">{formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}</span> · פינוי:{" "}
-        <span dir="ltr">{formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}</span>
-      </p>
+
+      <div className="flex flex-col gap-3 px-5 py-4">
+        <p dir="ltr" className="tabular-nums text-right text-base font-medium text-foreground">
+          {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
+        </p>
+        <p className="text-xs text-text-muted">אפשר עדיין ללחוץ על משבצות פנויות נוספות כדי להאריך.</p>
+        <p className="text-text-secondary">
+          🔑 כניסה בפועל:{" "}
+          <span dir="ltr" className="tabular-nums">
+            {formatInTimeZone(accessStart, TIMEZONE, "HH:mm")}
+          </span>{" "}
+          · פינוי:{" "}
+          <span dir="ltr" className="tabular-nums">
+            {formatInTimeZone(accessEnd, TIMEZONE, "HH:mm")}
+          </span>
+        </p>
+
+        {/* סיכום לפני האישור — לפי §7.3 במסמך השפה העיצובית: כל טופס
+            מסתיים בסיכום מה יקרה בפועל, לפני כפתור האישור. */}
+        <div className="flex items-center justify-between rounded-field bg-canvas px-4 py-3 text-[14.5px] font-semibold text-foreground">
+          <span>סה״כ</span>
+          <span className="tabular-nums">{hours} שעות</span>
+        </div>
+      </div>
 
       {confirmed ? (
-        <div className="mt-3 flex flex-col gap-2">
-          <p className="text-emerald-600 dark:text-emerald-400">
-            ההזמנה אושרה! יתרה לאחר ההזמנה: {confirmed.hoursRemaining} שעות.
-          </p>
-          <Button size="sm" onClick={onBooked}>
-            סגירה
-          </Button>
+        <div className="flex flex-col gap-3 px-5 pb-5">
+          <p className="text-success-fg">ההזמנה אושרה! יתרה לאחר ההזמנה: {confirmed.hoursRemaining} שעות.</p>
+          <Button onClick={onBooked}>סגירה</Button>
         </div>
       ) : (
-        <div className="mt-3 flex flex-col gap-2">
-          {error && <p className="text-destructive">{error}</p>}
+        <div className="flex flex-col gap-3 px-5 pb-5">
+          {error && <p className="text-danger">{error}</p>}
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleConfirm} disabled={loading}>
+            <Button className="flex-1" onClick={handleConfirm} disabled={loading}>
               {loading ? "מזמין..." : "אישור הזמנה"}
             </Button>
-            <Button size="sm" variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               ביטול
             </Button>
           </div>

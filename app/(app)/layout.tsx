@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { getAuthState } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { pollWooOrders } from "@/lib/woo/poll";
-import { AppNav } from "./nav";
+import { AppShell } from "@/components/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await getAuthState();
@@ -33,9 +33,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppNav isAdmin={profile?.role === "admin"} />
-      <div className="flex flex-1 flex-col">{children}</div>
-    </div>
+    <AppShell variant="app" adminEntryHref={profile?.role === "admin" ? "/admin" : undefined}>
+      {children}
+    </AppShell>
   );
 }
