@@ -270,7 +270,12 @@ export function RegistrationWizard({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {step === "auth" && (
-          <form onSubmit={handleRegister} className="flex flex-col gap-4">
+          // בכוונה בלי onSubmit אמיתי: יש כאן שתי פעולות אפשריות (הרשמה/התחברות)
+          // באותו טופס. Enter/"Go" במקלדת נייד או autofill היו מפעילים תמיד
+          // את type="submit" הראשון (הרשמה) — גם כשהמשתמש רק רצה להתחבר או
+          // הגיע דרך "שכחתי סיסמה" וממש לא התכוון להירשם. שתי הכפתורים type="button"
+          // מפורש, כדי שדבר לא יקרה בלי לחיצה מודעת.
+          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">כתובת מייל</Label>
               <Input
@@ -299,7 +304,7 @@ export function RegistrationWizard({
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2">
-              <Button type="submit" disabled={loading} className="flex-1">
+              <Button type="button" disabled={loading} className="flex-1" onClick={() => handleRegister()}>
                 {loading ? "נרשם/ת..." : "הרשמה"}
               </Button>
               <Button
