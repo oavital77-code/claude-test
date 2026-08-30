@@ -50,16 +50,16 @@
 
 ### 2.2 דומיינים
 ```
-baclinica.co.il          → אתר שיווק קיים (WordPress) — לא נוגעים
-app.baclinica.co.il      → PWA למטפלים
-admin.baclinica.co.il    → פאנל ניהול (דסקטופ)
+baclinica.co.il          → חנות WooCommerce (תשלומים בלבד) — לא נוגעים בתוכן השיווקי
+cleana.co.il              → PWA למטפלים (apex)
+cleana.co.il/admin        → פאנל ניהול (דסקטופ); admin.cleana.co.il מתוכנן ב-middleware, טרם הופעל בפרודקשן
 ```
 
 שני האפליקציות באותו פרויקט Next.js, מופרדות ב-route groups: `(app)` ו-`(admin)`, עם middleware שבודק role.
 
 ### 2.3 מערכות שיוצאות משימוש
 - **Skedda** — מבוטל בסיום M4
-- **WooCommerce checkout** — מבוטל בסיום M5. מוצרי המחירון באתר יופנו ל-`app.baclinica.co.il`
+- **WooCommerce checkout** — מבוטל בסיום M5. מוצרי המחירון באתר יופנו ל-`cleana.co.il`
 
 ---
 
@@ -206,7 +206,7 @@ admin.baclinica.co.il    → פאנל ניהול (דסקטופ)
 ```
 1. מטפל פונה למנהלת (טלפון / וואטסאפ / טופס באתר)
 2. שיחת היכרות — סינון ידני, מחוץ למערכת
-3. המנהלת שולחת קישור:  app.baclinica.co.il
+3. המנהלת שולחת קישור:  cleana.co.il
 4. הרשמה עצמאית — טלפון + OTP + פרטים + חתימה על התקנון
 5. גישה מיידית ללוח הזמנים (צפייה בלבד)
 6. רכישה:

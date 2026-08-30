@@ -17,8 +17,8 @@
 
 ```
 app/
-  (app)/      → app.baclinica.co.il   ממשק מטפלים (PWA, mobile-first)
-  (admin)/    → admin.baclinica.co.il פאנל ניהול (desktop-first)
+  (app)/      → cleana.co.il         ממשק מטפלים (PWA, mobile-first)
+  (admin)/    → cleana.co.il/admin   פאנל ניהול (desktop-first; תת-דומיין admin.cleana.co.il מתוכנן ב-middleware, טרם הופעל בפרודקשן)
   api/
     payplus/callback/   ← webhook (אימות hash חובה)
     cron/               ← materialize, renewals, reminders

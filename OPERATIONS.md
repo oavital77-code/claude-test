@@ -262,9 +262,9 @@ where email = 'the-email@example.com';
 | 3 | Product ID-ים ב-Woo | ⚠️ טרם הוזנו — `woo_product_tiers` ריקה (5 כרטיסיות) ו-`woo_session_product_id` = 0 (ססיה). עד שיוזנו, רכישה/תשלום ססיה נכשלים בהודעה ברורה — לא בשקט. |
 | 4 | Vercel Cron | ⚠️ מוגבל לפעם ביום (תוכנית Hobby) |
 | 5 | הרשאות אדמין | רק בינארי (admin/therapist) — אין תפקידים מדורגים |
-| 6 | Sentry / ניטור שגיאות | ❌ לא מחובר |
+| 6 | Sentry / ניטור שגיאות | ⚠️ קוד מותקן ומוכן (ר' סעיף 10) — עדיין חסר `NEXT_PUBLIC_SENTRY_DSN` בפרודקשן, אז בפועל לא שולח כלום |
 | 7 | חיוב אוטומטי של חידוש ססיה חודשי | ❌ אין ואף פעם לא יהיה — בכוונה (ר' `20260828000002`). חידוש הוא תמיד פעולה יזומה של המטפל/ת (קישור טרי לחנות), או סימון ידני של אדמין (סעיף 9). |
-| 8 | פער דומיין: תיעוד מול פרודקשן | ⚠️ CLAUDE.md מתאר `app.baclinica.co.il`/`admin.baclinica.co.il`; הדומיין בפועל הוא `cleana.co.il` (apex יחיד). לא ידוע אם `admin.cleana.co.il` קיים בפועל — טרם אומת. עד לבירור, ה-rewrite לפי host ב-`middleware.ts` (`ADMIN_HOST_PREFIX`) כנראה לא מופעל בפרודקשן, ופאנל האדמין מגיע רק דרך נתיב `/admin/*` ישיר. |
+| 8 | פער דומיין: תיעוד מול פרודקשן | ✅ תוקן ב-2026-08-30 — CLAUDE.md/spec/middleware.ts מתעדים עכשיו `cleana.co.il` כדומיין האפליקציה (ו-`baclinica.co.il` כחנות Woo בלבד). ⚠️ נשאר לא ידוע אם `admin.cleana.co.il` קיים בפועל כתת-דומיין — טרם אומת מול Vercel/DNS. עד לבירור, ה-rewrite לפי host ב-`middleware.ts` (`ADMIN_HOST_PREFIX`) כנראה לא מופעל בפרודקשן, ופאנל האדמין מגיע רק דרך נתיב `/admin/*` ישיר. |
 
 ---
 
@@ -289,9 +289,44 @@ where email = 'the-email@example.com';
 
 ---
 
+## 10. Sentry — ניטור שגיאות בפרודקשן
+
+הקוד (`@sentry/nextjs`) מותקן ומוכן — client, server, edge, ו-`global-error.tsx`
+לשגיאות שקורסות את ה-root layout. **בלי DSN המערכת ממשיכה לרוץ בדיוק כמו
+היום, פשוט בלי שום דיווח** — `Sentry.init` בודק `NEXT_PUBLIC_SENTRY_DSN` ולא
+מתחיל לפעול אם הוא ריק (ר' `instrumentation.ts` / `instrumentation-client.ts`).
+
+**מה שנשאר לעשות בפועל (מחוץ לקוד):**
+
+1. **ליצור פרויקט ב-Sentry** (sentry.io → New Project → Next.js).
+2. **Settings → Client Keys (DSN)** — להעתיק את ה-DSN.
+3. **Vercel → Environment Variables:**
+   - `NEXT_PUBLIC_SENTRY_DSN` → ה-DSN מסעיף 2.
+   - (אופציונלי, לצורך source maps מפוענחים בפרודקשן) `SENTRY_ORG`,
+     `SENTRY_PROJECT` — משם ה-org/פרויקט ב-Sentry — ו-`SENTRY_AUTH_TOKEN`
+     (Settings → Auth Tokens, הרשאת `project:releases` מספיקה, server-only).
+     בלי שלושת אלה ה-build ממשיך לעבוד רגיל, רק שגיאות ב-Sentry יראו קוד
+     minified במקום קוד המקור.
+4. **Redeploy** (כמו כל משתנה סביבה אחר — לא נכנס לתוקף בלי זה).
+
+**סינון PII:** לפי כלל הלוגים ב-CLAUDE.md (אף פעם לא ת"ז/טלפון/נתוני כרטיס),
+`lib/sentry/scrub-pii.ts` מסנן שדות כאלה מכל אירוע לפני שהוא נשלח ל-Sentry
+(`beforeSend`), ו-`sendDefaultPii` כבוי. מעקב ביצועים (tracing) כבוי לגמרי
+(`tracesSampleRate: 0`) — זה ניטור שגיאות, לא APM.
+
+---
+
 ## יומן עדכונים קריטיים
 
 *(מהחדש לישן. כל שורה: תאריך, מה קרה, מה המשמעות התפעולית.)*
+
+- **2026-08-30** — הותקן `@sentry/nextjs` לניטור שגיאות בפרודקשן (client +
+  server + edge + `global-error.tsx`), עם סינון PII (`lib/sentry/scrub-pii.ts`)
+  ו-tracing כבוי. **פעולה נדרשת לפני שזה שולח משהו בפועל:** ליצור פרויקט
+  ב-Sentry ולהזין `NEXT_PUBLIC_SENTRY_DSN` (ר' סעיף 10). בנוסף תוקן פער
+  דומיין ישן בתיעוד — CLAUDE.md/spec/middleware.ts התייחסו בטעות ל-
+  `app.baclinica.co.il`/`admin.baclinica.co.il`; תוקן ל-`cleana.co.il`
+  (הדומיין האמיתי של האפליקציה — `baclinica.co.il` הוא אך ורק חנות ה-Woo).
 
 - **2026-08-26** — אימות מייל בהרשמה ואיפוס סיסמה עצמאי הודלקו בפרודקשן
   ונבדקו מקצה-לקצה (כולל בין מכשירים, דרך `token_hash`). דורש: קוד

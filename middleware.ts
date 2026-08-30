@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-// app.baclinica.co.il  → ממשק מטפלים, ב-app/(app), נתיבים ללא קידומת
-// admin.baclinica.co.il → פאנל ניהול, ב-app/(admin)/admin, מיושר ל-/admin/*
+// cleana.co.il          → ממשק מטפלים, ב-app/(app), נתיבים ללא קידומת
+// admin.cleana.co.il    → פאנל ניהול, ב-app/(admin)/admin, מיושר ל-/admin/*
+//                          (מתוכנן — טרם הופעל בפרודקשן; האדמין מגיע כרגע דרך /admin/* ישיר)
 // בסביבת פיתוח (localhost) אפשר לגשת ישירות ל-/admin בלי rewrite.
 const ADMIN_HOST_PREFIX = "admin.";
 
