@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
   USER_SUSPENDED: "החשבון מושעה זמנית.",
   PAYMENT_REQUIRED: "נדרש תשלום.",
   FORBIDDEN: "אין הרשאה לפעולה זו.",
+  INVALID_TERM: "טווח ההתחייבות לא תקין.",
+  SESSION_TERM_ENDED: "תוקף הטווח שנסגר לססיה הזו הסתיים — יש לחדש את הטווח דרך /admin/sessions לפני חיוב נוסף.",
 };
 
 export function bookingErrorMessage(code: string | undefined): string {

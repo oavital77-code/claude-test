@@ -13,6 +13,14 @@ import { todayInIsrael } from "@/lib/availability/grid";
 import { WEEKDAY_LABELS, slotHours, type SessionSlotDraft } from "@/lib/pricing/session";
 import { adminCreateSessionAction } from "../actions";
 
+/** אפשרויות טווח ההתחייבות — ר' 20260901000002_session_commitment_term.sql. */
+const TERM_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "חודש" },
+  { value: 3, label: "3 חודשים" },
+  { value: 6, label: "חצי שנה" },
+  { value: 12, label: "שנה" },
+];
+
 interface RoomOption {
   id: string;
   label: string;
@@ -45,6 +53,7 @@ export function AdminSessionWizard({
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("11:00");
   const [startDate, setStartDate] = useState(todayInIsrael());
+  const [termMonths, setTermMonths] = useState<string>("");
   const [therapistQuery, setTherapistQuery] = useState("");
   const [selectedTherapistId, setSelectedTherapistId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +98,12 @@ export function AdminSessionWizard({
       return;
     }
     setLoading(true);
-    const result = await adminCreateSessionAction(selectedTherapistId, slots, startDate);
+    const result = await adminCreateSessionAction(
+      selectedTherapistId,
+      slots,
+      startDate,
+      termMonths ? Number(termMonths) : null,
+    );
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
@@ -203,6 +217,26 @@ export function AdminSessionWizard({
             />
             <p className="text-xs text-muted-foreground">
               המפגשים הראשונים ישובצו החל מ-{formatDateHe(new Date(`${startDate}T00:00:00Z`))}.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>טווח התחייבות</Label>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={termMonths}
+              onChange={(e) => setTermMonths(e.target.value)}
+            >
+              <option value="">ללא הגבלת טווח</option>
+              {TERM_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  לסגור ל{t.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              בסיום הטווח לא מתבצע חידוש אוטומטי — נדרש אישור מפורש דרך /admin/sessions כדי להמשיך. התשלום
+              החודשי הרגיל בתוך הטווח ממשיך כרגיל.
             </p>
           </div>
         </CardContent>

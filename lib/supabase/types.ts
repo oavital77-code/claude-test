@@ -540,10 +540,23 @@ export type Database = {
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
       };
       admin_create_session: {
-        Args: { p_user_id: string; p_slots: Json; p_start_date?: string | null };
+        Args: {
+          p_user_id: string;
+          p_slots: Json;
+          p_start_date?: string | null;
+          p_term_months?: number | null;
+        };
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
       };
       approve_session: {
+        Args: { p_subscription_id: string; p_term_months?: number | null };
+        Returns: undefined;
+      };
+      admin_renew_session_term: {
+        Args: { p_subscription_id: string; p_term_months: number };
+        Returns: undefined;
+      };
+      admin_end_session_term: {
         Args: { p_subscription_id: string };
         Returns: undefined;
       };
