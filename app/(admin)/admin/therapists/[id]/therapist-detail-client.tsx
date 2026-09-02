@@ -13,11 +13,11 @@ import { WEEKDAY_LABELS } from "@/lib/pricing/session";
 import type { Database } from "@/lib/supabase/types";
 import type { DerivedSlot, SkeddaGroup } from "@/lib/skedda-import/group";
 import { deriveWeeklySlots } from "@/lib/skedda-import/group";
-import { adminCreateSessionAction } from "@/app/(admin)/admin/sessions/actions";
 import {
   addSessionSlotAction,
   adjustPunchCardHoursAction,
   claimSkeddaOneOffBlocksAction,
+  claimSkeddaSessionAction,
   completeDepositAction,
   grantBonusHoursAction,
   setTherapistStatus,
@@ -216,9 +216,9 @@ function SkeddaImportSection({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          בחרו אילו רשומות ישנות מ-Skedda שייכות למטפלת הזו. &quot;חד-פעמי&quot; נקלט מיד בלי תשלום נוסף (כבר
-          שולם ב-Skedda). &quot;ססיה קבועה&quot; פותח טופס לתשלום רגיל — היא עדיין תצטרך לשלם, בדיוק כמו ססיה
-          חדשה.
+          בחרו אילו רשומות ישנות מ-Skedda שייכות למטפלת הזו. שני הסוגים נקלטים בלי תשלום נוסף — היא כבר
+          שילמה על זה ב-Skedda. &quot;חד-פעמי&quot; נקלט מיד. &quot;ססיה קבועה&quot; פותח טופס לעריכת המשבצות
+          ונכנס ישר לפעילה; החיוב החודשי הרגיל ממשיך כרגיל מהחודש הבא.
         </p>
 
         <ul className="flex flex-col gap-2">
@@ -322,11 +322,11 @@ function SkeddaSessionDraftForm({
     }
     setLoading(true);
     setError(null);
-    const result = await adminCreateSessionAction(
+    const result = await claimSkeddaSessionAction({
       userId,
-      slots.map((s) => ({ roomId: s.roomId, weekday: s.weekday, startTime: s.startTime, endTime: s.endTime })),
-      startDate || null,
-    );
+      slots: slots.map((s) => ({ roomId: s.roomId, weekday: s.weekday, startTime: s.startTime, endTime: s.endTime })),
+      startDate: startDate || null,
+    });
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
@@ -338,9 +338,9 @@ function SkeddaSessionDraftForm({
   return (
     <div className="flex flex-col gap-3 rounded-md border bg-background p-3">
       <p className="text-sm text-muted-foreground">
-        המשבצות הבאות הוצעו מתוך התאריכים ב-Skedda — אפשר לערוך לפני היצירה. הססיה תיווצר ישר במצב
-        &quot;ממתין לתשלום&quot; ותישלח לה הודעת תשלום כרגיל. הבלוק הישן ב-Skedda יימחק אוטומטית רק אחרי
-        שהתשלום יתקבל.
+        המשבצות הבאות הוצעו מתוך התאריכים ב-Skedda — אפשר לערוך לפני היצירה. היא כבר שילמה על זה
+        ב-Skedda, אז הססיה תיווצר ישר כ<strong>פעילה</strong> — בלי תשלום ראשוני. החיוב החודשי הרגיל
+        (600₪+מע&quot;מ) ממשיך כרגיל מהחודש הבא. הבלוק הישן ב-Skedda יימחק אוטומטית מיד.
       </p>
 
       {slots.map((slot, i) => (

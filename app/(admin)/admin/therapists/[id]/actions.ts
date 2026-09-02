@@ -177,6 +177,50 @@ export async function claimSkeddaOneOffBlocksAction(input: unknown): Promise<Cla
   return { ok: true, created, skipped };
 }
 
+const claimSkeddaSessionSchema = z.object({
+  userId: z.string().uuid(),
+  slots: z
+    .array(
+      z.object({
+        roomId: z.string().uuid(),
+        weekday: z.number().int().min(0).max(6),
+        startTime: z.string().regex(/^\d{2}:\d{2}$/),
+        endTime: z.string().regex(/^\d{2}:\d{2}$/),
+      }),
+    )
+    .min(1),
+  startDate: z.string().optional().nullable(),
+  termMonths: z.number().int().optional().nullable(),
+});
+
+/**
+ * קליטת ססיה קבועה מ-Skedda — כבר שולם במערכת הישנה, אין תשלום ראשוני
+ * (admin_create_session_prepaid, ר' 20260901000003). שונה מ-adminCreateSessionAction
+ * הרגיל (ב-admin/sessions/actions.ts) בכוונה: זה לא ססיה חדשה, זו המשך
+ * של הסדר שכבר שולם — לא חל עליו חוק ברזל #5.
+ */
+export async function claimSkeddaSessionAction(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = claimSkeddaSessionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "פרטי המשבצות לא תקינים" };
+  const { userId, slots, startDate, termMonths } = parsed.data;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_create_session_prepaid", {
+    p_user_id: userId,
+    p_slots: slots.map((s) => ({
+      room_id: s.roomId,
+      weekday: s.weekday,
+      start_time: s.startTime,
+      end_time: s.endTime,
+    })),
+    p_start_date: startDate ?? null,
+    p_term_months: termMonths ?? null,
+  });
+  if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  return { ok: true };
+}
+
 export async function addSessionSlotAction(input: unknown): Promise<ActionResult> {
   await requireAdmin();
   const parsed = sessionSlotSchema.safeParse(input);

@@ -552,6 +552,15 @@ export type Database = {
         Args: { p_subscription_id: string; p_term_months?: number | null };
         Returns: undefined;
       };
+      admin_create_session_prepaid: {
+        Args: {
+          p_user_id: string;
+          p_slots: Json;
+          p_start_date?: string | null;
+          p_term_months?: number | null;
+        };
+        Returns: { subscription_id: string }[];
+      };
       admin_renew_session_term: {
         Args: { p_subscription_id: string; p_term_months: number };
         Returns: undefined;
