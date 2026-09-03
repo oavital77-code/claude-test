@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { groupSkeddaBlocks, SKEDDA_MARKER } from "@/lib/skedda-import/group";
+import { lookupSkeddaRoster } from "@/lib/skedda-import/roster";
 import { TherapistDetailClient } from "./therapist-detail-client";
 
 export default async function AdminTherapistDetailPage({
@@ -51,6 +52,7 @@ export default async function AdminTherapistDetailPage({
 
   const bookingsWithRoom = (bookings ?? []).map((b) => ({ ...b, roomName: roomNameById.get(b.room_id) ?? "" }));
   const skeddaGroups = groupSkeddaBlocks(skeddaBlocks ?? []);
+  const skeddaRosterMatch = lookupSkeddaRoster(profile.phone);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -64,6 +66,7 @@ export default async function AdminTherapistDetailPage({
         subscriptions={subscriptions ?? []}
         roomOptions={activeRooms ?? []}
         skeddaGroups={skeddaGroups}
+        skeddaRosterMatch={skeddaRosterMatch}
       />
     </div>
   );

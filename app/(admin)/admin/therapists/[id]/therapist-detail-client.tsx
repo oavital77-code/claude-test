@@ -13,6 +13,7 @@ import { WEEKDAY_LABELS } from "@/lib/pricing/session";
 import type { Database } from "@/lib/supabase/types";
 import type { DerivedSlot, SkeddaGroup } from "@/lib/skedda-import/group";
 import { deriveWeeklySlots } from "@/lib/skedda-import/group";
+import type { SkeddaRosterEntry } from "@/lib/skedda-import/roster";
 import {
   addSessionSlotAction,
   adjustPunchCardHoursAction,
@@ -43,6 +44,7 @@ export function TherapistDetailClient({
   subscriptions,
   roomOptions,
   skeddaGroups,
+  skeddaRosterMatch,
 }: {
   profile: Profile;
   adminNote: string;
@@ -52,6 +54,7 @@ export function TherapistDetailClient({
   subscriptions: Subscription[];
   roomOptions: RoomOption[];
   skeddaGroups: SkeddaGroup[];
+  skeddaRosterMatch: SkeddaRosterEntry | null;
 }) {
   const router = useRouter();
 
@@ -64,6 +67,7 @@ export function TherapistDetailClient({
           userId={profile.id}
           groups={skeddaGroups}
           roomOptions={roomOptions}
+          rosterMatch={skeddaRosterMatch}
           onChanged={() => router.refresh()}
         />
       )}
@@ -141,14 +145,22 @@ function SkeddaImportSection({
   userId,
   groups,
   roomOptions,
+  rosterMatch,
   onChanged,
 }: {
   userId: string;
   groups: SkeddaGroup[];
   roomOptions: RoomOption[];
+  rosterMatch: SkeddaRosterEntry | null;
   onChanged: () => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // התאמה לפי טלפון בלבד (מדויקת, לא לפי שם) — ר' lib/skedda-import/roster.ts.
+  // מסמנת מראש רק קבוצות שה-label שלהן תואם *בדיוק* label שכבר נקשר לטלפון
+  // הזה ב-Skedda (מ-bookings_1.csv, שם היה גם holder name וגם holder phone).
+  const matchedLabels = new Set(rosterMatch?.labels ?? []);
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(groups.filter((g) => matchedLabels.has(g.label)).map((g) => g.label)),
+  );
   const [kindByLabel, setKindByLabel] = useState<Record<string, SkeddaKind>>({});
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -221,13 +233,35 @@ function SkeddaImportSection({
           ונכנס ישר לפעילה; החיוב החודשי הרגיל ממשיך כרגיל מהחודש הבא.
         </p>
 
+        {rosterMatch && (
+          <p className="rounded-md bg-violet-100 p-2 text-sm text-violet-900">
+            📞 מספר הטלפון שלה מזוהה ב-Skedda בתור <strong>{rosterMatch.fullName}</strong>
+            {rosterMatch.tags.length > 0 && ` (${rosterMatch.tags.join(", ")})`}
+            {matchedLabels.size > 0 ? (
+              <> — הקבוצות התואמות סומנו אוטומטית למטה.</>
+            ) : (
+              <>
+                {" "}
+                — אין לזה קישור ישיר לתור מסוים ב-Skedda (בדרך כלל כי מדובר בססיה, שם Skedda לא שומר את
+                פרטי המחזיק). בדקו ידנית איזו קבוצה למטה שייכת לה, אם יש.
+              </>
+            )}
+          </p>
+        )}
+
         <ul className="flex flex-col gap-2">
           {visibleGroups.map((group) => {
             const first = group.blocks[0];
             const last = group.blocks[group.blocks.length - 1];
             const roomNames = [...new Set(group.blocks.map((b) => roomNameById.get(b.room_id) ?? "?"))];
+            const phoneMatched = matchedLabels.has(group.label);
             return (
-              <li key={group.label} className="flex flex-wrap items-center gap-3 rounded-md border bg-background p-2 text-sm">
+              <li
+                key={group.label}
+                className={`flex flex-wrap items-center gap-3 rounded-md border p-2 text-sm ${
+                  phoneMatched ? "border-violet-400 bg-violet-50" : "bg-background"
+                }`}
+              >
                 <input
                   type="checkbox"
                   checked={selected.has(group.label)}
@@ -235,6 +269,7 @@ function SkeddaImportSection({
                   className="size-4"
                 />
                 <span className="font-medium">{group.label}</span>
+                {phoneMatched && <span className="text-xs font-medium text-violet-700">✓ טלפון תואם</span>}
                 <span className="text-muted-foreground">
                   {roomNames.join(", ")} · {group.blocks.length} מופעים · {formatDateHe(new Date(first.starts_at))}–
                   {formatDateHe(new Date(last.starts_at))}
