@@ -402,6 +402,13 @@ where email = 'the-email@example.com';
 
 *(מהחדש לישן. כל שורה: תאריך, מה קרה, מה המשמעות התפעולית.)*
 
+- **2026-09-03** — כפתור "איפוס סיסמה" בעמודת המטפלים (`/admin/therapists`).
+  לוחצים → נוצר קישור איפוס חד-פעמי (`admin.auth.admin.generateLink`, סוג
+  `recovery`, אותו יעד בדיוק כמו איפוס עצמאי: `/auth/callback` →
+  `/reset-password`) — האדמין רואה את הקישור ומעתיק/שולח אותו למטפל/ת בעצמו
+  (אין שליחת מייל אוטומטית, ואין לאדמין גישה לסיסמה בפועל). action חדש:
+  `generatePasswordResetLinkAction` ב-`app/(admin)/admin/therapists/actions.ts`.
+
 - **2026-09-02 (ג)** — נוספה התאמה אוטומטית לפי טלפון במסך "קליטה מ-Skedda"
   (ר' סעיף 11): `lib/skedda-import/roster.json` — snapshot סטטי (טלפון→
   שם+תגיות+labels) שנבנה מ-`venueusers.csv` + `bookings_1.csv`. כשטלפון
