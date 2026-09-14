@@ -12,6 +12,8 @@ import {
   updateAppSettingAction,
   updateTierPriceAction,
   resetSystemToZeroAction,
+  importScheduleAction,
+  type ScheduleImportResult,
 } from "./actions";
 
 type Tier = Database["public"]["Tables"]["punch_card_tiers"]["Row"];
@@ -49,8 +51,135 @@ export function SettingsClient({
         </CardContent>
       </Card>
 
+      <ScheduleImportCard />
+
       <DangerZone available={resetAvailable} />
     </div>
+  );
+}
+
+/** ייבוא לו״ז מקובץ CSV → חסימות חדר, עם תצוגה מקדימה לפני כתיבה. */
+function ScheduleImportCard() {
+  const router = useRouter();
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileText, setFileText] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ScheduleImportResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [committed, setCommitted] = useState<number | null>(null);
+
+  async function run(text: string, dryRun: boolean) {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await importScheduleAction(text, dryRun);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (dryRun) {
+        setPreview(result);
+      } else {
+        setCommitted(result.inserted);
+        setPreview(null);
+        setFileText(null);
+        setFileName(null);
+        router.refresh();
+      }
+    } catch {
+      setError("הפעולה נכשלה. ייתכן שהקובץ גדול מדי או פגום.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCommitted(null);
+    setPreview(null);
+    setError(null);
+    const text = await file.text();
+    setFileName(file.name);
+    setFileText(text);
+    await run(text, true);
+  }
+
+  const ok = preview?.ok === true ? preview : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">ייבוא לו״ז מקובץ</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="text-sm text-muted-foreground">
+          <p className="mb-1">
+            העלאת קובץ <strong>CSV</strong> עם העמודות: שם מטפל/ת, מייל, חדר, תאריך, שעה (ואם יש —
+            שעת סיום). כל שורה הופכת ל<strong>חסימת חדר</strong> בלוח — בדיוק כמו הייבוא מ-Skedda —
+            ואפשר לשייך אותה למטפל/ת אחר כך דרך הכרטיס שלה.
+          </p>
+          <p className="text-xs">
+            מאקסל: קובץ → שמירה בשם → <strong>CSV UTF-8</strong>. תאריך בפורמט 03/09/2026, שעה 09:00.
+          </p>
+        </div>
+
+        <label className="w-fit cursor-pointer rounded-button border border-dashed px-3 py-2 text-sm hover:bg-muted">
+          {loading ? "מעבד..." : fileName ? `קובץ: ${fileName}` : "בחירת קובץ CSV"}
+          <input type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={handleFile} disabled={loading} />
+        </label>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {committed !== null && (
+          <p className="rounded-md border border-emerald-600/40 bg-emerald-50 p-2 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+            הייבוא הושלם: נוספו {committed} משבצות ללוח.
+          </p>
+        )}
+
+        {ok && (
+          <div className="flex flex-col gap-2 rounded-md border p-3">
+            <p className="text-sm">
+              נקראו <strong>{ok.totalRows}</strong> שורות · מוכנות לייבוא:{" "}
+              <strong className="text-emerald-700 dark:text-emerald-400">{ok.readyCount}</strong>
+              {ok.parseErrors.length + ok.conflicts.length > 0 && (
+                <>
+                  {" "}
+                  · ידולגו:{" "}
+                  <strong className="text-destructive">
+                    {ok.parseErrors.length + ok.conflicts.length}
+                  </strong>
+                </>
+              )}
+            </p>
+
+            {ok.unknownRooms.length > 0 && (
+              <p className="text-xs text-destructive">
+                חדרים שלא נמצאו במערכת: {ok.unknownRooms.join(", ")} — צריך ליצור אותם קודם במסך
+                &quot;סניפים וחדרים&quot;, או לתקן את השם בקובץ.
+              </p>
+            )}
+
+            {(ok.parseErrors.length > 0 || ok.conflicts.length > 0) && (
+              <ul className="max-h-40 overflow-y-auto text-xs text-muted-foreground">
+                {[...ok.parseErrors, ...ok.conflicts].slice(0, 30).map((e, i) => (
+                  <li key={`${e.rowNumber}-${i}`}>
+                    שורה {e.rowNumber}: {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {ok.readyCount > 0 && fileText && (
+              <Button size="sm" className="w-fit" disabled={loading} onClick={() => run(fileText, false)}>
+                {loading ? "מייבא..." : `ייבוא ${ok.readyCount} משבצות ללוח`}
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

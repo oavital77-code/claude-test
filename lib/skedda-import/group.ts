@@ -4,6 +4,19 @@ import { TIMEZONE } from "@/lib/time";
 /** מסמן חסימות שיובאו מ-Skedda (ר' 20260828000010_import_skedda_blocks.sql). */
 export const SKEDDA_MARKER = "הועבר מ-Skedda";
 
+/** מסמן חסימות שיובאו מקובץ CSV/אקסל דרך הגדרות → ייבוא לו״ז. */
+export const FILE_IMPORT_MARKER = "יובא מקובץ";
+
+/**
+ * כל המסמנים של חסימות "מיובאות" — כלומר כאלה שממתינות לשיוך למטפל/ת
+ * דרך מסך הקליטה. מקור הייבוא (Skedda או קובץ) לא משנה לתהליך השיוך.
+ */
+export const IMPORT_MARKERS = [SKEDDA_MARKER, FILE_IMPORT_MARKER] as const;
+
+function isImportedBlock(reason: string): boolean {
+  return IMPORT_MARKERS.some((marker) => reason.includes(marker));
+}
+
 export type SkeddaBlockRow = {
   id: string;
   room_id: string;
@@ -27,7 +40,7 @@ export function extractSkeddaLabel(reason: string): string {
 export function groupSkeddaBlocks(blocks: SkeddaBlockRow[]): SkeddaGroup[] {
   const byLabel = new Map<string, SkeddaBlockRow[]>();
   for (const block of blocks) {
-    if (!block.reason.includes(SKEDDA_MARKER)) continue;
+    if (!isImportedBlock(block.reason)) continue;
     const label = extractSkeddaLabel(block.reason);
     const list = byLabel.get(label) ?? [];
     list.push(block);

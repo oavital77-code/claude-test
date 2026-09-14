@@ -359,6 +359,7 @@ export type Database = {
           reason: string;
           created_by: string | null;
           created_at: string;
+          imported_email: string | null;
         };
         Insert: {
           id?: string;
@@ -368,6 +369,7 @@ export type Database = {
           reason: string;
           created_by?: string | null;
           created_at?: string;
+          imported_email?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["room_blocks"]["Insert"]>;
       Relationships: [];

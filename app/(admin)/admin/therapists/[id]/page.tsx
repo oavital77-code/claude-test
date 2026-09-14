@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { groupSkeddaBlocks, SKEDDA_MARKER } from "@/lib/skedda-import/group";
+import { groupSkeddaBlocks, IMPORT_MARKERS } from "@/lib/skedda-import/group";
 import { lookupSkeddaRoster } from "@/lib/skedda-import/roster";
 import { TherapistDetailClient } from "./therapist-detail-client";
 
@@ -40,7 +40,9 @@ export default async function AdminTherapistDetailPage({
     supabase
       .from("room_blocks")
       .select("id, room_id, starts_at, ends_at, reason")
-      .ilike("reason", `%${SKEDDA_MARKER}%`)
+      // חסימות שממתינות לשיוך — בין אם יובאו מ-Skedda ובין אם מקובץ
+      // CSV/אקסל דרך מסך ההגדרות. אותו תהליך קליטה בדיוק.
+      .or(IMPORT_MARKERS.map((marker) => `reason.ilike.%${marker}%`).join(","))
       .order("starts_at", { ascending: true }),
   ]);
 
