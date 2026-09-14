@@ -569,6 +569,19 @@ export type Database = {
         Args: { p_subscription_id: string };
         Returns: undefined;
       };
+      reset_system_to_zero: {
+        Args: { p_confirmation: string };
+        Returns: {
+          therapists_deleted: number;
+          bookings_deleted: number;
+          rooms_deleted: number;
+          branches_deleted: number;
+        };
+      };
+      is_system_reset_available: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       reject_session: {
         Args: { p_subscription_id: string; p_reason: string };
         Returns: undefined;
