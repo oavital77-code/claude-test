@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { he } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -12,13 +13,17 @@ import {
   fetchRoomAvailability,
   slotStatus,
   sourceAt,
+  mineIntervalAt,
 } from "@/lib/availability/queries";
 import {
   daySlots,
   dayBoundaries,
   todayInIsrael,
   addDaysToDateStr,
+  addMonthsToDateStr,
+  startOfMonth,
   weekDatesStartingSunday,
+  monthCalendarDates,
 } from "@/lib/availability/grid";
 import type { Database } from "@/lib/supabase/types";
 import type { AvailabilityInterval, SlotStatus } from "@/lib/availability/types";
@@ -29,13 +34,16 @@ import { bookSlot } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
+type View = "day" | "week" | "month";
 
-const ROOM_TYPE_LABELS: Record<Room["room_type"], string> = {
+const ROOM_TYPE_LABELS: Record<Room["room_type"][number], string> = {
   talk: "שיח",
   touch: "מגע",
   podcast: "פודקאסט",
   group: "קבוצתי",
 };
+
+const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 // צבע ייחודי לכל סניף (לפי סדר הופעה) — כדי שיהיה ברור מיד באיזה סניף
 // מסתכלים / קבעו תור, בלי צורך בעמודת color נפרדת בטבלת branches.
@@ -49,15 +57,17 @@ const BRANCH_COLORS = [
 export function ScheduleClient({
   branches,
   userId,
+  fullName,
 }: {
   branches: Branch[];
   userId: string;
+  fullName: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
-  const [view, setView] = useState<"day" | "week">("day");
+  const [view, setView] = useState<View>("day");
   const [date, setDate] = useState(todayInIsrael());
-  const [roomTypeFilter, setRoomTypeFilter] = useState<Room["room_type"] | "all">("all");
+  const [roomTypeFilter, setRoomTypeFilter] = useState<Room["room_type"][number] | "all">("all");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [availability, setAvailability] = useState<Map<string, AvailabilityInterval[]>>(
@@ -87,15 +97,23 @@ export function ScheduleClient({
   }, [branchId, supabase]);
 
   const filteredRooms = useMemo(
-    () => (roomTypeFilter === "all" ? rooms : rooms.filter((r) => r.room_type === roomTypeFilter)),
+    () =>
+      roomTypeFilter === "all" ? rooms : rooms.filter((r) => r.room_type.includes(roomTypeFilter)),
     [rooms, roomTypeFilter],
   );
+
+  const monthDates = useMemo(() => monthCalendarDates(date), [date]);
 
   const { rangeStart, rangeEnd, slots, columns, slotsAnchorDate } = useMemo(() => {
     if (view === "day") {
       const { start, end } = dayBoundaries(date);
       const cols: GridColumn[] = filteredRooms.map((r) => ({ key: r.id, label: r.name }));
       return { rangeStart: start, rangeEnd: end, slots: daySlots(date), columns: cols, slotsAnchorDate: date };
+    }
+    if (view === "month") {
+      const start = dayBoundaries(monthDates[0]).start;
+      const end = dayBoundaries(monthDates[41]).end;
+      return { rangeStart: start, rangeEnd: end, slots: [] as Slot[], columns: [] as GridColumn[], slotsAnchorDate: date };
     }
     const weekDates = weekDatesStartingSunday(date);
     const start = dayBoundaries(weekDates[0]).start;
@@ -111,10 +129,12 @@ export function ScheduleClient({
       columns: cols,
       slotsAnchorDate: weekDates[0],
     };
-  }, [view, date, filteredRooms]);
+  }, [view, date, filteredRooms, monthDates]);
 
+  // יום וחודש: כל החדרים המסוננים (צריך זמינות לכולם בו-זמנית). שבוע: חדר
+  // אחד בלבד, כי התצוגה היא עמודה לכל יום עבור אותו חדר.
   const roomIdsForQuery = useMemo(
-    () => (view === "day" ? filteredRooms.map((r) => r.id) : [selectedRoomId]).filter(Boolean),
+    () => (view === "week" ? [selectedRoomId] : filteredRooms.map((r) => r.id)).filter(Boolean),
     [view, filteredRooms, selectedRoomId],
   );
   const roomIdsKey = useMemo(() => roomIdsForQuery.join(","), [roomIdsForQuery]);
@@ -173,9 +193,26 @@ export function ScheduleClient({
         });
   }
 
-  function statusFor(columnKey: string, slot: Slot) {
+  /**
+   * "תפוס" (הזמנה של מטפל/ת אחר/ת) מוצג כ"לא זמין" — מבחינת המטפל/ת אין
+   * הבדל מעשי בין השניים, ולא חושפים שקיימת שם הזמנה בכלל. המסך מציג שלושה
+   * מצבים בלבד: פנוי · ההזמנה שלי · לא זמין.
+   */
+  function statusFor(columnKey: string, slot: Slot): SlotStatus {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
-    return slotStatus(start, end, intervalsFor(columnKey, roomId));
+    const status = slotStatus(start, end, intervalsFor(columnKey, roomId));
+    return status === "taken" ? "blocked" : status;
+  }
+
+  /** תווית על ההזמנות שלי בלבד: שם + שעות ההזמנה המלאות. */
+  function labelFor(columnKey: string, slot: Slot, status: SlotStatus): string | undefined {
+    if (status !== "mine") return undefined;
+    const { roomId, start, end } = resolveSlot(columnKey, slot);
+    const iv = mineIntervalAt(start, end, intervalsFor(columnKey, roomId));
+    if (!iv) return fullName;
+    const from = formatInTimeZone(iv.startsAt, TIMEZONE, "HH:mm");
+    const to = formatInTimeZone(iv.endsAt, TIMEZONE, "HH:mm");
+    return `${fullName} · ${from}–${to}`;
   }
 
   /** צובע הזמנה "שלי" לפי סוגה (ססיה/כרטיסייה) — לעולם לא על הזמנת מטפל אחר. */
@@ -213,10 +250,66 @@ export function ScheduleClient({
     setSelected({ columnKey, roomId, roomName, start, end });
   }
 
+  /**
+   * תצוגה חודשית: לפי חוק ברזל #3 מטפל/ת לא רואה מי הזמין מה — לכן, בניגוד
+   * ללוח האדמין, לכל יום מוצגות רק ההזמנות *שלי* (זמן+חדר, כמו ביום/שבוע)
+   * ומחוון תפוסה כללי (יחס משבצות פנויות). המחוון לא חושף יותר ממה שתצוגת
+   * "יום" כבר חושפת לאותו תאריך בדיוק — רק מסכם אותו לרמת יום.
+   */
+  const monthDayInfo = useMemo(() => {
+    const map = new Map<string, { mine: { room: string; from: string; to: string }[]; free: number; total: number }>();
+    if (view !== "month") return map;
+    for (const d of monthDates) {
+      const { start: dayStart, end: dayEnd } = dayBoundaries(d);
+      const daySlotList = daySlots(d);
+      let free = 0;
+      let total = 0;
+      const mine: { room: string; from: string; to: string }[] = [];
+      for (const room of filteredRooms) {
+        const intervals = availability.get(room.id) ?? [];
+        for (const slot of daySlotList) {
+          total++;
+          if (slotStatus(slot.start, slot.end, intervals) === "free") free++;
+        }
+        for (const iv of intervals) {
+          if (iv.status !== "mine") continue;
+          if (iv.startsAt >= dayEnd || iv.endsAt <= dayStart) continue;
+          mine.push({
+            room: room.name,
+            from: formatInTimeZone(iv.startsAt, TIMEZONE, "HH:mm"),
+            to: formatInTimeZone(iv.endsAt, TIMEZONE, "HH:mm"),
+          });
+        }
+      }
+      map.set(d, { mine, free, total });
+    }
+    return map;
+  }, [view, monthDates, filteredRooms, availability]);
+
+  function goToPrev() {
+    setSelected(null);
+    if (view === "week") setDate(addDaysToDateStr(date, -7));
+    else if (view === "month") setDate(addMonthsToDateStr(date, -1));
+    else setDate(addDaysToDateStr(date, -1));
+  }
+  function goToNext() {
+    setSelected(null);
+    if (view === "week") setDate(addDaysToDateStr(date, 7));
+    else if (view === "month") setDate(addMonthsToDateStr(date, 1));
+    else setDate(addDaysToDateStr(date, 1));
+  }
+
   const currentBranchName = branches.find((b) => b.id === branchId)?.name ?? "";
+  const dateLabel =
+    view === "month"
+      ? formatInTimeZone(dayBoundaries(startOfMonth(date)).start, TIMEZONE, "MMMM yyyy", { locale: he })
+      : formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
+      {/* שורות נפרדות, לא שורה אחת עם flex-wrap: קבוצה (למשל חצי הניווט
+          והתאריך ביניהם) שנחצית ע"י גלישה נראית שבורה — כל קבוצה נשארת
+          יחד בשורה שלה, ורק בין הקבוצות יש גלישה חופשית. */}
       <div className="flex flex-wrap items-center gap-2">
         {branches.map((b, i) => {
           const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
@@ -237,9 +330,9 @@ export function ScheduleClient({
             </Button>
           );
         })}
+      </div>
 
-        <div className="mx-2 h-6 w-px bg-border" />
-
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           variant={view === "day" ? "default" : "outline"}
@@ -260,31 +353,25 @@ export function ScheduleClient({
         >
           שבוע
         </Button>
-
-        <div className="mx-2 h-6 w-px bg-border" />
-
         <Button
           size="sm"
-          variant="outline"
+          variant={view === "month" ? "default" : "outline"}
           onClick={() => {
             setSelected(null);
-            setDate(addDaysToDateStr(date, view === "day" ? -1 : -7));
+            setView("month");
           }}
         >
-          הקודם
+          חודש
         </Button>
-        <span className="text-sm font-medium">
-          {formatInTimeZone(dayBoundaries(date).start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setSelected(null);
-            setDate(addDaysToDateStr(date, view === "day" ? 1 : 7));
-          }}
-        >
-          הבא
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={goToPrev} aria-label="הקודם">
+          <ChevronRight className="size-4" />
+        </Button>
+        <span className="text-sm font-medium">{dateLabel}</span>
+        <Button size="sm" variant="outline" onClick={goToNext} aria-label="הבא">
+          <ChevronLeft className="size-4" />
         </Button>
         <Button
           size="sm"
@@ -296,15 +383,15 @@ export function ScheduleClient({
         >
           היום
         </Button>
+      </div>
 
-        <div className="mx-2 h-6 w-px bg-border" />
-
+      <div className="flex flex-wrap items-center gap-2">
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
           value={roomTypeFilter}
           onChange={(e) => {
             setSelected(null);
-            setRoomTypeFilter(e.target.value as Room["room_type"] | "all");
+            setRoomTypeFilter(e.target.value as Room["room_type"][number] | "all");
           }}
         >
           <option value="all">כל סוגי החדרים</option>
@@ -333,24 +420,108 @@ export function ScheduleClient({
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
-        ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
-      </p>
-      <Legend />
+      {view !== "month" && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
+            ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
+          </p>
+          <Legend statuses={["free", "mine", "blocked"]} />
 
-      <AvailabilityGrid
-        columns={columns}
-        slots={slots}
-        statusFor={statusFor}
-        colorFor={colorFor}
-        onSlotClick={handleSlotClick}
-        isSelected={(columnKey, slot) => {
-          if (!selected || selected.columnKey !== columnKey) return false;
-          const { start, end } = resolveSlot(columnKey, slot);
-          return start >= selected.start && end <= selected.end;
-        }}
-      />
+          <AvailabilityGrid
+            columns={columns}
+            slots={slots}
+            // h-6 ולא ברירת המחדל h-5: מאז שיש תווית (שם + שעות) על ההזמנות שלי,
+            // השורה צריכה גובה שהטקסט נכנס בו.
+            rowHeightClass="h-6"
+            statusFor={statusFor}
+            colorFor={colorFor}
+            labelFor={labelFor}
+            titleFor={labelFor}
+            onSlotClick={handleSlotClick}
+            isSelected={(columnKey, slot) => {
+              if (!selected || selected.columnKey !== columnKey) return false;
+              const { start, end } = resolveSlot(columnKey, slot);
+              return start >= selected.start && end <= selected.end;
+            }}
+          />
+        </>
+      )}
+
+      {view === "month" && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            לחצו על יום כדי לעבור לתצוגה היומית שלו ולקבוע תור.
+          </p>
+          <div className="grid grid-cols-7 overflow-hidden rounded-md border text-center text-xs font-medium">
+            {WEEKDAY_LABELS.map((label) => (
+              <div key={label} className="border-b border-l bg-muted/50 p-2 last:border-l-0">
+                {label}
+              </div>
+            ))}
+            {monthDates.map((d) => {
+              const inCurrentMonth = d.slice(0, 7) === startOfMonth(date).slice(0, 7);
+              const isToday = d === todayInIsrael();
+              const info = monthDayInfo.get(d);
+              const freeRatio = info && info.total > 0 ? info.free / info.total : 1;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => {
+                    setSelected(null);
+                    setDate(d);
+                    setView("day");
+                  }}
+                  className={cn(
+                    "flex min-h-24 w-full flex-col items-stretch gap-0.5 border-b border-l p-1.5 text-right last:border-l-0 hover:bg-muted/40",
+                    !inCurrentMonth && "bg-muted/20 text-muted-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "self-start text-xs",
+                      isToday && "rounded-full bg-primary px-1.5 text-primary-foreground",
+                    )}
+                  >
+                    {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
+                  </span>
+
+                  {info && info.mine.slice(0, 2).map((m, i) => (
+                    <span
+                      key={i}
+                      className="truncate rounded-sm bg-primary/10 px-1 text-[11px] leading-tight text-foreground"
+                      title={`${m.from}–${m.to} · ${m.room}`}
+                    >
+                      {m.from}–{m.to} · {m.room}
+                    </span>
+                  ))}
+                  {info && info.mine.length > 2 && (
+                    <span className="px-1 text-[11px] text-muted-foreground">
+                      +{info.mine.length - 2} נוספות
+                    </span>
+                  )}
+
+                  {inCurrentMonth && info && info.total > 0 && (
+                    <span
+                      className={cn(
+                        "mt-auto self-start text-[11px]",
+                        freeRatio > 0.5
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : freeRatio > 0.15
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-destructive",
+                      )}
+                    >
+                      {info.free} פנויות
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {selected && (
         // pointer-events-none על העטיפה כדי שלחיצות על שאר הלוח (מחוץ לכרטיס)
@@ -358,7 +529,7 @@ export function ScheduleClient({
         // שהכרטיס פתוח, ולא רק לבטל אותו. הכרטיס עצמו קבוע בתחתית המסך כדי
         // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
-          <div className="pointer-events-auto w-full max-w-sm shadow-lg">
+          <div className="pointer-events-auto w-full max-w-sm shadow-e2">
             <SlotPreview
               roomId={selected.roomId}
               roomName={selected.roomName}
@@ -413,7 +584,7 @@ function SlotPreview({
   }
 
   return (
-    <div className="rounded-md border bg-card p-4 text-sm">
+    <div className="rounded-card border border-border bg-card p-4 text-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-medium">
           {branchName ? `${branchName} · ` : ""}

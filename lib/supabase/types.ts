@@ -97,7 +97,7 @@ export type Database = {
           id: string;
           branch_id: string;
           name: string;
-          room_type: RoomType;
+          room_type: RoomType[];
           capacity: number;
           description: string | null;
           equipment: Json;
@@ -110,7 +110,7 @@ export type Database = {
           id?: string;
           branch_id: string;
           name: string;
-          room_type?: RoomType;
+          room_type?: RoomType[];
           capacity?: number;
           description?: string | null;
           equipment?: Json;
@@ -120,7 +120,15 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["rooms"]["Insert"]>;
-      Relationships: [];
+      Relationships: [
+        {
+          foreignKeyName: "rooms_branch_id_fkey";
+          columns: ["branch_id"];
+          isOneToOne: false;
+          referencedRelation: "branches";
+          referencedColumns: ["id"];
+        },
+      ];
       };
       profiles: {
         Row: {
@@ -332,7 +340,15 @@ export type Database = {
           reminder_sent_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "bookings_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       room_blocks: {
         Row: {
@@ -343,6 +359,7 @@ export type Database = {
           reason: string;
           created_by: string | null;
           created_at: string;
+          imported_email: string | null;
         };
         Insert: {
           id?: string;
@@ -352,6 +369,7 @@ export type Database = {
           reason: string;
           created_by?: string | null;
           created_at?: string;
+          imported_email?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["room_blocks"]["Insert"]>;
       Relationships: [];
@@ -520,12 +538,51 @@ export type Database = {
         Returns: { hours_refunded: boolean }[];
       };
       request_session: {
-        Args: { p_slots: Json };
+        Args: { p_slots: Json; p_start_date?: string | null };
+        Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
+      };
+      admin_create_session: {
+        Args: {
+          p_user_id: string;
+          p_slots: Json;
+          p_start_date?: string | null;
+          p_term_months?: number | null;
+        };
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
       };
       approve_session: {
+        Args: { p_subscription_id: string; p_term_months?: number | null };
+        Returns: undefined;
+      };
+      admin_create_session_prepaid: {
+        Args: {
+          p_user_id: string;
+          p_slots: Json;
+          p_start_date?: string | null;
+          p_term_months?: number | null;
+        };
+        Returns: { subscription_id: string }[];
+      };
+      admin_renew_session_term: {
+        Args: { p_subscription_id: string; p_term_months: number };
+        Returns: undefined;
+      };
+      admin_end_session_term: {
         Args: { p_subscription_id: string };
         Returns: undefined;
+      };
+      reset_system_to_zero: {
+        Args: { p_confirmation: string };
+        Returns: {
+          therapists_deleted: number;
+          bookings_deleted: number;
+          blocks_deleted: number;
+          orphan_auth_users_deleted: number;
+        };
+      };
+      is_system_reset_available: {
+        Args: Record<string, never>;
+        Returns: boolean;
       };
       reject_session: {
         Args: { p_subscription_id: string; p_reason: string };

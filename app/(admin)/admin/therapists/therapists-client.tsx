@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateHe } from "@/lib/time";
 import type { Database } from "@/lib/supabase/types";
-import { createDemoTherapistAction } from "./actions";
+import { createDemoTherapistAction, generatePasswordResetLinkAction } from "./actions";
 
 type TherapistRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
@@ -24,6 +24,20 @@ const STATUS_LABELS: Record<TherapistRow["status"], string> = {
 
 export function TherapistsClient({ therapists }: { therapists: TherapistRow[] }) {
   const [query, setQuery] = useState("");
+  const [resetState, setResetState] = useState<
+    Record<string, { loading: boolean; url?: string; error?: string }>
+  >({});
+
+  async function handleResetPassword(userId: string) {
+    setResetState((s) => ({ ...s, [userId]: { loading: true } }));
+    const result = await generatePasswordResetLinkAction(userId);
+    setResetState((s) => ({
+      ...s,
+      [userId]: result.ok
+        ? { loading: false, url: result.resetUrl }
+        : { loading: false, error: result.error },
+    }));
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim();
@@ -54,36 +68,82 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
               <th className="p-2">סטטוס</th>
               <th className="p-2">שעות (נותרו/נרכשו)</th>
               <th className="p-2">הצטרפות</th>
+              <th className="p-2">פעולות</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
                   {therapists.length === 0 ? "אין עדיין מטפלים רשומים" : "אין תוצאות לחיפוש"}
                 </td>
               </tr>
             ) : null}
-            {filtered.map((t) => (
-              <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="p-2">
-                  <Link href={`/admin/therapists/${t.id}`} className="text-primary underline-offset-4 hover:underline">
-                    {t.full_name}
-                  </Link>
-                </td>
-                <td className="p-2" dir="ltr">
-                  {t.phone}
-                </td>
-                <td className="p-2" dir="ltr">
-                  {t.email}
-                </td>
-                <td className="p-2">{STATUS_LABELS[t.status]}</td>
-                <td className="p-2">
-                  <HoursStatus remaining={t.hoursRemaining} purchased={t.hoursPurchased} />
-                </td>
-                <td className="p-2">{formatDateHe(new Date(t.created_at))}</td>
-              </tr>
-            ))}
+            {filtered.map((t) => {
+              const reset = resetState[t.id];
+              return (
+                <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30 align-top">
+                  <td className="p-2">
+                    <Link href={`/admin/therapists/${t.id}`} className="text-primary underline-offset-4 hover:underline">
+                      {t.full_name}
+                    </Link>
+                  </td>
+                  <td className="p-2" dir="ltr">
+                    {t.phone}
+                  </td>
+                  <td className="p-2" dir="ltr">
+                    {t.email}
+                  </td>
+                  <td className="p-2">{STATUS_LABELS[t.status]}</td>
+                  <td className="p-2">
+                    <HoursStatus remaining={t.hoursRemaining} purchased={t.hoursPurchased} />
+                  </td>
+                  <td className="p-2">{formatDateHe(new Date(t.created_at))}</td>
+                  <td className="p-2">
+                    {reset?.url ? (
+                      <div className="flex flex-col gap-1">
+                        <a
+                          href={reset.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-all text-xs text-primary underline"
+                        >
+                          {reset.url}
+                        </a>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigator.clipboard.writeText(reset.url!)}
+                          >
+                            העתקה
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setResetState((s) => ({ ...s, [t.id]: { loading: false } }))}
+                          >
+                            סגירה
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reset?.loading}
+                          onClick={() => handleResetPassword(t.id)}
+                        >
+                          {reset?.loading ? "מייצר..." : "איפוס סיסמה"}
+                        </Button>
+                        {reset?.error && <p className="text-xs text-destructive">{reset.error}</p>}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

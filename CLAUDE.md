@@ -17,8 +17,8 @@
 
 ```
 app/
-  (app)/      → app.baclinica.co.il   ממשק מטפלים (PWA, mobile-first)
-  (admin)/    → admin.baclinica.co.il פאנל ניהול (desktop-first)
+  (app)/      → cleana.co.il         ממשק מטפלים (PWA, mobile-first)
+  (admin)/    → cleana.co.il/admin   פאנל ניהול (desktop-first; תת-דומיין admin.cleana.co.il מתוכנן ב-middleware, טרם הופעל בפרודקשן)
   api/
     payplus/callback/   ← webhook (אימות hash חובה)
     cron/               ← materialize, renewals, reminders
@@ -55,10 +55,30 @@ where (status = 'confirmed')
 `requested → [אדמין] → awaiting_payment → [תשלום] → active`
 אין יצירת דף תשלום לפני `approve_session`. לעולם.
 
-### 6. תשלום: מקור האמת הוא ה-webhook של Woo
+`request_session` (בקשה ראשונית ע"י מטפל/ת) **לא בודקת זמינות משבצות** —
+תמיד מגיעה לאדמין, גם אם המשבצת תפוסה, כדי לא לחשוף על מטפל/ת אחר/ת (חוק
+#3). `approve_session` **כן** בודק זמינות בפועל ונחסם אם יש התנגשות אמיתית —
+הפתרון במקרה כזה הוא `admin_create_session`: אדמין קובע ססיה חופשית לגמרי
+(כל חדר/יום/שעה, בלי שום בדיקת התנגשות), ישר ל-`awaiting_payment` (מדלג רק
+על שלב 'requested' — הקביעה ע"י אדמין היא עצמה האישור). התשלום עצמו **לעולם
+לא מדולג** גם כאן — אותו מסלול תשלום בדיוק דרך חנות ה-Woo. `request_session`
+ו-`admin_create_session` שניהם מקבלים `start_date` אופציונלי (ברירת מחדל:
+היום) שנשמר על `session_subscriptions.start_date` כבר בשלב הבקשה/הקביעה.
+
+**חריגה יחידה ומפורשת:** קליטת מטפלת ותיקה מ-Skedda (סעיף "קליטה מ-Skedda"
+ב-OPERATIONS.md) — היא כבר שילמה על הססיה שלה במערכת הישנה, אז
+`admin_create_session_prepaid` מדלג גם על התשלום הראשוני (נכנס ישר
+ל-`active`). זה **לא** דלת אחורית כללית — הפונקציה משמשת אך ורק את מסך
+הקליטה מ-Skedda; החיוב החודשי הרגיל ממשיך כרגיל מהחודש הבא.
+
+### 6. תשלום: מקור האמת הוא ה-הזמנה עצמה ב-Woo
 כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (baclinica.co.il), לא
-ב-Cleana. אמת חתימת HMAC מול `WOOCOMMERCE_WEBHOOK_SECRET` לפני כל עדכון
-סטטוס. `payplus_transaction_uid` הוא `UNIQUE` — כל webhook אידמפוטנטי.
+ב-Cleana. שני מסלולי גילוי אפשריים, שניהם מזינים את אותה `processWooOrder`
+(`lib/woo/process-order.ts`): (א) webhook — אמת חתימת HMAC מול
+`WOOCOMMERCE_WEBHOOK_SECRET` לפני כל עדכון סטטוס; (ב) polling דרך REST API
+(`WOOCOMMERCE_KEY`/`WOOCOMMERCE_SECRET`, הרשאת Read בלבד) — כשאין webhook
+מוגדר בחנות. `payplus_transaction_uid` הוא `UNIQUE` — כל עדכון אידמפוטנטי,
+בלי קשר לאיך שהתגלה.
 
 ### 7. אין הזמנה בלי יתרה
 כרטיסייה בתוקף עם `hours_remaining >= hours` **וגם** `deposit_remaining = deposit_amount`.
@@ -78,7 +98,9 @@ where (status = 'confirmed')
 ```ts
 // כרטיסייה: 5 מדרגות מ-DB (punch_card_tiers)
 // 10ש'/55 · 20ש'/50 · 30ש'/45 · 40ש'/40 · 50ש'/35   (לפני מע"מ)
-// פיקדון = 2 × price_per_hour, משולם מראש
+// פיקדון: המנגנון קיים (deposit_amount/deposit_remaining) אבל כרגע כבוי —
+// deposit_hours=0 בכל המדרגות (כרטיסיות חדשות לא גובות פיקדון). כרטיסיות
+// ישנות שכבר שילמו פיקדון ממשיכות לאכוף אותו כרגיל.
 
 // ססיה — היקף קבוע (5 שעות שבועיות בדיוק), מחיר קבוע. אין תמחור שולי.
 monthlyPrice = 600
@@ -93,6 +115,16 @@ monthlyPrice = 600
 | כרטיסייה | 24ש' | זיכוי שעות | נשרף |
 | ססיה — מפגש | — | ❌ אסור | ❌ |
 | ססיה — מנוי | 30 יום | פעיל עד סוף התקופה | — |
+
+## הזמנה רטרואקטיבית (כרטיסייה בלבד)
+
+`create_booking` מקבל `starts_at` עד 30 יום אחורה (לא רק עתיד) — מכסה גם
+"הארכה באותו רגע" (המפגש גלש, תופסים את המשבצת הבאה שכבר התחילה) וגם רישום
+בדיעבד של לקוח שנכנס לטיפול בלי הזמנה מראש. אותן בדיקות בדיוק (חפיפה,
+יתרה, פיקדון) — רק חלון הזמן התרחב. **לא חל על ססיה**: `create_booking`
+לעולם לא יוצר הזמנת ססיה (`materialize_session_bookings` בלבד יוצר אותן),
+כך שחוק הביטול של ססיה למעלה לא נוגע לכאן. הזמנה כזו מסומנת ב-audit_log
+כ-`booking_created_retroactively` (severity `alert`) לשקיפות מול אדמין.
 
 ---
 

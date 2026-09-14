@@ -3,60 +3,154 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* פלטת המותג (Cleana brand kit) — סגול #7A5AF8/#9C82FF, לבנדר בהיר
-   #EFEAFE, שחור-נייבי #171423, לבן שבור #FAF9FC. גוונים נוספים הם רק
-   שקיפות (alpha) על חמשת הצבעים האלה — לא גוון חדש שהומצא. destructive
-   (אדום שגיאה) לא חלק מה-brand kit ונשאר ללא שינוי. */
+/* Cleana · Design tokens v1 — לפי מסמך השפה העיצובית (tokens.css המקורי).
+   הטוקנים הגולמיים כאן, ואז מיפוי לשמות הסמנטיים של shadcn/ui (--background,
+   --primary וכו') כדי שכל class קיים בקוד (bg-background, text-muted-foreground
+   וכו') ימשיך לעבוד בלי לגעת בכל קובץ בנפרד. */
 :root {
-  --radius: 0.625rem;
-  --background: #faf9fc;
-  --foreground: #171423;
-  --card: #ffffff;
-  --card-foreground: #171423;
-  --popover: #ffffff;
-  --popover-foreground: #171423;
-  --primary: #7a5af8;
-  --primary-foreground: #faf9fc;
-  --secondary: #efeafe;
-  --secondary-foreground: #171423;
-  --muted: #efeafe;
-  --muted-foreground: rgba(23, 20, 35, 0.65);
-  --accent: #9c82ff;
-  --accent-foreground: #171423;
-  --destructive: oklch(0.577 0.19 27);
-  --destructive-foreground: oklch(0.98 0.01 80);
-  --border: rgba(23, 20, 35, 0.12);
-  --input: rgba(23, 20, 35, 0.12);
-  --ring: #7a5af8;
+  /* Brand · violet */
+  --violet-50: #f4f1fe;
+  --violet-100: #eae4fd;
+  --violet-200: #d6ccfc;
+  --violet-300: #b9a7f9;
+  --violet-400: #9a80f9;
+  --violet-500: #7a5af8; /* פעולה ראשית, מצב נבחר, לוגו */
+  --violet-600: #6440e4; /* hover, קישורים */
+  --violet-700: #5230be; /* טקסט ניווט פעיל */
+  --violet-900: #2e1a6b;
+
+  /* Neutral · cool grey */
+  --canvas: #fbfbfd; /* רקע עמוד */
+  --surface: #ffffff; /* כרטיסים */
+  --subtle: #f4f5f8; /* שורות שקועות, רקע segmented */
+  --border-1: #e8eaf0;
+  --border-strong: #d3d7e2; /* שדות, כפתורים */
+  --grey-400: #9aa1b4; /* טקסט disabled, 14px+ בלבד */
+  --text-muted: #6b7288;
+  --text-secondary: #454b5c;
+  --text-1: #1b1e27;
+  --ink-800: #2a2e3b; /* פאנלים כהים */
+
+  /* Status */
+  --success: #12876a;
+  --success-fg: #0b5c49;
+  --success-bg: #e6f6f1;
+  --success-border: #bee6da;
+  --warning: #b26a00;
+  --warning-fg: #8a5200;
+  --warning-bg: #fff4e3;
+  --warning-border: #f5dfb8;
+  --danger: #c93a54;
+  --danger-fg: #8e2338;
+  --danger-bg: #fdedf0;
+  --danger-border: #f3c9d1;
+  --info: #0e7490;
+  --info-fg: #0a5a6e;
+  --info-bg: #e4f4f8;
+  --info-border: #b7dee8;
+
+  /* Radius — לפי סוג רכיב, לא סקאלה אחת */
+  --radius: 10px; /* ברירת מחדל כללית = רדיוס כפתור */
+  --r-field: 8px;
+  --r-button: 10px;
+  --r-card: 14px;
+  --r-modal: 16px;
+  --r-pill: 999px;
+
+  /* Elevation — קו הוא ברירת המחדל להפרדה, לא צל. צל רק ל-dropdown/toast/modal/drawer */
+  --e-0: none;
+  --e-1: 0 1px 2px rgba(20, 22, 29, 0.06);
+  --e-2: 0 8px 24px -8px rgba(20, 22, 29, 0.18);
+  --e-3: 0 24px 60px -16px rgba(20, 22, 29, 0.28);
+
+  /* Focus ring — חובה על כל רכיב לחיץ */
+  --focus-ring: 0 0 0 3px var(--violet-100);
+
+  /* Layout */
+  --sidebar-w: 220px;
+  --page-header-h: 68px;
+  --content-max: 1280px;
+  --form-max: 720px;
+  --control-h: 40px;
+  --control-h-mobile: 48px;
+  --tap-min: 44px;
+  --drawer-w: 480px;
+
+  /* ── מיפוי סמנטי ל-shadcn/ui (כל class קיים בקוד ממשיך לעבוד) ── */
+  --background: var(--canvas);
+  --foreground: var(--text-1);
+  --card: var(--surface);
+  --card-foreground: var(--text-1);
+  --popover: var(--surface);
+  --popover-foreground: var(--text-1);
+  --primary: var(--violet-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--violet-50);
+  --secondary-foreground: var(--violet-700);
+  --muted: var(--subtle);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--subtle);
+  --accent-foreground: var(--text-1);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--border-1);
+  --input: var(--border-strong);
+  --ring: var(--violet-500);
 }
 
 .dark {
-  --background: #171423;
-  --foreground: #faf9fc;
-  --card: rgba(250, 249, 252, 0.06);
-  --card-foreground: #faf9fc;
-  --popover: #171423;
-  --popover-foreground: #faf9fc;
-  --primary: #9c82ff;
-  --primary-foreground: #171423;
-  --secondary: rgba(250, 249, 252, 0.08);
-  --secondary-foreground: #faf9fc;
-  --muted: rgba(250, 249, 252, 0.06);
-  --muted-foreground: rgba(250, 249, 252, 0.6);
-  --accent: #7a5af8;
-  --accent-foreground: #faf9fc;
-  --destructive: oklch(0.65 0.18 25);
-  --destructive-foreground: oklch(0.18 0.02 40);
-  --border: rgba(250, 249, 252, 0.12);
-  --input: rgba(250, 249, 252, 0.15);
-  --ring: #9c82ff;
+  --canvas: #1b1e27;
+  --surface: var(--ink-800);
+  --subtle: #333849;
+  --border-1: #3a3f52;
+  --border-strong: #4a5068;
+  --text-muted: #9aa1b4;
+  --text-secondary: #c7cbdb;
+  --text-1: #f4f5f8;
+
+  --violet-50: #2e1a6b;
+  --violet-100: #3d2494;
+  --violet-500: #9a80f9;
+  --violet-600: #b9a7f9;
+  --violet-700: #d6ccfc;
+
+  --background: var(--canvas);
+  --foreground: var(--text-1);
+  --card: var(--surface);
+  --card-foreground: var(--text-1);
+  --popover: var(--surface);
+  --popover-foreground: var(--text-1);
+  --primary: var(--violet-500);
+  --primary-foreground: var(--ink-800);
+  --secondary: var(--subtle);
+  --secondary-foreground: var(--violet-700);
+  --muted: var(--subtle);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--subtle);
+  --accent-foreground: var(--text-1);
+  --destructive: #e0637a;
+  --destructive-foreground: var(--ink-800);
+  --border: var(--border-1);
+  --input: var(--border-strong);
+  --ring: var(--violet-500);
+  --focus-ring: 0 0 0 3px var(--violet-100);
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: var(--r-field);
+  --radius-md: var(--r-button);
+  --radius-lg: var(--r-card);
+  --radius-xl: var(--r-modal);
+  --radius-field: var(--r-field);
+  --radius-button: var(--r-button);
+  --radius-card: var(--r-card);
+  --radius-modal: var(--r-modal);
+  --radius-pill: var(--r-pill);
+
+  --shadow-e1: var(--e-1);
+  --shadow-e2: var(--e-2);
+  --shadow-e3: var(--e-3);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -76,34 +170,62 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-violet-50: var(--violet-50);
+  --color-violet-100: var(--violet-100);
+  --color-violet-200: var(--violet-200);
+  --color-violet-300: var(--violet-300);
+  --color-violet-400: var(--violet-400);
+  --color-violet-500: var(--violet-500);
+  --color-violet-600: var(--violet-600);
+  --color-violet-700: var(--violet-700);
+  --color-violet-900: var(--violet-900);
+
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-fg: var(--warning-fg);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-fg: var(--info-fg);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-border-strong: var(--border-strong);
+  --color-grey-400: var(--grey-400);
+  --color-text-muted: var(--text-muted);
+  --color-text-secondary: var(--text-secondary);
+
   --font-sans: var(--font-heebo);
+  --font-mono: var(--font-plex-mono);
 }
 
-/* אתר עברי, RTL בלבד */
+/* אתר עברי, RTL בלבד. בלי רקע מצויר — נשאר רק במסך הכניסה (/login), ר'
+   login-backdrop.tsx. משטח נקי (--canvas) הוא ברירת המחדל לכל האזורים
+   הפנימיים, לפי מסמך השפה העיצובית. */
 body {
   background-color: var(--background);
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgba(23, 20, 35, 0.04) 0px,
-    rgba(23, 20, 35, 0.04) 1px,
-    transparent 1px,
-    transparent 28px
-  );
   color: var(--foreground);
   font-family: var(--font-heebo), Arial, Helvetica, sans-serif;
 }
 
-.dark body {
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgba(250, 249, 252, 0.06) 0px,
-    rgba(250, 249, 252, 0.06) 1px,
-    transparent 1px,
-    transparent 28px
-  );
+/* מספרים, שעות וסכומים — תמיד ברוחב אחיד כדי שעמודות ולוחות יתיישרו */
+.tabular-nums,
+[data-tabular] {
+  font-variant-numeric: tabular-nums;
 }
 
-/* כתמי רקע רכים ומטושטשים — קצת עניין ויזואלי, בלי להסיח דעת מהתוכן.
+/* כתמי רקע רכים ומטושטשים — שמורים למסך הכניסה/שיווק בלבד (login-backdrop.tsx).
    הצבע חייב להיות מוטבע ישירות ב-SVG (לא currentColor/CSS var): כש-SVG
    נטען כ-background-image הוא מטופל כמסמך עצמאי בלי גישה לצבעי הדף
    המארח, אז currentColor שם היה נופל תמיד לשחור. בהיר מהרקע עצמו

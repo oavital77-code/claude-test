@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { formatDateHe } from "@/lib/time";
+import { todayInIsrael } from "@/lib/availability/grid";
 import { WEEKDAY_LABELS, slotHours, type SessionSlotDraft } from "@/lib/pricing/session";
 import { requestSession } from "../actions";
 
@@ -34,6 +36,7 @@ export function SessionRequestWizard({
   const [draftWeekday, setDraftWeekday] = useState(0);
   const [draftStart, setDraftStart] = useState("09:00");
   const [draftEnd, setDraftEnd] = useState("11:00");
+  const [startDate, setStartDate] = useState(todayInIsrael());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +68,7 @@ export function SessionRequestWizard({
   async function handleSubmit() {
     setLoading(true);
     setError(null);
-    const result = await requestSession(slots);
+    const result = await requestSession(slots, startDate);
     setLoading(false);
     if (!result.ok) {
       setError(result.error);
@@ -107,6 +110,18 @@ export function SessionRequestWizard({
           <div className="flex justify-between font-medium">
             <span>מחיר חודשי (לפני מע״מ)</span>
             <span>{formatCurrency(monthlyPrice)}</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>תאריך התחלה</Label>
+            <Input
+              type="date"
+              value={startDate}
+              min={todayInIsrael()}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              המפגשים הראשונים ישובצו החל מ-{formatDateHe(new Date(`${startDate}T00:00:00Z`))}.
+            </p>
           </div>
           <p className="rounded-md bg-muted p-3 text-sm">
             לאחר האישור לא ניתן לשחרר מפגשים בודדים. ביטול המנוי — 30 יום מראש.

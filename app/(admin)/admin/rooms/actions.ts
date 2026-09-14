@@ -4,9 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+import { validateRoomImage } from "@/lib/room-images";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -47,7 +45,7 @@ const roomSchema = z.object({
   id: z.string().uuid().optional(),
   branch_id: z.string().uuid(),
   name: z.string().trim().min(1, "יש להזין שם חדר"),
-  room_type: z.enum(["talk", "touch", "podcast", "group"]),
+  room_type: z.array(z.enum(["talk", "touch", "podcast", "group"])).min(1, "יש לבחור לפחות סוג חדר אחד"),
   capacity: z.coerce.number().int().min(1).max(20),
   description: z.string().trim().optional().or(z.literal("")),
   equipment: z.string().trim().optional().or(z.literal("")), // מופרד בפסיקים
@@ -98,11 +96,9 @@ export async function uploadRoomImage(roomId: string, formData: FormData): Promi
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: "לא נבחר קובץ" };
   }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return { ok: false, error: "מותר רק קבצי JPG, PNG או WEBP" };
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    return { ok: false, error: "הקובץ גדול מדי (מקסימום 5MB)" };
+  const invalid = validateRoomImage(file);
+  if (invalid) {
+    return { ok: false, error: invalid };
   }
 
   const admin = createAdminClient();

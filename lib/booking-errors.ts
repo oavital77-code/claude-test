@@ -8,13 +8,17 @@ const MESSAGES: Record<string, string> = {
   ROOM_UNAVAILABLE: "החדר אינו זמין כרגע.",
   SELF_OVERLAP: "יש לך כבר הזמנה בטווח הזמן הזה.",
   TOO_FAR_AHEAD: "לא ניתן להזמין כל כך הרבה קדימה.",
+  TOO_FAR_PAST: "אי אפשר להזמין הזמנה מלפני יותר מחודש.",
   INVALID_SLOT: "המשבצת אינה תקינה.",
+  INVALID_START_DATE: "תאריך ההתחלה חייב להיות היום או מאוחר יותר.",
   SESSION_HOURS_FIXED: "ססיה היא תמיד בהיקף קבוע של שעות שבועיות — סך המשבצות שנבחרו לא תואם.",
   BOOKING_PASSED: "המועד כבר עבר.",
   SESSION_NOT_CANCELLABLE: "מפגש ססיה לא ניתן לביטול עצמאי. לביטול פנו להנהלה.",
   USER_SUSPENDED: "החשבון מושעה זמנית.",
   PAYMENT_REQUIRED: "נדרש תשלום.",
   FORBIDDEN: "אין הרשאה לפעולה זו.",
+  INVALID_TERM: "טווח ההתחייבות לא תקין.",
+  SESSION_TERM_ENDED: "תוקף הטווח שנסגר לססיה הזו הסתיים — יש לחדש את הטווח דרך /admin/sessions לפני חיוב נוסף.",
 };
 
 export function bookingErrorMessage(code: string | undefined): string {

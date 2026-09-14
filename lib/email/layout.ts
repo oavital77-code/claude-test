@@ -1,6 +1,20 @@
 import "server-only";
 
 /**
+ * בריחת HTML לכל טקסט שמקורו בקלט משתמש (למשל full_name) לפני הכנסה לגוף
+ * מייל — מניעת הזרקת <img>/<a> (tracking pixel / פישינג) דרך שדות שאין
+ * עליהם הגבלת אורך/תווים בהרשמה.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * מעטפת HTML משותפת לכל המיילים — RTL, עברית, טבלאות (לא flexbox/grid) כי
  * לקוחות מייל לא תומכים ב-CSS מודרני. עיצוב מינימלי בכוונה.
  */

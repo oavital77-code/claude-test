@@ -1,10 +1,9 @@
-import { AdminNav } from "./admin-nav";
+import { AppShell } from "@/components/app-shell";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col">
-      <AdminNav />
-      <div className="flex flex-1 flex-col">{children}</div>
-    </div>
+    <AppShell variant="admin" homeHref="/admin">
+      {children}
+    </AppShell>
   );
 }

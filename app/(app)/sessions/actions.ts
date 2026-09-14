@@ -19,6 +19,7 @@ export type ActionResult<T = undefined> =
 
 export async function requestSession(
   slots: Pick<SessionSlotDraft, "roomId" | "weekday" | "startTime" | "endTime">[],
+  startDate?: string | null,
 ): Promise<ActionResult<{ subscriptionId: string }>> {
   const { profile } = await requireTherapistProfile();
   const supabase = await createClient();
@@ -30,7 +31,9 @@ export async function requestSession(
     end_time: s.endTime,
   }));
 
-  const { data, error } = await supabase.rpc("request_session", { p_slots: payload }).single();
+  const { data, error } = await supabase
+    .rpc("request_session", { p_slots: payload, p_start_date: startDate ?? null })
+    .single();
 
   if (error || !data) {
     return { ok: false, error: bookingErrorMessage(error?.message) };

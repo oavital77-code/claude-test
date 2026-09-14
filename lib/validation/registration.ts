@@ -6,6 +6,20 @@ export const authFormSchema = z.object({
   password: z.string().min(8, "הסיסמה חייבת להכיל לפחות 8 תווים"),
 });
 
+export const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, "הסיסמה חייבת להכיל לפחות 8 תווים"),
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, {
+    message: "הסיסמאות אינן זהות",
+    path: ["confirm"],
+  });
+
+export const emailOnlySchema = z.object({
+  email: z.string().trim().email("כתובת מייל לא תקינה"),
+});
+
 export const detailsFormSchema = z.object({
   full_name: z.string().trim().min(2, "יש להזין שם מלא"),
   phone: z

@@ -15,7 +15,9 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
   free: "bg-emerald-100 hover:bg-emerald-200 cursor-pointer dark:bg-emerald-950 dark:hover:bg-emerald-900",
   taken: "bg-muted",
   mine: "bg-blue-200 dark:bg-blue-900",
-  blocked: "bg-zinc-800 dark:bg-zinc-700",
+  // רקע כהה — הטקסט חייב להיות בהיר במפורש, אחרת הוא יורש את צבע הגוף
+  // ונבלע ברקע (חסימה עם reason ארוך הייתה בלתי קריאה בלוח האדמין).
+  blocked: "bg-zinc-800 text-zinc-50 dark:bg-zinc-700 dark:text-zinc-50",
 };
 
 // צבעים לפי סוג הזמנה (ססיה/כרטיסייה) — רכים ולא רוויים בכוונה ("לא צועק").
@@ -25,13 +27,24 @@ const STATUS_STYLES: Record<SlotStatus, string> = {
 export const SESSION_COLOR = "bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200";
 export const CARD_COLOR = "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200";
 
-export function Legend() {
-  const items: { status: SlotStatus; label: string }[] = [
-    { status: "free", label: "פנוי" },
-    { status: "taken", label: "תפוס" },
-    { status: "mine", label: "ההזמנה שלי" },
-    { status: "blocked", label: "לא זמין" },
-  ];
+const STATUS_TITLES: Record<SlotStatus, string> = {
+  free: "פנוי",
+  taken: "תפוס",
+  mine: "ההזמנה שלי",
+  blocked: "לא זמין",
+};
+
+/**
+ * `statuses` מאפשר להסתיר מצבים שלא רלוונטיים למסך מסוים. בלוח של המטפל/ת
+ * "תפוס" מוצג כ"לא זמין" (אין הבדל מעשי מבחינתו/ה, ולא חושפים שקיימת
+ * הזמנה של מישהו אחר), ולכן אין טעם להציג את שניהם במקרא.
+ */
+export function Legend({
+  statuses = ["free", "taken", "mine", "blocked"],
+}: {
+  statuses?: SlotStatus[];
+}) {
+  const items = statuses.map((status) => ({ status, label: STATUS_TITLES[status] }));
   return (
     <div className="flex flex-wrap gap-4 text-sm">
       {items.map((item) => (
@@ -78,14 +91,16 @@ export function AvailabilityGrid({
   rowHeightClass?: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="w-full min-w-0 overflow-x-auto rounded-md border">
       <div
         className="grid"
         style={{
           gridTemplateColumns: `56px repeat(${columns.length}, minmax(84px, 1fr))`,
         }}
       >
-        <div className="sticky top-0 z-10 border-b border-l bg-background" />
+        {/* פינת ההצטלבות — נעוצה בשני הכיוונים, ולכן z גבוה משניהם, אחרת
+            עמודת השעות הייתה עוברת מעליה בגלילה אופקית. */}
+        <div className="sticky start-0 top-0 z-20 border-b border-l bg-background" />
         {columns.map((col) => (
           <div
             key={col.key}
@@ -99,7 +114,10 @@ export function AvailabilityGrid({
           const isHour = slot.start.getUTCMinutes() % 60 === 0 || i === 0;
           return (
             <FragmentRow key={slot.start.toISOString()}>
-              <div className="border-l p-1 text-left text-[10px] text-muted-foreground">
+              {/* עמודת השעות נעוצה לקצה ההתחלתי (ב-RTL — ימין) כדי שתישאר
+                  גלויה בגלילה אופקית על פני החדרים/הימים. חובה רקע אטום,
+                  אחרת תוכן התאים נגלל מתחתיה ונראה דרכה. */}
+              <div className="sticky start-0 z-10 border-l bg-background p-1 text-left text-[10px] text-muted-foreground">
                 {isHour ? formatInTimeZone(slot.start, TIMEZONE, "HH:mm") : ""}
               </div>
               {columns.map((col) => {
@@ -129,8 +147,11 @@ export function AvailabilityGrid({
                       selected && "ring-2 ring-inset ring-primary",
                     )}
                   >
+                    {/* בלי text-* משלו: הצבע נורש מהתא, כדי שרקע כהה (blocked)
+                        יקבל טקסט בהיר ורקע בהיר יקבל טקסט כהה. הגדרת צבע כאן
+                        דרסה את של התא והפכה חסימות לבלתי קריאות. */}
                     {label && (
-                      <span className="truncate px-1 text-[9px] leading-none text-foreground/80 select-none">
+                      <span className="truncate px-1 text-[9px] leading-none opacity-90 select-none">
                         {label}
                       </span>
                     )}

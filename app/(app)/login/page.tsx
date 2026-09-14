@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/lib/auth/guards";
+import { LoginBackdrop } from "@/components/login-backdrop";
 import { RegistrationWizard } from "./registration-wizard";
 
 export default async function LoginPage({
@@ -17,6 +18,7 @@ export default async function LoginPage({
 
   return (
     <div className="flex flex-1 items-center justify-center p-4">
+      <LoginBackdrop />
       <RegistrationWizard
         skipToDetails={Boolean(userId)}
         linkExpiredError={error === "auth"}

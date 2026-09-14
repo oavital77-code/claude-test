@@ -109,6 +109,118 @@ const sessionSlotSchema = z.object({
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
+const claimSkeddaOneOffSchema = z.object({
+  userId: z.string().uuid(),
+  blockIds: z.array(z.string().uuid()).min(1),
+});
+
+export type ClaimSkeddaOneOffResult =
+  | { ok: true; created: number; skipped: number }
+  | { ok: false; error: string };
+
+/**
+ * קליטת בלוקים חד-פעמיים (כרטיסייה) שהועברו מ-Skedda: מוחקים את הבלוק
+ * ויוצרים במקומו הזמנה אמיתית ל-user_id בפועל, בלי חיוב כרטיסייה
+ * (admin_create_booking עם source='admin_comp') — היא כבר שילמה על התור
+ * הזה במערכת הישנה. מופעים שכבר עברו רק נמחקים, בלי הזמנה חדשה.
+ *
+ * שונה מסלול ה"ססיה" (ר' SkeddaImportSection): שם לא מוחקים כלום כאן —
+ * הניקוי קורה אוטומטית ב-DB ברגע שהתשלום מתקבל (cleanup_skedda_import_blocks).
+ */
+export async function claimSkeddaOneOffBlocksAction(input: unknown): Promise<ClaimSkeddaOneOffResult> {
+  await requireAdmin();
+  const parsed = claimSkeddaOneOffSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
+  const { userId, blockIds } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: blocks, error: fetchError } = await supabase
+    .from("room_blocks")
+    .select("id, room_id, starts_at, ends_at, reason")
+    .in("id", blockIds);
+  if (fetchError) return { ok: false, error: "שליפת החסימות נכשלה" };
+  if (!blocks || blocks.length === 0) {
+    return { ok: false, error: "החסימות שנבחרו כבר טופלו (אולי כבר נלחץ קודם)" };
+  }
+
+  const { error: deleteError } = await supabase.from("room_blocks").delete().in("id", blockIds);
+  if (deleteError) return { ok: false, error: "מחיקת החסימות נכשלה" };
+
+  let created = 0;
+  let skipped = 0;
+  const now = Date.now();
+  const errors: string[] = [];
+
+  for (const block of blocks) {
+    if (new Date(block.starts_at).getTime() < now) {
+      skipped += 1;
+      continue;
+    }
+    const { error } = await supabase.rpc("admin_create_booking", {
+      p_user_id: userId,
+      p_room_id: block.room_id,
+      p_starts_at: block.starts_at,
+      p_ends_at: block.ends_at,
+      p_note: "קליטה מ-Skedda",
+    });
+    if (error) {
+      skipped += 1;
+      errors.push(bookingErrorMessage(error.message));
+    } else {
+      created += 1;
+    }
+  }
+
+  if (created === 0 && errors.length > 0) {
+    return { ok: false, error: errors[0] };
+  }
+  return { ok: true, created, skipped };
+}
+
+const claimSkeddaSessionSchema = z.object({
+  userId: z.string().uuid(),
+  slots: z
+    .array(
+      z.object({
+        roomId: z.string().uuid(),
+        weekday: z.number().int().min(0).max(6),
+        startTime: z.string().regex(/^\d{2}:\d{2}$/),
+        endTime: z.string().regex(/^\d{2}:\d{2}$/),
+      }),
+    )
+    .min(1),
+  startDate: z.string().optional().nullable(),
+  termMonths: z.number().int().optional().nullable(),
+});
+
+/**
+ * קליטת ססיה קבועה מ-Skedda — כבר שולם במערכת הישנה, אין תשלום ראשוני
+ * (admin_create_session_prepaid, ר' 20260901000003). שונה מ-adminCreateSessionAction
+ * הרגיל (ב-admin/sessions/actions.ts) בכוונה: זה לא ססיה חדשה, זו המשך
+ * של הסדר שכבר שולם — לא חל עליו חוק ברזל #5.
+ */
+export async function claimSkeddaSessionAction(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = claimSkeddaSessionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "פרטי המשבצות לא תקינים" };
+  const { userId, slots, startDate, termMonths } = parsed.data;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_create_session_prepaid", {
+    p_user_id: userId,
+    p_slots: slots.map((s) => ({
+      room_id: s.roomId,
+      weekday: s.weekday,
+      start_time: s.startTime,
+      end_time: s.endTime,
+    })),
+    p_start_date: startDate ?? null,
+    p_term_months: termMonths ?? null,
+  });
+  if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  return { ok: true };
+}
+
 export async function addSessionSlotAction(input: unknown): Promise<ActionResult> {
   await requireAdmin();
   const parsed = sessionSlotSchema.safeParse(input);

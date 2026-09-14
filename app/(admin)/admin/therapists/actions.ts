@@ -94,3 +94,43 @@ export async function createDemoTherapistAction(
 
   return { ok: true, loginUrl: link.properties.action_link };
 }
+
+export type GeneratePasswordResetLinkResult =
+  | { ok: true; resetUrl: string }
+  | { ok: false; error: string };
+
+/**
+ * מייצר קישור איפוס סיסמה חד-פעמי למטפל/ת קיימ/ת (לא קובע/משנה סיסמה
+ * בעצמו) — לשימוש אדמין שרוצה לעזור למטפל/ת ששכח/ה סיסמה, בלי לדעת את
+ * הסיסמה בפועל. אותו יעד בדיוק כמו איפוס עצמאי (auth/callback → /reset-password).
+ */
+export async function generatePasswordResetLinkAction(
+  userId: string,
+): Promise<GeneratePasswordResetLinkResult> {
+  await requireAdmin();
+
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileError || !profile) {
+    return { ok: false, error: "מטפל/ת לא נמצא/ה" };
+  }
+
+  const headerList = await headers();
+  const origin = `https://${headerList.get("host")}`;
+  const next = encodeURIComponent("/reset-password");
+
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email: profile.email,
+    options: { redirectTo: `${origin}/auth/callback?next=${next}` },
+  });
+  if (linkError || !link) {
+    return { ok: false, error: "יצירת קישור איפוס הסיסמה נכשלה" };
+  }
+
+  return { ok: true, resetUrl: link.properties.action_link };
+}

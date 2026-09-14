@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Heebo, Outfit } from "next/font/google";
+import { Heebo, IBM_Plex_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "./service-worker-register";
 
@@ -13,6 +13,16 @@ const outfit = Outfit({
   variable: "--font-outfit-logo",
   subsets: ["latin"],
   weight: ["500", "600"],
+});
+
+// למזהים/קודים טכניים בלבד (מספרי הזמנה, קוד דלת) — לא לטקסט רגיל.
+// שם המשתנה שונה מ---font-mono בכוונה: זה השם שמשמש כמפתח ה-theme של
+// Tailwind (font-mono utility) ב-globals.css — אילו שני השמות היו זהים,
+// ה-var() שם היה מפנה לעצמו (circular reference) ונופל.
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -33,18 +43,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="he" dir="rtl" className={`${heebo.variable} ${outfit.variable} h-full antialiased`}>
+    <html
+      lang="he"
+      dir="rtl"
+      className={`${heebo.variable} ${outfit.variable} ${ibmPlexMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
-        <div className="bg-decor" aria-hidden="true">
-          <span className="blob-1" />
-          <span className="blob-2" />
-          <span className="blob-3" />
-          <span className="line-1" />
-          <span className="line-2" />
-          <span className="ring-1" />
-          <span className="ring-2" />
-          <span className="mark-outline" />
-        </div>
         {children}
         <ServiceWorkerRegister />
       </body>

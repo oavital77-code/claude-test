@@ -98,6 +98,18 @@ export function slotStatus(
   return result;
 }
 
+/** ההזמנה שלי החופפת למשבצת — לתצוגת שעות ההזמנה המלאות על התא. */
+export function mineIntervalAt(
+  slotStart: Date,
+  slotEnd: Date,
+  intervals: AvailabilityInterval[] | undefined,
+): AvailabilityInterval | undefined {
+  if (!intervals) return undefined;
+  return intervals.find(
+    (iv) => iv.status === "mine" && iv.startsAt < slotEnd && iv.endsAt > slotStart,
+  );
+}
+
 /** מקור ההזמנה החופפת (ססיה/כרטיסייה) — רק להזמנות "mine", לצביעת התא. */
 export function sourceAt(
   slotStart: Date,

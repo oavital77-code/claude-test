@@ -50,22 +50,27 @@
 
 ### 2.2 דומיינים
 ```
-baclinica.co.il          → אתר שיווק קיים (WordPress) — לא נוגעים
-app.baclinica.co.il      → PWA למטפלים
-admin.baclinica.co.il    → פאנל ניהול (דסקטופ)
+baclinica.co.il          → חנות WooCommerce (תשלומים בלבד) — לא נוגעים בתוכן השיווקי
+cleana.co.il              → PWA למטפלים (apex)
+cleana.co.il/admin        → פאנל ניהול (דסקטופ); admin.cleana.co.il מתוכנן ב-middleware, טרם הופעל בפרודקשן
 ```
 
 שני האפליקציות באותו פרויקט Next.js, מופרדות ב-route groups: `(app)` ו-`(admin)`, עם middleware שבודק role.
 
 ### 2.3 מערכות שיוצאות משימוש
 - **Skedda** — מבוטל בסיום M4
-- **WooCommerce checkout** — מבוטל בסיום M5. מוצרי המחירון באתר יופנו ל-`app.baclinica.co.il`
+- **WooCommerce checkout** — מבוטל בסיום M5. מוצרי המחירון באתר יופנו ל-`cleana.co.il`
 
 ---
 
 ## 3. מודל עסקי — הכללים המלאים
 
 ### 3.1 כרטיסייה (Punch Card)
+
+⚠️ **הפיקדון כרגע כבוי** — `deposit_hours=0` בכל המדרגות (`punch_card_tiers`),
+כרטיסיות חדשות לא גובות פיקדון. המנגנון (הטבלה למטה, admin_complete_deposit,
+`DEPOSIT_DEPLETED`) נשאר במערכת ומופעל אוטומטית אם `deposit_hours` יעודכן
+בעתיד; כרטיסיות שכבר שילמו פיקדון (לפני הכיבוי) ממשיכות לאכוף אותו כרגיל.
 
 מדרגות תמחור (**לפני מע"מ**):
 
@@ -201,7 +206,7 @@ admin.baclinica.co.il    → פאנל ניהול (דסקטופ)
 ```
 1. מטפל פונה למנהלת (טלפון / וואטסאפ / טופס באתר)
 2. שיחת היכרות — סינון ידני, מחוץ למערכת
-3. המנהלת שולחת קישור:  app.baclinica.co.il
+3. המנהלת שולחת קישור:  cleana.co.il
 4. הרשמה עצמאית — טלפון + OTP + פרטים + חתימה על התקנון
 5. גישה מיידית ללוח הזמנים (צפייה בלבד)
 6. רכישה:
@@ -265,7 +270,9 @@ create table rooms (
   id           uuid primary key default gen_random_uuid(),
   branch_id    uuid not null references branches(id) on delete restrict,
   name         text not null,
-  room_type    room_type not null default 'talk',
+  room_type    room_type[] not null default array['talk']::room_type[],
+    -- מערך, לא ערך יחיד: חדר יכול לשרת יותר מסוג טיפול אחד (למשל חדר עם
+    -- מיטת טיפולים שגם מתאים לשיח) — ר' migration 20260828000011.
   capacity     int default 2,
   description  text,
   equipment    jsonb default '[]'::jsonb,  -- ["מיטת טיפולים","כיור","פרגוד","לוח מחיק","מזגן נפרד"]
@@ -521,7 +528,9 @@ BEGIN TRANSACTION
 
 1.  ולידציות זמן:
     - starts_at % 30min = 0  ומשך  ≥ 30min  ומשך ≤ 8h
-    - starts_at > now()
+    - starts_at > now() - 30 יום  (אחרת TOO_FAR_PAST) — מאפשר גם התחלה
+      בעבר (הארכה באותו רגע / רישום רטרואקטיבי), ר' CLAUDE.md
+      "הזמנה רטרואקטיבית". starts_at ≤ now() אינו נבדק יותר.
     - starts_at ≤ now() + booking_horizon_days
 2.  ולידציית משתמש:
     - status = 'active'  (אחרת: USER_SUSPENDED)
@@ -562,34 +571,57 @@ COMMIT
 7.  מייל אישור ביטול (מציין אם זוכה או לא)
 ```
 
-### 6.3 `request_session(slots[])`
+### 6.3 `request_session(slots[], start_date?)`
 
 ```
 1.  weekly_hours = Σ משך כל המשבצות; חייב להיות שווה בדיוק ל-session_base_hours אחרת SESSION_HOURS_FIXED
-2.  כל משבצת פנויה ב-90 הימים הקרובים (bookings + session_slots פעילים + holds)
-3.  monthly_price = session_base_price (קבוע)
-4.  INSERT session_subscriptions (status='requested', hold_expires_at = now()+72h)
-5.  INSERT session_slots
-6.  מייל לאדמין
+2.  🔴 אין בדיקת זמינות משבצות בשלב הזה (ר' הערה למטה) — הבקשה תמיד עוברת לאדמין
+3.  start_date אופציונלי (ברירת מחדל: היום); < היום → INVALID_START_DATE
+4.  monthly_price = session_base_price (קבוע)
+5.  INSERT session_subscriptions (status='requested', start_date, hold_expires_at = now()+72h)
+6.  INSERT session_slots
+7.  מייל לאדמין
 ```
+
+> **למה בלי בדיקת זמינות בשלב הבקשה:** אם המשבצת המבוקשת תפוסה, המטפל/ת לא
+> אמור/ה לגלות "מישהו אחר כבר סגר את המשבצת הזו" — זה חושף מידע על מטפל/ת
+> אחר/ת (🔴 חוק ברזל #3). הבקשה תמיד נשלחת לאדמין; אם יש התנגשות אמיתית,
+> `approve_session` הרגיל ייחסם (ר' 6.4) והאדמין פותר דרך `admin_create_session`
+> (ר' 6.4.1) בבחירת חדר/יום/שעה חלופיים.
 
 ### 6.4 `approve_session(subscription_id)` — אדמין בלבד
 
 ```
 1.  is_admin()  אחרת FORBIDDEN
 2.  status = 'requested'
-3.  בדיקה חוזרת שהמשבצות עדיין פנויות
+3.  בדיקה חוזרת שהמשבצות עדיין פנויות — 🔴 נשאר ללא שינוי, לא מדלגים על זה כאן
 4.  status = 'awaiting_payment', hold_expires_at = now() + 72h
 5.  יצירת בקשת תשלום ממתינה (create_session_initial_payment) + קישור לדף המוצר בחנות ה-Woo
 6.  מייל למטפל עם הקישור
+```
+
+### 6.4.1 `admin_create_session(user_id, slots[], start_date?)` — אדמין בלבד, קביעה חופשית
+
+```
+1.  is_admin()  אחרת FORBIDDEN; המטפל/ת חייב/ת status='active'
+2.  weekly_hours = Σ משך כל המשבצות; חייב session_base_hours בדיוק (SESSION_HOURS_FIXED)
+3.  🔴 בלי שום בדיקת התנגשות — קביעה חופשית לגמרי (כל חדר/יום/שעה)
+4.  start_date אופציונלי (ברירת מחדל: היום)
+5.  INSERT session_subscriptions ישירות ב-status='awaiting_payment' — מדלג
+    על 'requested' (הקביעה ע"י אדמין היא עצמה האישור)
+6.  🔴 התשלום עצמו לא מדולג: אותו מסלול בדיוק (create_session_initial_payment
+    + חנות ה-Woo) — חוק ברזל #5 עדיין בתוקף, רק שלב 'requested' מדולג
+7.  audit_log: session_created_by_admin
+8.  מייל למטפל עם קישור תשלום (זהה ל-6.4 שלב 5–6)
 ```
 
 ### 6.5 `activate_session_payment(payment_id, ...)` — מ-webhook תשלום (Woo)
 
 ```
 1.  status = 'active'
-2.  start_date = היום,  next_billing_date = היום + 1 חודש
-3.  materialize_session_bookings(subscription_id, 90 days)
+2.  start_date = coalesce(start_date, היום) — לא דורס אם כבר נקבע בבקשה
+3.  next_billing_date = start_date + 1 חודש
+4.  materialize_session_bookings(subscription_id, 90 days)
 ```
 
 ### 6.6 `materialize_session_bookings()` — cron יומי
@@ -600,6 +632,7 @@ COMMIT
 עבור כל subscription במצב active או pending_cancellation:
   עבור כל slot:
     עבור כל מופע ב-90 הימים הקרובים:
+      אם start_date קיים ומועד המופע לפניו → דלג
       אם effective_end_date קיים ומועד המופע אחריו → דלג
       אם כבר קיימת הזמנה → דלג
       INSERT bookings (source='session', hours_charged=0)
@@ -638,15 +671,25 @@ COMMIT
 
 כל תשלום — כרטיסייה וססיה כאחד — מתבצע בחנות ה-Woo (`baclinica.co.il`), לא
 ב-Cleana. Cleana לא יוצרת דפי תשלום ולא מדברת עם שום gateway ישירות; היא רק
-מפנה את המטפל/ת למוצר הנכון בחנות, וה-webhook של Woo הוא מקור האמת היחיד
-לכך ששולם בפועל. (הוחלט לזנוח אינטגרציית PayPlus ישירה — מעולם לא חוברה
-בפועל, ר' היסטוריית הפרויקט.)
+מפנה את המטפל/ת למוצר הנכון בחנות. (הוחלט לזנוח אינטגרציית PayPlus ישירה —
+מעולם לא חוברה בפועל, ר' היסטוריית הפרויקט.)
+
+**גילוי תשלום — שני מסלולים אפשריים, אותה לוגיקה בדיוק** (`processWooOrder`,
+`lib/woo/process-order.ts`):
+- **Webhook** (push מ-Woo) — כשמוגדר webhook בחנות. מיידי, מאומת בחתימת HMAC.
+- **Polling** (pull דרך REST API) — המצב הנוכחי, כי אין webhook מוגדר בחנות.
+  `lib/woo/poll.ts` שולף הזמנות אחרונות ומריץ אותן דרך אותה `processWooOrder`.
+  שתי נקודות הפעלה: בדיקה יזומה בכל טעינת עמוד מחובר (חלון 90 דק', ר'
+  `app/(app)/layout.tsx`), ו-cron יומי כרשת ביטחון (חלון 26 שעות, ר'
+  `app/api/cron/poll-woo-orders`).
 
 ### 7.1 משתני סביבה
 
 ```env
-WOOCOMMERCE_WEBHOOK_SECRET=
 NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
+WOOCOMMERCE_WEBHOOK_SECRET=      # אופציונלי — רק אם מוגדר webhook בחנות
+WOOCOMMERCE_KEY=                 # REST API, הרשאת Read בלבד
+WOOCOMMERCE_SECRET=              # REST API, הרשאת Read בלבד
 ```
 
 ### 7.2 מיפוי מוצרים
@@ -663,8 +706,11 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
    סימון-מזומן הידני יהיה מה לסמן, גם אם התשלום המקוון לא הושלם
 2. הפניית המטפל/ת ל-add-to-cart של המוצר המתאים בחנות (redirect חיצוני מלא)
 3. תשלום מתבצע בחנות עצמה — Cleana לא מעורבת
-4. Woo → POST ל-app/api/woo/webhook (topic: Order updated) כשההזמנה paid
-5. אימות חתימת HMAC מול WOOCOMMERCE_WEBHOOK_SECRET   ← 🔴 חובה
+4. גילוי שההזמנה שולמה — או webhook (push, אם מוגדר) או polling (pull, ר'
+   למעלה) — שניהם מזינים את אותה processWooOrder
+5. אם webhook: אימות חתימת HMAC מול WOOCOMMERCE_WEBHOOK_SECRET   ← 🔴 חובה
+   אם polling: הקריאה ל-Woo REST API מאומתת ב-Consumer Key/Secret משלנו —
+   אנחנו זה שיוזם את הקריאה, לא סומכים על payload נכנס לא-מאומת
 6. התאמה לפי טלפון/מייל (פרופיל קיים) → תשלום pending מתאים → הפעלה
 ```
 
@@ -676,9 +722,9 @@ NEXT_PUBLIC_WOOCOMMERCE_STORE_URL=https://baclinica.co.il
 
 ### 7.4 כללי ברזל
 
-- 🔴 **מקור האמת הוא ה-webhook**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף.
-- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` (שם השדה נשאר, מכיל גם אסמכתאות Woo) הוא `UNIQUE`. אותו webhook פעמיים = פעולה אחת.
-- 🔴 **תמיד לאמת חתימה** לפני עדכון סטטוס. בלי זה כל אחד יכול "לשלם" בזיוף בקשה.
+- 🔴 **מקור האמת הוא ההזמנה עצמה ב-Woo**, לא ה-redirect. משתמש שסגר את הדפדפן — התשלום עדיין תקף, יתגלה ב-polling הבא.
+- 🔴 **אידמפוטנטיות**: `payplus_transaction_uid` (שם השדה נשאר, מכיל גם אסמכתאות Woo) הוא `UNIQUE`. אותה הזמנה שמתגלה כמה פעמים = פעולה אחת.
+- 🔴 **תמיד לאמת** — חתימת HMAC ב-webhook, או Consumer Key/Secret משלנו ב-polling — לפני עדכון סטטוס.
 - כל התשלומים כוללים **מע"מ 18%** מוצג בנפרד.
 
 ---
@@ -871,8 +917,9 @@ ROOM_TAKEN             המשבצת נתפסה זה עתה
 ROOM_UNAVAILABLE       החדר חסום / לא פעיל
 SELF_OVERLAP           חפיפה עם הזמנה קיימת שלך
 TOO_FAR_AHEAD          מעבר ל-30 יום
+TOO_FAR_PAST           התחלה מלפני יותר מ-30 יום (create_booking בלבד)
 INVALID_SLOT           לא מיושר ל-30 דקות
-BOOKING_PASSED         המועד עבר
+BOOKING_PASSED         המועד עבר (cancel_booking בלבד)
 SESSION_NOT_CANCELLABLE  מפגש ססיה לא ניתן לביטול עצמי
 SESSION_HOURS_FIXED     סך המשבצות לא שווה בדיוק session_base_hours
 USER_SUSPENDED         החשבון מושעה

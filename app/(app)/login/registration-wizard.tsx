@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   authFormSchema,
   detailsFormSchema,
+  emailOnlySchema,
   type DetailsFormValues,
 } from "@/lib/validation/registration";
 import { TERMS_TEXT } from "@/lib/terms/current";
@@ -25,7 +26,11 @@ import {
 } from "@/components/ui/card";
 import { completeRegistration } from "./actions";
 
-type Step = "auth" | "details" | "terms";
+type Step = "auth" | "forgot" | "sent" | "details" | "terms";
+/** מה נשלח למייל — קובע את הנוסח במסך "נשלח" ואת פעולת השליחה החוזרת. */
+type SentKind = "verify" | "reset";
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 const emptyDetails: DetailsFormValues = {
   full_name: "",
@@ -34,6 +39,11 @@ const emptyDetails: DetailsFormValues = {
   profession: "",
   business_number: "",
 };
+
+/** יעד הקישור שנשלח במייל. נגזר מהדפדפן כדי שיעבוד גם ב-preview ובפיתוח. */
+function callbackUrl(next: string) {
+  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+}
 
 export function RegistrationWizard({
   skipToDetails,
@@ -46,14 +56,23 @@ export function RegistrationWizard({
   const supabase = createClient();
 
   const [step, setStep] = useState<Step>(skipToDetails ? "details" : "auth");
+  const [sentKind, setSentKind] = useState<SentKind>("verify");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [details, setDetails] = useState<DetailsFormValues>(emptyDetails);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState<string | null>(
     linkExpiredError ? "הקישור פג תוקף או שכבר נעשה בו שימוש." : null,
   );
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   /** בודק אם למשתמש שהתחבר/נרשם כרגע כבר יש פרופיל, ומנתב בהתאם. */
   async function proceedAfterAuth(userId: string) {
@@ -71,6 +90,14 @@ export function RegistrationWizard({
     setStep("details");
   }
 
+  function goToSent(kind: SentKind) {
+    setSentKind(kind);
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+    setNotice(null);
+    setError(null);
+    setStep("sent");
+  }
+
   async function handleRegister(e?: React.FormEvent) {
     e?.preventDefault();
     setError(null);
@@ -85,12 +112,13 @@ export function RegistrationWizard({
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
+      options: { emailRedirectTo: callbackUrl("/login") },
     });
     setLoading(false);
 
     if (error) {
       if (/already registered|already exists|user_already_exists/i.test(error.message)) {
-        setError("כתובת המייל כבר בשימוש. אם זה אתה — לחץ/י על \"התחברות\" במקום.");
+        setError('כתובת המייל כבר בשימוש. אם זה אתה — לחץ/י על "התחברות" במקום.');
       } else {
         setError(`ההרשמה נכשלה: ${error.message}`);
       }
@@ -100,14 +128,17 @@ export function RegistrationWizard({
       setError("ההרשמה נכשלה. נסו שוב.");
       return;
     }
+
+    setEmail(parsed.data.email);
+
+    // אין session → Supabase מחכה לאישור מייל. זו גם התשובה שמתקבלת כשכתובת
+    // המייל כבר רשומה (Supabase לא מגלה את זה בכוונה), ובשני המקרים המסך
+    // הנכון להציג זהה: "שלחנו לך קישור".
     if (!data.session) {
-      // נדרש אישור מייל בצד Supabase (עדיין לא כובה בהגדרות) — אין לנו כרגע
-      // דרך לשלוח את המייל הזה בפועל (ר' באג Resend sandbox).
-      setError("ההרשמה נוצרה אך נדרש אישור מייל בצד השרת. יש לפנות למנהל המערכת.");
+      goToSent("verify");
       return;
     }
 
-    setEmail(parsed.data.email);
     await proceedAfterAuth(data.user.id);
   }
 
@@ -128,13 +159,67 @@ export function RegistrationWizard({
     });
     setLoading(false);
 
-    if (error || !data.user) {
+    if (error) {
+      if (/not confirmed|email_not_confirmed/i.test(error.message)) {
+        setEmail(parsed.data.email);
+        goToSent("verify");
+        return;
+      }
+      setError("אימייל או סיסמה שגויים.");
+      return;
+    }
+    if (!data.user) {
       setError("אימייל או סיסמה שגויים.");
       return;
     }
 
     setEmail(parsed.data.email);
     await proceedAfterAuth(data.user.id);
+  }
+
+  async function handleForgot(e?: React.FormEvent) {
+    e?.preventDefault();
+    setError(null);
+
+    const parsed = emailOnlySchema.safeParse({ email });
+    if (!parsed.success) {
+      setError(z.prettifyError(parsed.error));
+      return;
+    }
+
+    setLoading(true);
+    // Supabase לא מחזירה שגיאה על כתובת שלא קיימת — בכוונה, כדי שלא יהיה
+    // אפשר לברר דרך המסך הזה מי רשום במערכת. לכן המסך הבא זהה בכל מקרה.
+    await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      redirectTo: callbackUrl("/reset-password"),
+    });
+    setLoading(false);
+
+    setEmail(parsed.data.email);
+    goToSent("reset");
+  }
+
+  async function handleResend() {
+    if (cooldown > 0) return;
+    setError(null);
+    setNotice(null);
+    setLoading(true);
+
+    if (sentKind === "reset") {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: callbackUrl("/reset-password"),
+      });
+    } else {
+      await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: callbackUrl("/login") },
+      });
+    }
+
+    setLoading(false);
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+    setNotice("שלחנו שוב. בדקו גם בתיקיית הספאם.");
   }
 
   function handleSubmitDetails(e: React.FormEvent) {
@@ -168,17 +253,29 @@ export function RegistrationWizard({
     router.refresh();
   }
 
+  function backToAuth() {
+    setError(null);
+    setNotice(null);
+    setPassword("");
+    setStep("auth");
+  }
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>
           <Logo markClassName="size-12" wordmarkClassName="text-2xl" />
         </CardTitle>
-        <CardDescription>{stepDescription(step)}</CardDescription>
+        <CardDescription>{stepDescription(step, sentKind)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {step === "auth" && (
-          <form onSubmit={handleRegister} className="flex flex-col gap-4">
+          // בכוונה בלי onSubmit אמיתי: יש כאן שתי פעולות אפשריות (הרשמה/התחברות)
+          // באותו טופס. Enter/"Go" במקלדת נייד או autofill היו מפעילים תמיד
+          // את type="submit" הראשון (הרשמה) — גם כשהמשתמש רק רצה להתחבר או
+          // הגיע דרך "שכחתי סיסמה" וממש לא התכוון להירשם. שתי הכפתורים type="button"
+          // מפורש, כדי שדבר לא יקרה בלי לחיצה מודעת.
+          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">כתובת מייל</Label>
               <Input
@@ -207,7 +304,7 @@ export function RegistrationWizard({
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2">
-              <Button type="submit" disabled={loading} className="flex-1">
+              <Button type="button" disabled={loading} className="flex-1" onClick={() => handleRegister()}>
                 {loading ? "נרשם/ת..." : "הרשמה"}
               </Button>
               <Button
@@ -220,7 +317,78 @@ export function RegistrationWizard({
                 {loading ? "מתחבר/ת..." : "התחברות"}
               </Button>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-center"
+              onClick={() => {
+                setError(null);
+                setStep("forgot");
+              }}
+            >
+              שכחתי סיסמה
+            </Button>
           </form>
+        )}
+
+        {step === "forgot" && (
+          <form onSubmit={handleForgot} className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              נשלח לך קישור לבחירת סיסמה חדשה. הקישור תקף לזמן מוגבל.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="forgot_email">כתובת המייל שאיתה נרשמת</Label>
+              <Input
+                id="forgot_email"
+                type="email"
+                inputMode="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                dir="ltr"
+                className="text-left"
+                autoFocus
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" disabled={loading}>
+              {loading ? "שולח..." : "שליחת קישור לאיפוס"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={backToAuth}>
+              חזרה להתחברות
+            </Button>
+          </form>
+        )}
+
+        {step === "sent" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm">
+              שלחנו הודעה לכתובת{" "}
+              <span dir="ltr" className="font-medium">
+                {email}
+              </span>
+              .
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {sentKind === "verify"
+                ? "יש לפתוח את המייל וללחוץ על קישור האימות, ואז לחזור לכאן להשלמת ההרשמה. אם ההודעה לא הגיעה — כדאי לבדוק בתיקיית הספאם."
+                : "יש לפתוח את המייל וללחוץ על הקישור כדי לבחור סיסמה חדשה. אם ההודעה לא הגיעה — כדאי לבדוק בתיקיית הספאם."}
+            </p>
+            {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading || cooldown > 0}
+              onClick={handleResend}
+            >
+              {cooldown > 0 ? `שליחה חוזרת בעוד ${cooldown} שניות` : "שליחה חוזרת"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={backToAuth}>
+              חזרה להתחברות
+            </Button>
+          </div>
         )}
 
         {step === "details" && (
@@ -318,10 +486,14 @@ export function RegistrationWizard({
   );
 }
 
-function stepDescription(step: Step) {
+function stepDescription(step: Step, sentKind: SentKind) {
   switch (step) {
     case "auth":
       return "התחברות / הרשמה עם מייל וסיסמה";
+    case "forgot":
+      return "איפוס סיסמה";
+    case "sent":
+      return sentKind === "verify" ? "אימות כתובת מייל" : "איפוס סיסמה";
     case "details":
       return "פרטים אישיים";
     case "terms":

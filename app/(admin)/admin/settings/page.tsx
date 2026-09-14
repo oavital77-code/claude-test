@@ -18,9 +18,12 @@ export default async function AdminSettingsPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: settings }, { data: tiers }] = await Promise.all([
+  const [{ data: settings }, { data: tiers }, { data: resetAvailable }] = await Promise.all([
     supabase.from("app_settings").select("*").order("key"),
     supabase.from("punch_card_tiers").select("*").order("sort_order"),
+    // ננעל לתמיד ברגע שמשתמש/ת שאינם אדמין שילמו בפועל — כדי שהכפתור
+    // יוצג כנעול מראש, ולא יתגלה כנעול רק אחרי הקלדת מילת האישור.
+    supabase.rpc("is_system_reset_available"),
   ]);
 
   const settingsWithLabels = (settings ?? [])
@@ -30,7 +33,11 @@ export default async function AdminSettingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-4">
       <h1 className="text-xl font-semibold">הגדרות</h1>
-      <SettingsClient settings={settingsWithLabels} tiers={tiers ?? []} />
+      <SettingsClient
+        settings={settingsWithLabels}
+        tiers={tiers ?? []}
+        resetAvailable={resetAvailable === true}
+      />
     </div>
   );
 }

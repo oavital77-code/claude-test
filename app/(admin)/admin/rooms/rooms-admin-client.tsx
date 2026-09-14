@@ -14,12 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
+import { validateRoomImage } from "@/lib/room-images";
 import { saveBranch, saveRoom, uploadRoomImage, removeRoomImage } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
 
-const ROOM_TYPE_LABELS: Record<Room["room_type"], string> = {
+const ROOM_TYPE_LABELS: Record<Room["room_type"][number], string> = {
   talk: "שיח",
   touch: "מגע",
   podcast: "פודקאסט",
@@ -138,7 +139,7 @@ export function RoomsAdminClient({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">
-                          {r.name} · {ROOM_TYPE_LABELS[r.room_type]}{" "}
+                          {r.name} · {r.room_type.map((t) => ROOM_TYPE_LABELS[t]).join(" + ")}{" "}
                           {!r.active && <span className="text-muted-foreground">(כבוי)</span>}
                         </p>
                         <p className="text-sm text-muted-foreground">{r.description}</p>
@@ -256,7 +257,7 @@ function RoomForm({
 }) {
   const [selectedBranchId, setSelectedBranchId] = useState(room?.branch_id ?? branchId);
   const [name, setName] = useState(room?.name ?? "");
-  const [roomType, setRoomType] = useState<Room["room_type"]>(room?.room_type ?? "talk");
+  const [roomTypes, setRoomTypes] = useState<Room["room_type"]>(room?.room_type ?? ["talk"]);
   const [capacity, setCapacity] = useState(String(room?.capacity ?? 2));
   const [description, setDescription] = useState(room?.description ?? "");
   const [equipment, setEquipment] = useState(
@@ -268,13 +269,17 @@ function RoomForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (roomTypes.length === 0) {
+      setError("יש לבחור לפחות סוג חדר אחד");
+      return;
+    }
     setLoading(true);
     setError(null);
     const result = await saveRoom({
       id: room?.id,
       branch_id: selectedBranchId,
       name,
-      room_type: roomType,
+      room_type: roomTypes,
       capacity,
       description,
       equipment,
@@ -315,18 +320,30 @@ function RoomForm({
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>סוג חדר</Label>
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={roomType}
-                onChange={(e) => setRoomType(e.target.value as Room["room_type"])}
-              >
-                {Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              {/* מערך, לא ערך יחיד: יש חדרים שמשמשים ליותר מסוג טיפול אחד
+                  (למשל חדר עם מיטת טיפולים שגם מתאים לשיח). */}
+              <Label>סוג חדר (אפשר לבחור כמה)</Label>
+              <div className="flex flex-wrap gap-3 rounded-md border border-input px-3 py-2">
+                {Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => {
+                  const typedValue = value as Room["room_type"][number];
+                  const checked = roomTypes.includes(typedValue);
+                  return (
+                    <label key={value} className="flex items-center gap-1.5 text-sm">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setRoomTypes((prev) =>
+                            v === true
+                              ? [...prev, typedValue]
+                              : prev.filter((t) => t !== typedValue),
+                          )
+                        }
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>קיבולת</Label>
@@ -377,29 +394,51 @@ function RoomImagesEditor({ room, onChanged }: { room: Room; onChanged: () => vo
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setLoading(true);
-    setError(null);
-    const formData = new FormData();
-    formData.set("file", file);
-    const result = await uploadRoomImage(room.id, formData);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
+
+    // בדיקה בצד הלקוח לפני השליחה: קובץ פסול נעצר מיד עם הודעה ברורה,
+    // בלי סבב מיותר לשרת. אותה בדיקה בדיוק רצה שוב בצד השרת.
+    const invalid = validateRoomImage(file);
+    if (invalid) {
+      setError(invalid);
       return;
     }
-    onChanged();
+
+    setLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadRoomImage(room.id, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onChanged();
+    } catch {
+      // ה-action יכול להיזרק לפני שהקוד שלו רץ (למשל חריגה ממגבלת גוף
+      // הבקשה, או נפילת רשת). בלי ה-catch הזה ה-finally לא היה רץ והכפתור
+      // היה נתקע על "מעלה..." לנצח, בלי שום הודעה — זה היה הבאג המקורי.
+      setError("העלאת התמונה נכשלה. נסו שוב, או בחרו קובץ קטן יותר.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRemove(url: string) {
     setLoading(true);
     setError(null);
-    const result = await removeRoomImage(room.id, url);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await removeRoomImage(room.id, url);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("הסרת התמונה נכשלה. נסו שוב.");
+    } finally {
+      setLoading(false);
     }
-    onChanged();
   }
 
   return (
