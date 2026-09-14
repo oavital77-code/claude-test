@@ -98,7 +98,9 @@ export function AvailabilityGrid({
           gridTemplateColumns: `56px repeat(${columns.length}, minmax(84px, 1fr))`,
         }}
       >
-        <div className="sticky top-0 z-10 border-b border-l bg-background" />
+        {/* פינת ההצטלבות — נעוצה בשני הכיוונים, ולכן z גבוה משניהם, אחרת
+            עמודת השעות הייתה עוברת מעליה בגלילה אופקית. */}
+        <div className="sticky start-0 top-0 z-20 border-b border-l bg-background" />
         {columns.map((col) => (
           <div
             key={col.key}
@@ -112,7 +114,10 @@ export function AvailabilityGrid({
           const isHour = slot.start.getUTCMinutes() % 60 === 0 || i === 0;
           return (
             <FragmentRow key={slot.start.toISOString()}>
-              <div className="border-l p-1 text-left text-[10px] text-muted-foreground">
+              {/* עמודת השעות נעוצה לקצה ההתחלתי (ב-RTL — ימין) כדי שתישאר
+                  גלויה בגלילה אופקית על פני החדרים/הימים. חובה רקע אטום,
+                  אחרת תוכן התאים נגלל מתחתיה ונראה דרכה. */}
+              <div className="sticky start-0 z-10 border-l bg-background p-1 text-left text-[10px] text-muted-foreground">
                 {isHour ? formatInTimeZone(slot.start, TIMEZONE, "HH:mm") : ""}
               </div>
               {columns.map((col) => {

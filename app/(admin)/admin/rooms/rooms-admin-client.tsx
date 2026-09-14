@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
+import { validateRoomImage } from "@/lib/room-images";
 import { saveBranch, saveRoom, uploadRoomImage, removeRoomImage } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
@@ -393,29 +394,51 @@ function RoomImagesEditor({ room, onChanged }: { room: Room; onChanged: () => vo
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setLoading(true);
-    setError(null);
-    const formData = new FormData();
-    formData.set("file", file);
-    const result = await uploadRoomImage(room.id, formData);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
+
+    // בדיקה בצד הלקוח לפני השליחה: קובץ פסול נעצר מיד עם הודעה ברורה,
+    // בלי סבב מיותר לשרת. אותה בדיקה בדיוק רצה שוב בצד השרת.
+    const invalid = validateRoomImage(file);
+    if (invalid) {
+      setError(invalid);
       return;
     }
-    onChanged();
+
+    setLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadRoomImage(room.id, formData);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onChanged();
+    } catch {
+      // ה-action יכול להיזרק לפני שהקוד שלו רץ (למשל חריגה ממגבלת גוף
+      // הבקשה, או נפילת רשת). בלי ה-catch הזה ה-finally לא היה רץ והכפתור
+      // היה נתקע על "מעלה..." לנצח, בלי שום הודעה — זה היה הבאג המקורי.
+      setError("העלאת התמונה נכשלה. נסו שוב, או בחרו קובץ קטן יותר.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRemove(url: string) {
     setLoading(true);
     setError(null);
-    const result = await removeRoomImage(room.id, url);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await removeRoomImage(room.id, url);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("הסרת התמונה נכשלה. נסו שוב.");
+    } finally {
+      setLoading(false);
     }
-    onChanged();
   }
 
   return (
