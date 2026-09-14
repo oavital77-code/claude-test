@@ -204,8 +204,8 @@ function DangerZone({ available }: { available: boolean }) {
         return;
       }
       setDone(
-        `הושלם: נמחקו ${result.therapists} מטפלים, ${result.bookings} הזמנות, ` +
-          `${result.rooms} חדרים ו-${result.branches} סניפים.`,
+        `הושלם: נמחקו ${result.therapists} מטפלים, ${result.bookings} הזמנות ` +
+          `ו-${result.blocks} חסימות. הסניפים והחדרים נשארו על כנם.`,
       );
       setOpen(false);
       setTyped("");
@@ -226,11 +226,11 @@ function DangerZone({ available }: { available: boolean }) {
         <div className="text-sm text-muted-foreground">
           <p className="mb-2">
             מוחק <strong>לצמיתות ובלי אפשרות שחזור</strong>: כל המטפלים וחשבונות ההתחברות שלהם,
-            כל ההזמנות, הכרטיסיות, מנויי הססיה, התשלומים, החסימות, החדרים והסניפים.
+            כל ההזמנות, הכרטיסיות, מנויי הססיה, התשלומים וחסימות הלוח.
           </p>
           <p className="mb-2">
-            <strong>שורדים:</strong> חשבונות האדמין, יומן הפעולות (כתיעוד), ותצורת החנות (מיפוי
-            מוצרי Woo). המחירים וההגדרות חוזרים לברירות המחדל.
+            <strong>לא נוגע ב:</strong> הסניפים והחדרים · חשבונות האדמין · יומן הפעולות (כתיעוד) ·
+            תצורת החנות (מיפוי מוצרי Woo). המחירים וההגדרות חוזרים לברירות המחדל.
           </p>
           <p>מיועד לניקוי לפני כניסת משתמשים אמיתיים בלבד.</p>
         </div>

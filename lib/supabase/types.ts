@@ -576,8 +576,8 @@ export type Database = {
         Returns: {
           therapists_deleted: number;
           bookings_deleted: number;
-          rooms_deleted: number;
-          branches_deleted: number;
+          blocks_deleted: number;
+          orphan_auth_users_deleted: number;
         };
       };
       is_system_reset_available: {

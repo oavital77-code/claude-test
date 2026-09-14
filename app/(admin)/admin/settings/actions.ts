@@ -26,8 +26,7 @@ export type ResetSystemResult =
       ok: true;
       therapists: number;
       bookings: number;
-      rooms: number;
-      branches: number;
+      blocks: number;
     }
   | { ok: false; error: string };
 
@@ -64,16 +63,14 @@ export async function resetSystemToZeroAction(confirmation: string): Promise<Res
   const summary = data as {
     therapists_deleted: number;
     bookings_deleted: number;
-    rooms_deleted: number;
-    branches_deleted: number;
+    blocks_deleted: number;
   };
 
   return {
     ok: true,
     therapists: summary.therapists_deleted,
     bookings: summary.bookings_deleted,
-    rooms: summary.rooms_deleted,
-    branches: summary.branches_deleted,
+    blocks: summary.blocks_deleted,
   };
 }
 
