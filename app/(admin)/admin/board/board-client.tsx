@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { WEEKDAY_LABELS, slotHours } from "@/lib/pricing/session";
+import { roomTypeLabel } from "@/lib/rooms";
 import type { Database } from "@/lib/supabase/types";
 import type { SlotStatus } from "@/lib/availability/types";
 import {
@@ -160,7 +161,7 @@ export function BoardClient({
   const therapistById = useMemo(() => new Map(therapists.map((t) => [t.id, t])), [therapists]);
 
   const gridColumns: GridColumn[] = useMemo(
-    () => rooms.map((r) => ({ key: r.id, label: r.name, sublabel: r.description })),
+    () => rooms.map((r) => ({ key: r.id, label: r.name, sublabel: roomTypeLabel(r.room_type) })),
     [rooms],
   );
   const gridSlots = useMemo(() => daySlots(date), [date]);

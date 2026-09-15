@@ -10,9 +10,9 @@ export interface GridColumn {
   key: string;
   label: string;
   /**
-   * שורה משנית מתחת לכותרת — בלוח החדרים זהו תיאור החדר ("ספה זוגית +
-   * כורסא"), כדי שמטפל/ת תדע מה היא מזמינה ולא רק "Room 2". בתצוגה
-   * השבועית (עמודות = ימים) אין ערך כזה והכותרת נשארת שורה אחת.
+   * שורה משנית מתחת לכותרת — בלוח החדרים זהו סוג החדר ("חדר שיח",
+   * "חדר מגע + שיח"), כדי שמטפל/ת תדע מה היא מזמינה ולא רק "Room 2".
+   * בתצוגה השבועית (עמודות = ימים) אין ערך כזה והכותרת נשארת שורה אחת.
    */
   sublabel?: string | null;
 }
@@ -101,7 +101,7 @@ export function AvailabilityGrid({
       <div
         className="grid"
         style={{
-          // עמודה עם תיאור חדר צריכה מקום לשתי שורות טקסט; בלי תיאור
+          // עמודה עם סוג חדר צריכה מקום לשתי שורות טקסט; בלי שורה משנית
           // (תצוגה שבועית לפי ימים) נשארים ברוחב המקורי הצר.
           gridTemplateColumns: `56px repeat(${columns.length}, minmax(${
             columns.some((c) => c.sublabel) ? 112 : 84
@@ -114,7 +114,7 @@ export function AvailabilityGrid({
         {columns.map((col) => (
           <div
             key={col.key}
-            // התיאור המלא ב-title, כי הוא נחתך לשתי שורות בתצוגה עצמה
+            // הטקסט המלא ב-title, כי הוא נחתך לשתי שורות בתצוגה עצמה
             title={col.sublabel ?? undefined}
             className="sticky top-0 z-10 flex flex-col gap-0.5 border-b border-l bg-background p-2 text-center last:border-l-0"
           >

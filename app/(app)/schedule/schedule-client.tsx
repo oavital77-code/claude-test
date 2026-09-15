@@ -30,18 +30,12 @@ import type { AvailabilityInterval, SlotStatus } from "@/lib/availability/types"
 import type { Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
+import { ROOM_TYPE_LABELS, roomTypeLabel } from "@/lib/rooms";
 import { bookSlot } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
 type View = "day" | "week" | "month";
-
-const ROOM_TYPE_LABELS: Record<Room["room_type"][number], string> = {
-  talk: "שיח",
-  touch: "מגע",
-  podcast: "פודקאסט",
-  group: "קבוצתי",
-};
 
 const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -111,7 +105,7 @@ export function ScheduleClient({
       const cols: GridColumn[] = filteredRooms.map((r) => ({
         key: r.id,
         label: r.name,
-        sublabel: r.description,
+        sublabel: roomTypeLabel(r.room_type),
       }));
       return { rangeStart: start, rangeEnd: end, slots: daySlots(date), columns: cols, slotsAnchorDate: date };
     }

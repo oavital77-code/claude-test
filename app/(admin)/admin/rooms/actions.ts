@@ -8,8 +8,14 @@ import { validateRoomImage } from "@/lib/room-images";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+// z.guid() ולא z.string().uuid(): מגרסה 4 של Zod, `.uuid()` אוכף גם את
+// ספרת *הגרסה* של ה-UUID לפי RFC 9562. מזהי הסניפים בבסיס הנתונים הם
+// 00000000-0000-0000-0000-00000000000X (מה-seed), שאין להם ספרת גרסה
+// תקינה — וכל שמירת חדר נכשלה ב"פרטי החדר לא תקינים". `z.guid()` בודק
+// את הצורה בלבד; התקינות האמיתית נאכפת ממילא ע"י מפתחות זרים ב-DB.
+
 const branchSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   name: z.string().trim().min(1, "יש להזין שם סניף"),
   address: z.string().trim().min(1, "יש להזין כתובת"),
   waze_url: z.string().trim().optional().or(z.literal("")),
@@ -42,8 +48,8 @@ export async function saveBranch(formValues: unknown): Promise<ActionResult> {
 }
 
 const roomSchema = z.object({
-  id: z.string().uuid().optional(),
-  branch_id: z.string().uuid(),
+  id: z.guid().optional(),
+  branch_id: z.guid(),
   name: z.string().trim().min(1, "יש להזין שם חדר"),
   room_type: z.array(z.enum(["talk", "touch", "podcast", "group"])).min(1, "יש לבחור לפחות סוג חדר אחד"),
   capacity: z.coerce.number().int().min(1).max(20),

@@ -15,17 +15,11 @@ import {
 } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import { validateRoomImage } from "@/lib/room-images";
+import { ROOM_TYPE_LABELS } from "@/lib/rooms";
 import { saveBranch, saveRoom, uploadRoomImage, removeRoomImage } from "./actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
-
-const ROOM_TYPE_LABELS: Record<Room["room_type"][number], string> = {
-  talk: "שיח",
-  touch: "מגע",
-  podcast: "פודקאסט",
-  group: "קבוצתי",
-};
 
 export function RoomsAdminClient({
   branches,
