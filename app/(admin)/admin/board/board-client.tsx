@@ -160,7 +160,7 @@ export function BoardClient({
   const therapistById = useMemo(() => new Map(therapists.map((t) => [t.id, t])), [therapists]);
 
   const gridColumns: GridColumn[] = useMemo(
-    () => rooms.map((r) => ({ key: r.id, label: r.name })),
+    () => rooms.map((r) => ({ key: r.id, label: r.name, sublabel: r.description })),
     [rooms],
   );
   const gridSlots = useMemo(() => daySlots(date), [date]);
