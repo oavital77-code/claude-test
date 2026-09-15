@@ -102,16 +102,16 @@ export async function adjustPunchCardHoursAction(
 }
 
 const sessionSlotSchema = z.object({
-  subscriptionId: z.string().uuid(),
-  roomId: z.string().uuid(),
+  subscriptionId: z.guid(),
+  roomId: z.guid(),
   weekday: z.number().int().min(0).max(6),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
 const claimSkeddaOneOffSchema = z.object({
-  userId: z.string().uuid(),
-  blockIds: z.array(z.string().uuid()).min(1),
+  userId: z.guid(),
+  blockIds: z.array(z.guid()).min(1),
 });
 
 export type ClaimSkeddaOneOffResult =
@@ -178,11 +178,11 @@ export async function claimSkeddaOneOffBlocksAction(input: unknown): Promise<Cla
 }
 
 const claimSkeddaSessionSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.guid(),
   slots: z
     .array(
       z.object({
-        roomId: z.string().uuid(),
+        roomId: z.guid(),
         weekday: z.number().int().min(0).max(6),
         startTime: z.string().regex(/^\d{2}:\d{2}$/),
         endTime: z.string().regex(/^\d{2}:\d{2}$/),
