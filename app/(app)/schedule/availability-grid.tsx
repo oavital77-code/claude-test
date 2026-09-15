@@ -9,6 +9,12 @@ import type { SlotStatus } from "@/lib/availability/types";
 export interface GridColumn {
   key: string;
   label: string;
+  /**
+   * שורה משנית מתחת לכותרת — בלוח החדרים זהו תיאור החדר ("ספה זוגית +
+   * כורסא"), כדי שמטפל/ת תדע מה היא מזמינה ולא רק "Room 2". בתצוגה
+   * השבועית (עמודות = ימים) אין ערך כזה והכותרת נשארת שורה אחת.
+   */
+  sublabel?: string | null;
 }
 
 const STATUS_STYLES: Record<SlotStatus, string> = {
@@ -95,7 +101,11 @@ export function AvailabilityGrid({
       <div
         className="grid"
         style={{
-          gridTemplateColumns: `56px repeat(${columns.length}, minmax(84px, 1fr))`,
+          // עמודה עם תיאור חדר צריכה מקום לשתי שורות טקסט; בלי תיאור
+          // (תצוגה שבועית לפי ימים) נשארים ברוחב המקורי הצר.
+          gridTemplateColumns: `56px repeat(${columns.length}, minmax(${
+            columns.some((c) => c.sublabel) ? 112 : 84
+          }px, 1fr))`,
         }}
       >
         {/* פינת ההצטלבות — נעוצה בשני הכיוונים, ולכן z גבוה משניהם, אחרת
@@ -104,9 +114,16 @@ export function AvailabilityGrid({
         {columns.map((col) => (
           <div
             key={col.key}
-            className="sticky top-0 z-10 border-b border-l bg-background p-2 text-center text-xs font-medium last:border-l-0"
+            // התיאור המלא ב-title, כי הוא נחתך לשתי שורות בתצוגה עצמה
+            title={col.sublabel ?? undefined}
+            className="sticky top-0 z-10 flex flex-col gap-0.5 border-b border-l bg-background p-2 text-center last:border-l-0"
           >
-            {col.label}
+            <span className="text-xs font-medium">{col.label}</span>
+            {col.sublabel && (
+              <span className="line-clamp-2 text-[10px] leading-tight font-normal text-muted-foreground">
+                {col.sublabel}
+              </span>
+            )}
           </div>
         ))}
 

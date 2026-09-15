@@ -77,6 +77,7 @@ export function ScheduleClient({
     columnKey: string;
     roomId: string;
     roomName: string;
+    roomDescription: string | null;
     start: Date;
     end: Date;
   } | null>(null);
@@ -107,7 +108,11 @@ export function ScheduleClient({
   const { rangeStart, rangeEnd, slots, columns, slotsAnchorDate } = useMemo(() => {
     if (view === "day") {
       const { start, end } = dayBoundaries(date);
-      const cols: GridColumn[] = filteredRooms.map((r) => ({ key: r.id, label: r.name }));
+      const cols: GridColumn[] = filteredRooms.map((r) => ({
+        key: r.id,
+        label: r.name,
+        sublabel: r.description,
+      }));
       return { rangeStart: start, rangeEnd: end, slots: daySlots(date), columns: cols, slotsAnchorDate: date };
     }
     if (view === "month") {
@@ -232,7 +237,9 @@ export function ScheduleClient({
    */
   function handleSlotClick(columnKey: string, slot: Slot) {
     const { roomId, start, end } = resolveSlot(columnKey, slot);
-    const roomName = rooms.find((r) => r.id === roomId)?.name ?? "";
+    const room = rooms.find((r) => r.id === roomId);
+    const roomName = room?.name ?? "";
+    const roomDescription = room?.description ?? null;
 
     if (selected && selected.columnKey === columnKey) {
       const rangeStart = selected.start < start ? selected.start : start;
@@ -243,11 +250,11 @@ export function ScheduleClient({
         return statusFor(columnKey, s) === "free";
       });
       if (allFree) {
-        setSelected({ columnKey, roomId, roomName, start: rangeStart, end: rangeEnd });
+        setSelected({ columnKey, roomId, roomName, roomDescription, start: rangeStart, end: rangeEnd });
         return;
       }
     }
-    setSelected({ columnKey, roomId, roomName, start, end });
+    setSelected({ columnKey, roomId, roomName, roomDescription, start, end });
   }
 
   /**
@@ -533,6 +540,7 @@ export function ScheduleClient({
             <SlotPreview
               roomId={selected.roomId}
               roomName={selected.roomName}
+              roomDescription={selected.roomDescription}
               branchName={currentBranchName}
               start={selected.start}
               end={selected.end}
@@ -552,6 +560,7 @@ export function ScheduleClient({
 function SlotPreview({
   roomId,
   roomName,
+  roomDescription,
   branchName,
   start,
   end,
@@ -560,6 +569,7 @@ function SlotPreview({
 }: {
   roomId: string;
   roomName: string;
+  roomDescription: string | null;
   branchName: string;
   start: Date;
   end: Date;
@@ -594,6 +604,8 @@ function SlotPreview({
           ✕
         </button>
       </div>
+      {/* תיאור החדר לפני האישור — מה שמבדיל בין "Room 2" ל"Room 3" בפועל. */}
+      {roomDescription && <p className="mb-2 text-xs text-muted-foreground">{roomDescription}</p>}
       <p dir="ltr" className="text-right">
         {formatInTimeZone(start, TIMEZONE, "HH:mm")}–{formatInTimeZone(end, TIMEZONE, "HH:mm")}
       </p>
