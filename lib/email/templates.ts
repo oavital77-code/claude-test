@@ -212,6 +212,34 @@ export function cronFailedAdminEmail(params: { jobName: string; detail: string }
   };
 }
 
+/**
+ * תשלום התקבל ב-Woo אבל לא הצלחנו לשייך אותו לתשלום ממתין — הכסף נגבה
+ * והשירות לא הופעל. זה חייב להגיע לאדמין: הזרימה הזו שקטה לחלוטין
+ * מבחינת המטפל/ת, שתגלה את התקלה רק ביום שבו תגיע לקליניקה.
+ * ללא PII — רק מזהה ההזמנה ב-Woo והסכומים.
+ */
+export function wooPaymentUnmatchedAdminEmail(params: {
+  wooOrderId: number;
+  reason: string;
+  expected?: number;
+  received?: number;
+}): EmailContent {
+  const amounts =
+    params.expected !== undefined && params.received !== undefined
+      ? `<p style="color:#6b7570;font-size:13px;">סכום שצפינו לו: ${params.expected} ₪ · סכום שהתקבל: ${params.received} ₪</p>`
+      : "";
+  return {
+    subject: `🚨 תשלום Woo לא שויך — הזמנה ${params.wooOrderId}`,
+    html: emailLayout(`
+      <p>התקבל תשלום בחנות, אבל לא הצלחנו לשייך אותו לתשלום ממתין במערכת —
+         כלומר <strong>הכסף נגבה והשירות לא הופעל</strong>.</p>
+      <p style="font-weight:700;">הזמנה ${params.wooOrderId} — ${params.reason}</p>
+      ${amounts}
+      <p>יש לבדוק ידנית מול החנות ולהפעיל את הססיה/הכרטיסייה דרך פאנל הניהול.</p>
+    `),
+  };
+}
+
 export function wooPurchaseReceivedEmail(params: {
   hours: number;
   registerUrl: string;

@@ -1,7 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/resend";
-import { wooPurchaseReceivedEmail, sessionRenewedEmail } from "@/lib/email/templates";
+import {
+  wooPurchaseReceivedEmail,
+  sessionRenewedEmail,
+  wooPaymentUnmatchedAdminEmail,
+} from "@/lib/email/templates";
+import { getAdminEmails } from "@/lib/email/recipients";
 import { toE164Israel } from "@/lib/phone";
 import { aggregatePurchaseRows, effectiveProductId, lineItemAmount } from "./line-items";
 import type { Database } from "@/lib/supabase/types";
@@ -162,7 +167,15 @@ async function activateSessionFromWooOrder(
     const { data } = await supabase.from("profiles").select("id, email").eq("email", params.email).maybeSingle();
     profile = data;
   }
-  if (!profile) return;
+  if (!profile) {
+    // אין עדיין חשבון Cleana תואם. בניגוד לכרטיסייה (שנשמרת כרכישה ממתינה
+    // ומחכה להרשמה), לססיה אין מנגנון כזה — התשלום פשוט לא משויך לאף אחד.
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "לא נמצא חשבון מטפל/ת תואם לטלפון או למייל שבהזמנה",
+    });
+    return;
+  }
 
   const transactionUid = `woo-session-${params.wooOrderId}`;
 
@@ -177,7 +190,15 @@ async function activateSessionFromWooOrder(
     .maybeSingle();
 
   if (initialPayment) {
-    if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) return;
+    if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) {
+      await alertPaymentUnmatched(supabase, {
+        wooOrderId: params.wooOrderId,
+        reason: "הסכום ששולם אינו תואם לתשלום הססיה הממתין",
+        expected: initialPayment.amount_total,
+        received: params.amountTotal,
+      });
+      return;
+    }
     await supabase.rpc("activate_session_payment", {
       p_payment_id: initialPayment.id,
       p_transaction_uid: transactionUid,
@@ -197,8 +218,22 @@ async function activateSessionFromWooOrder(
     .limit(1)
     .maybeSingle();
 
-  if (!renewalPayment) return;
-  if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) return;
+  if (!renewalPayment) {
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "נמצא חשבון, אך אין לו תשלום ססיה ממתין (ראשוני או חידוש)",
+    });
+    return;
+  }
+  if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) {
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "הסכום ששולם אינו תואם לחידוש הססיה הממתין",
+      expected: renewalPayment.amount_total,
+      received: params.amountTotal,
+    });
+    return;
+  }
 
   await supabase.rpc("finalize_session_renewal", {
     p_payment_id: renewalPayment.id,
@@ -208,4 +243,25 @@ async function activateSessionFromWooOrder(
 
   const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
   sendEmail({ to: profile.email, subject, html }).catch(() => {});
+}
+
+/**
+ * תשלום שהתקבל בחנות ולא הצליח להשתייך לתשלום ממתין הוא כשל שקט מסוכן:
+ * הכסף נגבה, השירות לא הופעל, ואף אחד לא יודע — המטפל/ת תגלה את זה רק
+ * ביום ההגעה לקליניקה. המסלול העיקרי לגילוי תשלומים הוא after() בטעינת
+ * עמוד, שעטוף ב-catch(() => {}), אז בלי ההתראה הזו אין שום עקבה.
+ */
+async function alertPaymentUnmatched(
+  supabase: SupabaseClient<Database>,
+  params: { wooOrderId: number; reason: string; expected?: number; received?: number },
+) {
+  console.error(`[woo] תשלום לא שויך — הזמנה ${params.wooOrderId}: ${params.reason}`);
+  try {
+    const adminEmails = await getAdminEmails(supabase);
+    if (adminEmails.length === 0) return;
+    const { subject, html } = wooPaymentUnmatchedAdminEmail(params);
+    await sendEmail({ to: adminEmails, subject, html });
+  } catch {
+    // ההתראה היא best-effort — כישלון בשליחתה לא אמור להפיל את עיבוד ההזמנה.
+  }
 }
