@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/resend";
 import { wooPurchaseReceivedEmail, sessionRenewedEmail } from "@/lib/email/templates";
 import { toE164Israel } from "@/lib/phone";
+import { aggregatePurchaseRows, effectiveProductId, lineItemAmount } from "./line-items";
 import type { Database } from "@/lib/supabase/types";
 
 // לוגיקת עיבוד הזמנת Woo — משותפת בין שני נתיבי כניסה: ה-webhook (POST push
@@ -23,14 +24,6 @@ export interface WooOrderPayload {
     total: string;
     total_tax?: string;
   }>;
-}
-
-// כרטיסייה ב-Woo היא מוצר משתנה (variable product) אחד — ל-line_item יש
-// product_id משותף לכל המדרגות (ה"הורה") ו-variation_id נפרד לכל מדרגה
-// בפועל. woo_product_tiers ממופה ל-variation_id (378–382), לא ל-product_id
-// (377) — variation_id=0/חסר (מוצר פשוט, כמו הססיה) → falls back ל-product_id.
-function effectiveProductId(item: { product_id: number; variation_id?: number }): number {
-  return item.variation_id && item.variation_id !== 0 ? item.variation_id : item.product_id;
 }
 
 export const PAID_STATUSES = new Set(["processing", "completed"]);
@@ -72,13 +65,13 @@ export async function processWooOrder(
   if (sessionProductId) {
     const sessionItem = lineItems.find((li) => effectiveProductId(li) === sessionProductId);
     if (sessionItem) {
-      const amountTotal = parseFloat(sessionItem.total) + parseFloat(sessionItem.total_tax ?? "0");
-      if (Number.isFinite(amountTotal)) {
+      const amountTotal = lineItemAmount(sessionItem);
+      if (amountTotal !== null) {
         await activateSessionFromWooOrder(supabase, {
           phone,
           email,
           wooOrderId: order.id,
-          amountTotal: Math.round(amountTotal * 100) / 100,
+          amountTotal,
         });
         sessionHandled = true;
       }
@@ -105,35 +98,17 @@ export async function processWooOrder(
       mappings.map((m) => m.tier_id),
     );
 
-  const rowsToInsert: {
-    woo_order_id: number;
-    tier_id: string;
-    phone: string | null;
-    email: string | null;
-    quantity: number;
-    amount_total: number;
-  }[] = [];
-
-  for (const item of lineItems) {
-    const mapping = mappings.find((m) => m.woo_product_id === effectiveProductId(item));
-    if (!mapping) continue;
-    const tier = tiers?.find((t) => t.id === mapping.tier_id);
-    if (!tier) continue;
-
-    // הסכום שנשמר הוא זה ש-Woo מדווח שבפועל שולם בשורה הזו (כולל מע"מ), לא
-    // חישוב מחדש ממחיר המדרגה — ר' חוק ברזל #6 (מקור האמת לתשלום).
-    const amountTotal = parseFloat(item.total) + parseFloat(item.total_tax ?? "0");
-    if (!Number.isFinite(amountTotal)) continue;
-
-    rowsToInsert.push({
-      woo_order_id: order.id,
-      tier_id: mapping.tier_id,
-      phone,
-      email,
-      quantity: item.quantity,
-      amount_total: Math.round(amountTotal * 100) / 100,
-    });
-  }
+  // איחוד לפי מדרגה לפני הכתיבה — שתי שורות מאותה מדרגה באותה הזמנה חייבות
+  // להפוך לשורה אחת, אחרת ה-upsert זורק את השנייה בשקט (ר' line-items.ts).
+  const aggregated = aggregatePurchaseRows(lineItems, mappings);
+  const rowsToInsert = aggregated.map((row) => ({
+    woo_order_id: order.id,
+    tier_id: row.tier_id,
+    phone,
+    email,
+    quantity: row.quantity,
+    amount_total: row.amount_total,
+  }));
 
   if (rowsToInsert.length === 0) {
     return sessionHandled ? { ok: true } : { ok: true, skipped: "NO_MAPPED_PRODUCTS" };
