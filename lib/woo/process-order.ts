@@ -59,12 +59,19 @@ export async function processWooOrder(
     return { ok: true, skipped: "NO_LINE_ITEMS" };
   }
 
-  const { data: sessionProductSetting } = await supabase
+  const { data: settingRows } = await supabase
     .from("app_settings")
-    .select("value")
-    .eq("key", "woo_session_product_id")
-    .maybeSingle();
-  const sessionProductId = typeof sessionProductSetting?.value === "number" ? sessionProductSetting.value : 0;
+    .select("key, value")
+    .in("key", ["woo_session_product_id", "woo_purchase_email_enabled"]);
+  const settingNumber = (key: string): number => {
+    const v = settingRows?.find((r) => r.key === key)?.value;
+    return typeof v === "number" ? v : 0;
+  };
+  const sessionProductId = settingNumber("woo_session_product_id");
+  // 0 עד ההשקה: החנות חיה והמערכת עוד לא, ולקוחות אמיתיות קיבלו קישור
+  // הרשמה מוקדם מדי. הרכישה עצמה נרשמת בכל מקרה (ר' upsert למטה) — רק
+  // המייל נעצר. ר' 20261003000001_pause_woo_purchase_email.sql.
+  const purchaseEmailEnabled = settingNumber("woo_purchase_email_enabled") === 1;
 
   let sessionHandled = false;
   if (sessionProductId) {
@@ -139,7 +146,7 @@ export async function processWooOrder(
     return sum + (tier ? tier.hours * row.quantity : 0);
   }, 0);
 
-  if (email && newHours > 0) {
+  if (purchaseEmailEnabled && email && newHours > 0) {
     const registerUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/login`;
     const { subject, html } = wooPurchaseReceivedEmail({ hours: newHours, registerUrl });
     sendEmail({ to: email, subject, html }).catch(() => {});
