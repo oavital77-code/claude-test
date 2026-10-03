@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
 import { ROOM_TYPE_LABELS, roomTypeLabel } from "@/lib/rooms";
 import { bookSlot } from "./actions";
+import { HolidayTags, hasChag, holidaySublabel } from "./holiday-tags";
+import type { HolidayMap } from "@/lib/holiday-types";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -52,10 +54,12 @@ export function ScheduleClient({
   branches,
   userId,
   fullName,
+  holidays,
 }: {
   branches: Branch[];
   userId: string;
   fullName: string;
+  holidays: HolidayMap;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
@@ -120,6 +124,8 @@ export function ScheduleClient({
     const cols: GridColumn[] = weekDates.map((d) => ({
       key: d,
       label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM", { locale: he }),
+      sublabel: holidaySublabel(holidays, d),
+      highlight: hasChag(holidays[d]),
     }));
     return {
       rangeStart: start,
@@ -128,7 +134,7 @@ export function ScheduleClient({
       columns: cols,
       slotsAnchorDate: weekDates[0],
     };
-  }, [view, date, filteredRooms, monthDates]);
+  }, [view, date, filteredRooms, monthDates, holidays]);
 
   // יום וחודש: כל החדרים המסוננים (צריך זמינות לכולם בו-זמנית). שבוע: חדר
   // אחד בלבד, כי התצוגה היא עמודה לכל יום עבור אותו חדר.
@@ -386,6 +392,8 @@ export function ScheduleClient({
         </Button>
       </div>
 
+      {view === "day" && <HolidayTags holidays={holidays} dateYmd={date} />}
+
       <div className="flex flex-wrap items-center gap-2">
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
@@ -487,6 +495,7 @@ export function ScheduleClient({
                   >
                     {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
                   </span>
+                  <HolidayTags holidays={holidays} dateYmd={d} className="flex-col" />
 
                   {info && info.mine.slice(0, 2).map((m, i) => (
                     <span

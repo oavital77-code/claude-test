@@ -29,6 +29,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { WEEKDAY_LABELS, slotHours } from "@/lib/pricing/session";
 import { roomTypeLabel } from "@/lib/rooms";
+import type { HolidayMap } from "@/lib/holiday-types";
+import { HolidayTags, hasChag, holidaySublabel } from "@/app/(app)/schedule/holiday-tags";
 import type { Database } from "@/lib/supabase/types";
 import type { SlotStatus } from "@/lib/availability/types";
 import {
@@ -71,11 +73,13 @@ export function BoardClient({
   therapists,
   baseHours,
   basePrice,
+  holidays,
 }: {
   branches: Branch[];
   therapists: Therapist[];
   baseHours: number;
   basePrice: number;
+  holidays: HolidayMap;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -222,8 +226,10 @@ export function BoardClient({
       weekDates.map((d) => ({
         key: d,
         label: formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "EEEEEE dd/MM", { locale: he }),
+        sublabel: holidaySublabel(holidays, d),
+        highlight: hasChag(holidays[d]),
       })),
-    [weekDates],
+    [weekDates, holidays],
   );
   const weekSlots = useMemo(() => daySlots(weekDates[0]), [weekDates]);
 
@@ -331,6 +337,8 @@ export function BoardClient({
           היום
         </Button>
       </div>
+
+      {(viewMode === "list" || viewMode === "grid") && <HolidayTags holidays={holidays} dateYmd={date} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} onClick={() => setViewMode("list")}>
@@ -475,6 +483,7 @@ export function BoardClient({
                       </span>
                     )}
                   </div>
+                  <HolidayTags holidays={holidays} dateYmd={d} className="flex-col" />
 
                   {dayEntries.slice(0, MONTH_PREVIEW_LIMIT).map((entry, i) => (
                     <span
