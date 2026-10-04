@@ -103,3 +103,16 @@ describe("parseScheduleFile", () => {
     expect(parseScheduleFile("").errors[0].message).toBe("הקובץ ריק");
   });
 });
+
+describe("parseScheduleFile — עמודת סניף", () => {
+  it("נקלטת כשקיימת", () => {
+    const r = parseScheduleFile("שם,סניף,חדר,תאריך,שעה\nדנה,נווה ימין,Room 3,05/10/2026,09:00");
+    expect(r.errors).toEqual([]);
+    expect(r.rows[0].branchName).toBe("נווה ימין");
+  });
+
+  it("אופציונלית — בלי עמודה, branchName הוא null", () => {
+    const r = parseScheduleFile("שם,חדר,תאריך,שעה\nדנה,Room 3,05/10/2026,09:00");
+    expect(r.rows[0].branchName).toBeNull();
+  });
+});

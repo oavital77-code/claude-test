@@ -17,6 +17,8 @@ export type ParsedRow = {
   rowNumber: number;
   therapistName: string;
   email: string | null;
+  /** אופציונלי, אבל חובה בפועל כשאותו שם חדר קיים ביותר מסניף אחד (ר' resolve-room.ts). */
+  branchName: string | null;
   roomName: string;
   /** yyyy-MM-dd */
   date: string;
@@ -41,6 +43,7 @@ const DEFAULT_DURATION_MINUTES = 60;
 const HEADER_ALIASES: Record<keyof Omit<ParsedRow, "rowNumber">, string[]> = {
   therapistName: ["שם", "שם מלא", "שם מטפל", "שם מטפלת", "שם המטפל", "מטפל", "מטפלת", "name", "full name", "therapist"],
   email: ["מייל", "אימייל", "דואר אלקטרוני", "email", "e-mail", "mail"],
+  branchName: ["סניף", "שם סניף", "branch", "location", "מיקום"],
   roomName: ["חדר", "שם חדר", "room", "room name"],
   date: ["תאריך", "date", "day"],
   startTime: ["שעה", "משעה", "שעת התחלה", "התחלה", "start", "start time", "from", "time"],
@@ -235,8 +238,9 @@ export function parseScheduleFile(text: string): ParseResult {
     }
 
     const email = at("email").toLowerCase() || null;
+    const branchName = at("branchName") || null;
 
-    rows.push({ rowNumber, therapistName, email, roomName, date, startTime, endTime });
+    rows.push({ rowNumber, therapistName, email, branchName, roomName, date, startTime, endTime });
   }
 
   return { rows, errors, unknownHeaders };
