@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { TIMEZONE } from "@/lib/time";
 import { parseScheduleFile, type RowError } from "@/lib/schedule-import/parse";
+import { buildRoomResolver } from "@/lib/schedule-import/resolve-room";
 import { FILE_IMPORT_MARKER } from "@/lib/skedda-import/group";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -91,11 +92,6 @@ export type ScheduleImportResult =
     }
   | { ok: false; error: string };
 
-/** השוואת שמות חדרים סלחנית — רווחים כפולים/רישיות לא אמורים להפיל ייבוא. */
-function normalizeRoomName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
@@ -137,8 +133,14 @@ export async function importScheduleAction(
   }
 
   const supabase = await createClient();
-  const { data: rooms } = await supabase.from("rooms").select("id, name").eq("active", true);
-  const roomByName = new Map((rooms ?? []).map((r) => [normalizeRoomName(r.name), r.id]));
+  const [{ data: rooms }, { data: branches }] = await Promise.all([
+    supabase.from("rooms").select("id, name, branch_id").eq("active", true),
+    supabase.from("branches").select("id, name"),
+  ]);
+  const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const resolveRoom = buildRoomResolver(
+    (rooms ?? []).map((r) => ({ id: r.id, name: r.name, branchName: branchNameById.get(r.branch_id) ?? "" })),
+  );
 
   type Candidate = {
     rowNumber: number;
@@ -154,12 +156,21 @@ export async function importScheduleAction(
   const unknownRooms = new Set<string>();
 
   for (const row of parsed.rows) {
-    const roomId = roomByName.get(normalizeRoomName(row.roomName));
-    if (!roomId) {
-      unknownRooms.add(row.roomName);
-      conflicts.push({ rowNumber: row.rowNumber, message: `לא נמצא חדר פעיל בשם "${row.roomName}"` });
+    const resolved = resolveRoom(row.roomName, row.branchName);
+    if (!resolved.ok) {
+      const message =
+        resolved.reason === "ambiguous"
+          ? `יש חדר בשם "${row.roomName}" ביותר מסניף אחד — יש להוסיף לקובץ עמודת "סניף"`
+          : resolved.reason === "unknown_branch"
+            ? `לא נמצא סניף בשם "${row.branchName}"`
+            : row.branchName
+              ? `לא נמצא חדר פעיל בשם "${row.roomName}" בסניף ${row.branchName}`
+              : `לא נמצא חדר פעיל בשם "${row.roomName}"`;
+      if (resolved.reason === "unknown_room") unknownRooms.add(row.roomName);
+      conflicts.push({ rowNumber: row.rowNumber, message });
       continue;
     }
+    const roomId = resolved.roomId;
 
     // התאריך והשעה בקובץ הם שעון מקומי (Asia/Jerusalem) — ההמרה ל-UTC
     // חייבת לעבור דרך אזור הזמן, אחרת שעון קיץ יזיז את כל הלו״ז בשעה.
