@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { holidaysForSchedule } from "@/lib/holidays";
 import { BoardClient } from "./board-client";
 
 export default async function AdminBoardPage() {
@@ -24,7 +25,13 @@ export default async function AdminBoardPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">לוח מלא</h1>
-      <BoardClient branches={branches ?? []} therapists={therapists ?? []} baseHours={baseHours} basePrice={basePrice} />
+      <BoardClient
+        branches={branches ?? []}
+        therapists={therapists ?? []}
+        baseHours={baseHours}
+        basePrice={basePrice}
+        holidays={holidaysForSchedule()}
+      />
     </div>
   );
 }

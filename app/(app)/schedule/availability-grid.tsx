@@ -12,9 +12,11 @@ export interface GridColumn {
   /**
    * שורה משנית מתחת לכותרת — בלוח החדרים זהו סוג החדר ("חדר שיח",
    * "חדר מגע + שיח"), כדי שמטפל/ת תדע מה היא מזמינה ולא רק "Room 2".
-   * בתצוגה השבועית (עמודות = ימים) אין ערך כזה והכותרת נשארת שורה אחת.
+   * בתצוגה השבועית (עמודות = ימים) — שם החג, אם יש.
    */
   sublabel?: string | null;
+  /** הדגשת כותרת העמודה — בתצוגה השבועית, יום טוב (ר' holiday-tags.tsx). */
+  highlight?: boolean;
 }
 
 const STATUS_STYLES: Record<SlotStatus, string> = {
@@ -116,11 +118,22 @@ export function AvailabilityGrid({
             key={col.key}
             // הטקסט המלא ב-title, כי הוא נחתך לשתי שורות בתצוגה עצמה
             title={col.sublabel ?? undefined}
-            className="sticky top-0 z-10 flex flex-col gap-0.5 border-b border-l bg-background p-2 text-center last:border-l-0"
+            className={cn(
+              "sticky top-0 z-10 flex flex-col gap-0.5 border-b border-l p-2 text-center last:border-l-0",
+              // רקע אטום חובה גם בהדגשה — הכותרת נעוצה והתאים נגללים מתחתיה.
+              col.highlight ? "bg-amber-100 dark:bg-amber-950" : "bg-background",
+            )}
           >
             <span className="text-xs font-medium">{col.label}</span>
             {col.sublabel && (
-              <span className="line-clamp-2 text-[10px] leading-tight font-normal text-muted-foreground">
+              <span
+                className={cn(
+                  "line-clamp-2 text-[10px] leading-tight",
+                  col.highlight
+                    ? "font-medium text-amber-900 dark:text-amber-200"
+                    : "font-normal text-muted-foreground",
+                )}
+              >
                 {col.sublabel}
               </span>
             )}

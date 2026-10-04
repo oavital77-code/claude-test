@@ -1,8 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/resend";
-import { wooPurchaseReceivedEmail, sessionRenewedEmail } from "@/lib/email/templates";
+import {
+  wooPurchaseReceivedEmail,
+  sessionRenewedEmail,
+  wooPaymentUnmatchedAdminEmail,
+} from "@/lib/email/templates";
+import { getAdminEmails } from "@/lib/email/recipients";
 import { toE164Israel } from "@/lib/phone";
+import { aggregatePurchaseRows, effectiveProductId, lineItemAmount } from "./line-items";
 import type { Database } from "@/lib/supabase/types";
 
 // לוגיקת עיבוד הזמנת Woo — משותפת בין שני נתיבי כניסה: ה-webhook (POST push
@@ -23,14 +29,6 @@ export interface WooOrderPayload {
     total: string;
     total_tax?: string;
   }>;
-}
-
-// כרטיסייה ב-Woo היא מוצר משתנה (variable product) אחד — ל-line_item יש
-// product_id משותף לכל המדרגות (ה"הורה") ו-variation_id נפרד לכל מדרגה
-// בפועל. woo_product_tiers ממופה ל-variation_id (378–382), לא ל-product_id
-// (377) — variation_id=0/חסר (מוצר פשוט, כמו הססיה) → falls back ל-product_id.
-function effectiveProductId(item: { product_id: number; variation_id?: number }): number {
-  return item.variation_id && item.variation_id !== 0 ? item.variation_id : item.product_id;
 }
 
 export const PAID_STATUSES = new Set(["processing", "completed"]);
@@ -61,24 +59,31 @@ export async function processWooOrder(
     return { ok: true, skipped: "NO_LINE_ITEMS" };
   }
 
-  const { data: sessionProductSetting } = await supabase
+  const { data: settingRows } = await supabase
     .from("app_settings")
-    .select("value")
-    .eq("key", "woo_session_product_id")
-    .maybeSingle();
-  const sessionProductId = typeof sessionProductSetting?.value === "number" ? sessionProductSetting.value : 0;
+    .select("key, value")
+    .in("key", ["woo_session_product_id", "woo_purchase_email_enabled"]);
+  const settingNumber = (key: string): number => {
+    const v = settingRows?.find((r) => r.key === key)?.value;
+    return typeof v === "number" ? v : 0;
+  };
+  const sessionProductId = settingNumber("woo_session_product_id");
+  // 0 עד ההשקה: החנות חיה והמערכת עוד לא, ולקוחות אמיתיות קיבלו קישור
+  // הרשמה מוקדם מדי. הרכישה עצמה נרשמת בכל מקרה (ר' upsert למטה) — רק
+  // המייל נעצר. ר' 20261003000001_pause_woo_purchase_email.sql.
+  const purchaseEmailEnabled = settingNumber("woo_purchase_email_enabled") === 1;
 
   let sessionHandled = false;
   if (sessionProductId) {
     const sessionItem = lineItems.find((li) => effectiveProductId(li) === sessionProductId);
     if (sessionItem) {
-      const amountTotal = parseFloat(sessionItem.total) + parseFloat(sessionItem.total_tax ?? "0");
-      if (Number.isFinite(amountTotal)) {
+      const amountTotal = lineItemAmount(sessionItem);
+      if (amountTotal !== null) {
         await activateSessionFromWooOrder(supabase, {
           phone,
           email,
           wooOrderId: order.id,
-          amountTotal: Math.round(amountTotal * 100) / 100,
+          amountTotal,
         });
         sessionHandled = true;
       }
@@ -105,35 +110,17 @@ export async function processWooOrder(
       mappings.map((m) => m.tier_id),
     );
 
-  const rowsToInsert: {
-    woo_order_id: number;
-    tier_id: string;
-    phone: string | null;
-    email: string | null;
-    quantity: number;
-    amount_total: number;
-  }[] = [];
-
-  for (const item of lineItems) {
-    const mapping = mappings.find((m) => m.woo_product_id === effectiveProductId(item));
-    if (!mapping) continue;
-    const tier = tiers?.find((t) => t.id === mapping.tier_id);
-    if (!tier) continue;
-
-    // הסכום שנשמר הוא זה ש-Woo מדווח שבפועל שולם בשורה הזו (כולל מע"מ), לא
-    // חישוב מחדש ממחיר המדרגה — ר' חוק ברזל #6 (מקור האמת לתשלום).
-    const amountTotal = parseFloat(item.total) + parseFloat(item.total_tax ?? "0");
-    if (!Number.isFinite(amountTotal)) continue;
-
-    rowsToInsert.push({
-      woo_order_id: order.id,
-      tier_id: mapping.tier_id,
-      phone,
-      email,
-      quantity: item.quantity,
-      amount_total: Math.round(amountTotal * 100) / 100,
-    });
-  }
+  // איחוד לפי מדרגה לפני הכתיבה — שתי שורות מאותה מדרגה באותה הזמנה חייבות
+  // להפוך לשורה אחת, אחרת ה-upsert זורק את השנייה בשקט (ר' line-items.ts).
+  const aggregated = aggregatePurchaseRows(lineItems, mappings);
+  const rowsToInsert = aggregated.map((row) => ({
+    woo_order_id: order.id,
+    tier_id: row.tier_id,
+    phone,
+    email,
+    quantity: row.quantity,
+    amount_total: row.amount_total,
+  }));
 
   if (rowsToInsert.length === 0) {
     return sessionHandled ? { ok: true } : { ok: true, skipped: "NO_MAPPED_PRODUCTS" };
@@ -159,7 +146,7 @@ export async function processWooOrder(
     return sum + (tier ? tier.hours * row.quantity : 0);
   }, 0);
 
-  if (email && newHours > 0) {
+  if (purchaseEmailEnabled && email && newHours > 0) {
     const registerUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/login`;
     const { subject, html } = wooPurchaseReceivedEmail({ hours: newHours, registerUrl });
     sendEmail({ to: email, subject, html }).catch(() => {});
@@ -187,7 +174,15 @@ async function activateSessionFromWooOrder(
     const { data } = await supabase.from("profiles").select("id, email").eq("email", params.email).maybeSingle();
     profile = data;
   }
-  if (!profile) return;
+  if (!profile) {
+    // אין עדיין חשבון Cleana תואם. בניגוד לכרטיסייה (שנשמרת כרכישה ממתינה
+    // ומחכה להרשמה), לססיה אין מנגנון כזה — התשלום פשוט לא משויך לאף אחד.
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "לא נמצא חשבון מטפל/ת תואם לטלפון או למייל שבהזמנה",
+    });
+    return;
+  }
 
   const transactionUid = `woo-session-${params.wooOrderId}`;
 
@@ -202,7 +197,15 @@ async function activateSessionFromWooOrder(
     .maybeSingle();
 
   if (initialPayment) {
-    if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) return;
+    if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) {
+      await alertPaymentUnmatched(supabase, {
+        wooOrderId: params.wooOrderId,
+        reason: "הסכום ששולם אינו תואם לתשלום הססיה הממתין",
+        expected: initialPayment.amount_total,
+        received: params.amountTotal,
+      });
+      return;
+    }
     await supabase.rpc("activate_session_payment", {
       p_payment_id: initialPayment.id,
       p_transaction_uid: transactionUid,
@@ -222,8 +225,22 @@ async function activateSessionFromWooOrder(
     .limit(1)
     .maybeSingle();
 
-  if (!renewalPayment) return;
-  if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) return;
+  if (!renewalPayment) {
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "נמצא חשבון, אך אין לו תשלום ססיה ממתין (ראשוני או חידוש)",
+    });
+    return;
+  }
+  if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) {
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: "הסכום ששולם אינו תואם לחידוש הססיה הממתין",
+      expected: renewalPayment.amount_total,
+      received: params.amountTotal,
+    });
+    return;
+  }
 
   await supabase.rpc("finalize_session_renewal", {
     p_payment_id: renewalPayment.id,
@@ -233,4 +250,25 @@ async function activateSessionFromWooOrder(
 
   const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
   sendEmail({ to: profile.email, subject, html }).catch(() => {});
+}
+
+/**
+ * תשלום שהתקבל בחנות ולא הצליח להשתייך לתשלום ממתין הוא כשל שקט מסוכן:
+ * הכסף נגבה, השירות לא הופעל, ואף אחד לא יודע — המטפל/ת תגלה את זה רק
+ * ביום ההגעה לקליניקה. המסלול העיקרי לגילוי תשלומים הוא after() בטעינת
+ * עמוד, שעטוף ב-catch(() => {}), אז בלי ההתראה הזו אין שום עקבה.
+ */
+async function alertPaymentUnmatched(
+  supabase: SupabaseClient<Database>,
+  params: { wooOrderId: number; reason: string; expected?: number; received?: number },
+) {
+  console.error(`[woo] תשלום לא שויך — הזמנה ${params.wooOrderId}: ${params.reason}`);
+  try {
+    const adminEmails = await getAdminEmails(supabase);
+    if (adminEmails.length === 0) return;
+    const { subject, html } = wooPaymentUnmatchedAdminEmail(params);
+    await sendEmail({ to: adminEmails, subject, html });
+  } catch {
+    // ההתראה היא best-effort — כישלון בשליחתה לא אמור להפיל את עיבוד ההזמנה.
+  }
 }

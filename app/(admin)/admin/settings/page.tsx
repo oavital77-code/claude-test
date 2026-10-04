@@ -12,6 +12,7 @@ const SETTING_LABELS: Record<string, string> = {
   session_base_hours: "היקף ססיה קבוע (שעות שבועיות)",
   session_hold_hours: "תוקף hold לססיה (שעות)",
   woo_session_product_id: "Product ID של מוצר הססיה בחנות Woo",
+  woo_purchase_email_enabled: "מייל הזמנה להרשמה אחרי רכישה ב-Woo (0 = כבוי עד ההשקה, 1 = פועל)",
 };
 
 export default async function AdminSettingsPage() {
