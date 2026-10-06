@@ -17,7 +17,7 @@ describe("israeliHolidaysBetween — ימים טובים", () => {
     ["2027-04-28", "פסח ז׳"],
     ["2027-06-11", "שבועות"],
   ])("%s → %s (chag)", (date, name) => {
-    expect(on(date)).toEqual([{ name, kind: "chag" }]);
+    expect(on(date)).toMatchObject([{ name, kind: "chag" }]);
   });
 
   it("ראש השנה בלי מספר השנה העברית (״ראש השנה 5787״ לא שימושי בלוח קליניקה)", () => {
@@ -27,7 +27,7 @@ describe("israeliHolidaysBetween — ימים טובים", () => {
 
 describe("לוח ישראלי, לא חו״ל", () => {
   it("פסח ב׳ הוא חול המועד, לא יום טוב שני של גלויות", () => {
-    expect(on("2027-04-23")).toEqual([{ name: "פסח ב׳ (חוה״מ)", kind: "cholHamoed" }]);
+    expect(on("2027-04-23")).toMatchObject([{ name: "פסח ב׳ (חוה״מ)", kind: "cholHamoed" }]);
   });
 
   it("שבועות יום אחד בלבד", () => {
@@ -51,13 +51,13 @@ describe("ערבי חג, חול המועד ומועדים", () => {
     ["2027-05-25", "ל״ג בעומר", "minor"],
     ["2027-08-12", "תשעה באב", "minor"],
   ])("%s → %s (%s)", (date, name, kind) => {
-    expect(on(date)).toEqual([{ name, kind }]);
+    expect(on(date)).toMatchObject([{ name, kind }]);
   });
 
   it("חנוכה מוצג כ״חנוכה״ בכל שמונת הימים, והערב שלפני כ״ערב חנוכה״", () => {
-    expect(on("2026-12-04")).toEqual([{ name: "ערב חנוכה", kind: "minor" }]);
+    expect(on("2026-12-04")).toMatchObject([{ name: "ערב חנוכה", kind: "minor" }]);
     for (const d of ["2026-12-05", "2026-12-08", "2026-12-12"]) {
-      expect(on(d)).toEqual([{ name: "חנוכה", kind: "minor" }]);
+      expect(on(d)).toMatchObject([{ name: "חנוכה", kind: "minor" }]);
     }
   });
 });
@@ -107,5 +107,32 @@ describe("holidaysForSchedule — החלון שהלוחות מקבלים", () =>
       ([d, list]) => d >= today && list.some((h) => h.kind === "chag"),
     );
     expect(upcoming.length).toBeGreaterThan(0);
+  });
+});
+
+describe("shortName — לתאים צרים בתצוגה החודשית", () => {
+  it.each([
+    ["2026-09-11", "ערב ר״ה"],
+    ["2026-09-12", "ראש השנה"],
+    ["2026-09-13", "ראש השנה ב׳"],
+    ["2026-09-21", "יום כיפור"],
+    ["2026-09-26", "סוכות"],
+    ["2026-10-02", "הושענא רבה"],
+    ["2026-10-03", "שמחת תורה"],
+    ["2027-04-22", "פסח"],
+    ["2027-04-28", "שביעי של פסח"],
+    ["2027-05-11", "יום הזיכרון"],
+  ])("%s → %s", (date, short) => {
+    expect(on(date)[0].shortName).toBe(short);
+  });
+
+  it("כל ימי חול המועד — ״חוה״מ״ בלבד, בלי אות סידורית", () => {
+    for (const d of ["2026-09-27", "2026-09-28", "2026-09-30", "2027-04-23", "2027-04-26"]) {
+      expect(on(d)[0].shortName).toBe("חוה״מ");
+    }
+  });
+
+  it("אף שם קצר לא חורג מ-13 תווים (רוחב תא בטלפון)", () => {
+    for (const list of Object.values(year)) for (const h of list) expect(h.shortName.length).toBeLessThanOrEqual(13);
   });
 });

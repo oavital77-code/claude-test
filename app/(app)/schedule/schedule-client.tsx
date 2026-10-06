@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
 import { ROOM_TYPE_LABELS, roomTypeLabel } from "@/lib/rooms";
 import { bookSlot } from "./actions";
-import { HolidayTags, hasChag, holidaySublabel } from "./holiday-tags";
+import { HolidayTags, MonthHolidayTag, hasChag, holidaySublabel } from "./holiday-tags";
 import type { HolidayMap } from "@/lib/holiday-types";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
@@ -495,7 +495,7 @@ export function ScheduleClient({
                   >
                     {formatInTimeZone(dayBoundaries(d).start, TIMEZONE, "d")}
                   </span>
-                  <HolidayTags holidays={holidays} dateYmd={d} className="flex-col" />
+                  <MonthHolidayTag holidays={holidays} dateYmd={d} />
 
                   {info && info.mine.slice(0, 2).map((m, i) => (
                     <span

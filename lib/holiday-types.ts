@@ -13,7 +13,14 @@
 export type HolidayKind = "chag" | "erev" | "cholHamoed" | "national" | "minor";
 
 export interface Holiday {
+  /** השם המלא — לתצוגת יום ולכותרות רחבות ("סוכות ג׳ (חוה״מ)"). */
   name: string;
+  /**
+   * שם קצר לתאים צרים (תצוגה חודשית בטלפון ≈ 55px): "חוה״מ" במקום
+   * "סוכות ג׳ (חוה״מ)", "ערב ר״ה" במקום "ערב ראש השנה". בלי אותיות
+   * סידוריות לחול המועד — בלוח של קליניקה לא משנה אם זה ב׳ או ג׳.
+   */
+  shortName: string;
   kind: HolidayKind;
 }
 
