@@ -30,7 +30,7 @@ import { formatCurrency } from "@/lib/format";
 import { WEEKDAY_LABELS, slotHours } from "@/lib/pricing/session";
 import { roomTypeLabel } from "@/lib/rooms";
 import type { HolidayMap } from "@/lib/holiday-types";
-import { HolidayTags, hasChag, holidaySublabel } from "@/app/(app)/schedule/holiday-tags";
+import { HolidayTags, MonthHolidayTag, hasChag, holidaySublabel } from "@/app/(app)/schedule/holiday-tags";
 import type { Database } from "@/lib/supabase/types";
 import type { SlotStatus } from "@/lib/availability/types";
 import {
@@ -483,7 +483,7 @@ export function BoardClient({
                       </span>
                     )}
                   </div>
-                  <HolidayTags holidays={holidays} dateYmd={d} className="flex-col" />
+                  <MonthHolidayTag holidays={holidays} dateYmd={d} />
 
                   {dayEntries.slice(0, MONTH_PREVIEW_LIMIT).map((entry, i) => (
                     <span
