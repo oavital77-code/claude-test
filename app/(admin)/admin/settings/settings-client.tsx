@@ -116,8 +116,8 @@ function ScheduleImportCard() {
       <CardContent className="flex flex-col gap-3">
         <div className="text-sm text-muted-foreground">
           <p className="mb-1">
-            העלאת קובץ <strong>CSV</strong> עם העמודות: שם מטפל/ת, מייל, חדר, תאריך, שעה (ואם יש —
-            שעת סיום). כל שורה הופכת ל<strong>חסימת חדר</strong> בלוח — בדיוק כמו הייבוא מ-Skedda —
+            העלאת קובץ <strong>CSV</strong> עם העמודות: שם מטפל/ת, מייל, <strong>סניף</strong>, חדר,
+            תאריך, שעה (ואם יש — שעת סיום). עמודת הסניף חובה כשאותו שם חדר קיים בשני הסניפים. כל שורה הופכת ל<strong>חסימת חדר</strong> בלוח — בדיוק כמו הייבוא מ-Skedda —
             ואפשר לשייך אותה למטפל/ת אחר כך דרך הכרטיס שלה.
           </p>
           <p className="text-xs">
