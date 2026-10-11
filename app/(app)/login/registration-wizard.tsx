@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authErrorMessage } from "@/lib/auth-errors";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
@@ -117,11 +118,7 @@ export function RegistrationWizard({
     setLoading(false);
 
     if (error) {
-      if (/already registered|already exists|user_already_exists/i.test(error.message)) {
-        setError('כתובת המייל כבר בשימוש. אם זה אתה — לחץ/י על "התחברות" במקום.');
-      } else {
-        setError(`ההרשמה נכשלה: ${error.message}`);
-      }
+      setError(authErrorMessage(error, "signup"));
       return;
     }
     if (!data.user) {
@@ -300,7 +297,7 @@ export function RegistrationWizard({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">לפחות 8 תווים</p>
+              <p className="text-xs text-muted-foreground">לפחות 8 תווים, ולא סיסמה נפוצה (כמו 12345678 או qwerty123)</p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div className="flex gap-2">
