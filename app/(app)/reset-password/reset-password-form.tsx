@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { authErrorMessage } from "@/lib/auth-errors";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
@@ -42,11 +43,7 @@ export function ResetPasswordForm() {
     setLoading(false);
 
     if (error) {
-      setError(
-        /same.*password|should be different/i.test(error.message)
-          ? "הסיסמה החדשה זהה לקודמת — יש לבחור סיסמה אחרת."
-          : "עדכון הסיסמה נכשל. ייתכן שהקישור פג תוקף — יש לבקש קישור חדש.",
-      );
+      setError(authErrorMessage(error, "reset"));
       return;
     }
 
@@ -75,7 +72,7 @@ export function ResetPasswordForm() {
               onChange={(e) => setPassword(e.target.value)}
               autoFocus
             />
-            <p className="text-xs text-muted-foreground">לפחות 8 תווים</p>
+            <p className="text-xs text-muted-foreground">לפחות 8 תווים, ולא סיסמה נפוצה (כמו 12345678 או qwerty123)</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="confirm">אימות סיסמה</Label>
