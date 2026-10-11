@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { TherapistsClient } from "./therapists-client";
@@ -36,7 +37,12 @@ export default async function AdminTherapistsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">מטפלים</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold">מטפלים</h1>
+        <Link href="/admin/therapists/skedda" className="text-sm font-semibold text-violet-600 hover:underline">
+          העברה מ-Skedda: יתרות וססיות ←
+        </Link>
+      </div>
       <TherapistsClient therapists={therapistsWithHours} />
     </div>
   );

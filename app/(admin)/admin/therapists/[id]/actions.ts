@@ -238,3 +238,33 @@ export async function addSessionSlotAction(input: unknown): Promise<ActionResult
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
   return { ok: true };
 }
+
+const assignPendingPurchaseSchema = z.object({
+  pendingId: z.guid(),
+  userId: z.guid(),
+});
+
+/**
+ * שיוך ידני של רכישת Woo ממתינה למטפל/ת — למי שקנתה בחנות במייל שונה
+ * מזה שנרשמה איתו (ההתאמה האוטומטית היא לפי מייל מאומת בלבד, ר'
+ * 20261011000002). יוצר את אותה כרטיסייה + תשלום בדיוק כמו ההתאמה
+ * האוטומטית, וסוגר את הרכישה הממתינה (ר' 20261011000004).
+ */
+export async function assignPendingPurchaseAction(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = assignPendingPurchaseSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_assign_woo_pending_purchase", {
+    p_pending_id: parsed.data.pendingId,
+    p_user_id: parsed.data.userId,
+  });
+  if (error) {
+    if (error.message.includes("PENDING_PURCHASE_NOT_AVAILABLE")) {
+      return { ok: false, error: "הרכישה כבר שויכה או שהמדרגה שלה נמחקה. רעננו את העמוד." };
+    }
+    return { ok: false, error: "השיוך נכשל" };
+  }
+  return { ok: true };
+}

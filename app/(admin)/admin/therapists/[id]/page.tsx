@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { groupSkeddaBlocks, IMPORT_MARKERS } from "@/lib/skedda-import/group";
 import { lookupSkeddaRoster } from "@/lib/skedda-import/roster";
 import { TherapistDetailClient } from "./therapist-detail-client";
+import { PendingPurchasesSection, type PendingPurchase } from "./pending-purchases-section";
 
 export default async function AdminTherapistDetailPage({
   params,
@@ -25,6 +26,8 @@ export default async function AdminTherapistDetailPage({
     { data: notesRow },
     { data: activeRooms },
     { data: skeddaBlocks },
+    { data: pendingRows },
+    { data: tiers },
   ] = await Promise.all([
     supabase.from("punch_cards").select("*").eq("user_id", id).order("purchased_at", { ascending: false }),
     supabase
@@ -44,6 +47,13 @@ export default async function AdminTherapistDetailPage({
       // CSV/אקסל דרך מסך ההגדרות. אותו תהליך קליטה בדיוק.
       .or(IMPORT_MARKERS.map((marker) => `reason.ilike.%${marker}%`).join(","))
       .order("starts_at", { ascending: true }),
+    // רכישות Woo שלא נמשכו אוטומטית (אין חשבון עם אותו מייל) — לשיוך ידני.
+    supabase
+      .from("woo_pending_purchases")
+      .select("id, woo_order_id, email, phone, tier_id, quantity, amount_total, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true }),
+    supabase.from("punch_card_tiers").select("id, hours"),
   ]);
 
   const roomIds = [...new Set((bookings ?? []).map((b) => b.room_id))];
@@ -55,6 +65,17 @@ export default async function AdminTherapistDetailPage({
   const bookingsWithRoom = (bookings ?? []).map((b) => ({ ...b, roomName: roomNameById.get(b.room_id) ?? "" }));
   const skeddaGroups = groupSkeddaBlocks(skeddaBlocks ?? []);
   const skeddaRosterMatch = lookupSkeddaRoster(profile.phone);
+
+  const tierHoursById = new Map((tiers ?? []).map((t) => [t.id, t.hours]));
+  const pendingPurchases: PendingPurchase[] = (pendingRows ?? []).map((p) => ({
+    id: p.id,
+    wooOrderId: p.woo_order_id,
+    email: p.email,
+    phone: p.phone,
+    hours: (tierHoursById.get(p.tier_id) ?? 0) * p.quantity,
+    amountTotal: p.amount_total,
+    createdAt: p.created_at,
+  }));
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -69,6 +90,12 @@ export default async function AdminTherapistDetailPage({
         roomOptions={activeRooms ?? []}
         skeddaGroups={skeddaGroups}
         skeddaRosterMatch={skeddaRosterMatch}
+      />
+      <PendingPurchasesSection
+        userId={profile.id}
+        therapistName={profile.full_name}
+        therapistEmail={profile.email}
+        purchases={pendingPurchases}
       />
     </div>
   );
