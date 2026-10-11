@@ -9,6 +9,7 @@ import {
 import { getAdminEmails } from "@/lib/email/recipients";
 import { toE164Israel } from "@/lib/phone";
 import { aggregatePurchaseRows, effectiveProductId, lineItemAmount } from "./line-items";
+import { findProfileByVerifiedEmail } from "./match-profile";
 import type { Database } from "@/lib/supabase/types";
 
 // לוגיקת עיבוד הזמנת Woo — משותפת בין שני נתיבי כניסה: ה-webhook (POST push
@@ -80,7 +81,6 @@ export async function processWooOrder(
       const amountTotal = lineItemAmount(sessionItem);
       if (amountTotal !== null) {
         await activateSessionFromWooOrder(supabase, {
-          phone,
           email,
           wooOrderId: order.id,
           amountTotal,
@@ -162,24 +162,16 @@ export async function processWooOrder(
 // כי אחרי ההפעלה הראשונה התשלום הממתין כבר לא יימצא ב-status='pending'. ═══
 async function activateSessionFromWooOrder(
   supabase: SupabaseClient<Database>,
-  params: { phone: string | null; email: string | null; wooOrderId: number; amountTotal: number },
+  params: { email: string | null; wooOrderId: number; amountTotal: number },
 ) {
-  let profile: { id: string; email: string } | null = null;
-
-  if (params.phone) {
-    const { data } = await supabase.from("profiles").select("id, email").eq("phone", params.phone).maybeSingle();
-    profile = data;
-  }
-  if (!profile && params.email) {
-    const { data } = await supabase.from("profiles").select("id, email").eq("email", params.email).maybeSingle();
-    profile = data;
-  }
+  // מייל בלבד — הטלפון בפרופיל לא מאומת (ר' match-profile.ts).
+  const profile = await findProfileByVerifiedEmail(supabase, params.email);
   if (!profile) {
     // אין עדיין חשבון Cleana תואם. בניגוד לכרטיסייה (שנשמרת כרכישה ממתינה
     // ומחכה להרשמה), לססיה אין מנגנון כזה — התשלום פשוט לא משויך לאף אחד.
     await alertPaymentUnmatched(supabase, {
       wooOrderId: params.wooOrderId,
-      reason: "לא נמצא חשבון מטפל/ת תואם לטלפון או למייל שבהזמנה",
+      reason: "לא נמצא חשבון מטפל/ת תואם למייל שבהזמנה",
     });
     return;
   }
