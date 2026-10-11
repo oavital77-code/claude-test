@@ -64,6 +64,12 @@ export async function completeRegistration(
   } catch {
     // מתועד ע"י Supabase/הלוגים; לא חוסם את ההרשמה עצמה.
   }
+  // יתרת שעות מ-Skedda — אותו עיקרון (מייל מאומת), כבוי עד ההשקה.
+  try {
+    await supabase.rpc("claim_skedda_balance");
+  } catch {
+    // best-effort, כמו למעלה
+  }
 
   return { ok: true };
 }

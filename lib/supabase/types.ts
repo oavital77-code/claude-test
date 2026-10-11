@@ -460,6 +460,72 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["woo_product_tiers"]["Insert"]>;
         Relationships: [];
       };
+      skedda_migration: {
+        Row: {
+          id: string;
+          full_name: string;
+          email: string | null;
+          phone: string | null;
+          skedda_product: string | null;
+          used_hours: number | null;
+          balance_hours: number | null;
+          confidence: "high" | "medium" | "review";
+          note: string | null;
+          has_session: boolean;
+          session_details: string | null;
+          session_paid_until: string | null;
+          session_commitment: string | null;
+          admin_note: string | null;
+          status: "pending" | "transferred" | "skipped";
+          claimed_by: string | null;
+          claimed_at: string | null;
+          punch_card_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          full_name: string;
+          email?: string | null;
+          phone?: string | null;
+          skedda_product?: string | null;
+          used_hours?: number | null;
+          balance_hours?: number | null;
+          confidence?: "high" | "medium" | "review";
+          note?: string | null;
+          has_session?: boolean;
+          session_details?: string | null;
+          session_paid_until?: string | null;
+          session_commitment?: string | null;
+          admin_note?: string | null;
+          status?: "pending" | "transferred" | "skipped";
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+          punch_card_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          full_name?: string;
+          email?: string | null;
+          phone?: string | null;
+          skedda_product?: string | null;
+          used_hours?: number | null;
+          balance_hours?: number | null;
+          confidence?: "high" | "medium" | "review";
+          note?: string | null;
+          has_session?: boolean;
+          session_details?: string | null;
+          session_paid_until?: string | null;
+          session_commitment?: string | null;
+          admin_note?: string | null;
+          status?: "pending" | "transferred" | "skipped";
+          claimed_by?: string | null;
+          claimed_at?: string | null;
+          punch_card_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       woo_pending_purchases: {
         Row: {
           id: string;
@@ -696,6 +762,10 @@ export type Database = {
       claim_woo_pending_purchase: {
         Args: Record<string, never>;
         Returns: { claimed_count: number; hours_granted: number }[];
+      };
+      claim_skedda_balance: {
+        Args: Record<string, never>;
+        Returns: { hours_transferred: number }[];
       };
       admin_assign_woo_pending_purchase: {
         Args: { p_pending_id: string; p_user_id: string };

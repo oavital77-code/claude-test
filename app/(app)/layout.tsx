@@ -29,6 +29,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       } catch {
         // best-effort — ה-cron היומי ינסה שוב
       }
+      // יתרת שעות שהועברה מ-Skedda (טבלת skedda_migration). no-op עד ההשקה —
+      // נשלט ע"י app_settings.skedda_balance_claim_enabled.
+      try {
+        await supabase.rpc("claim_skedda_balance");
+      } catch {
+        // best-effort — ינסה שוב בטעינה הבאה
+      }
     });
   }
 
