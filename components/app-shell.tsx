@@ -73,21 +73,23 @@ export function AppShell({
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        {/* ראש עמוד — מובייל בלבד: לוגו + המבורגר שפותח/סוגר פאנל תחתיו */}
+        {/* ראש עמוד — מובייל בלבד: המבורגר שפותח/סוגר פאנל תחתיו + לוגו.
+            ההמבורגר ראשון ב-DOM = בצד ימין ב-RTL, איפה שהאגודל של משתמש/ת
+            עברית מחפש אותו; הלוגו נדחף לצד השני עם ms-auto. */}
         <header className="sticky top-0 z-20 flex flex-col border-b border-border bg-surface md:hidden">
           <div className="flex h-[68px] shrink-0 items-center gap-2 px-4">
-            <Link href={homeHref} className="flex items-center">
-              <Logo markClassName="size-8" wordmarkClassName="text-base" />
-            </Link>
             <button
               type="button"
-              className="ms-auto flex size-11 items-center justify-center rounded-button hover:bg-subtle"
+              className="flex size-11 items-center justify-center rounded-button hover:bg-subtle"
               onClick={() => setOpen((v) => !v)}
               aria-label={open ? "סגירת תפריט" : "פתיחת תפריט"}
               aria-expanded={open}
             >
               {open ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>
+            <Link href={homeHref} className="ms-auto flex items-center">
+              <Logo markClassName="size-8" wordmarkClassName="text-base" />
+            </Link>
           </div>
 
           {open && (
