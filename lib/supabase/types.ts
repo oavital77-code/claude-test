@@ -779,16 +779,28 @@ export type Database = {
         Args: { p_booking_id: string; p_refund_hours?: boolean };
         Returns: undefined;
       };
-      admin_create_booking: {
-        Args: {
-          p_user_id: string;
-          p_room_id: string;
-          p_starts_at: string;
-          p_ends_at: string;
-          p_note?: string | null;
-        };
-        Returns: { booking_id: string }[];
-      };
+      admin_create_booking:
+        | {
+            Args: {
+              p_user_id: string;
+              p_room_id: string;
+              p_starts_at: string;
+              p_ends_at: string;
+              p_note?: string | null;
+            };
+            Returns: { booking_id: string }[];
+          }
+        | {
+            Args: {
+              p_user_id: string;
+              p_room_id: string;
+              p_starts_at: string;
+              p_ends_at: string;
+              p_note: string | null;
+              p_charge: boolean;
+            };
+            Returns: { booking_id: string }[];
+          };
       admin_adjust_punch_card_hours: {
         Args: { p_card_id: string; p_hours_delta: number; p_note: string };
         Returns: undefined;
