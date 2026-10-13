@@ -47,6 +47,9 @@ export async function requireTherapistProfile(): Promise<{
 
   if (!userId || !profile) redirect("/login");
   if (profile.status === "suspended") redirect("/suspended");
+  // חשבון שנפתח מראש ע"י אדמין (העברה מ-Skedda) — עוד לא אישר/ה תקנון.
+  // מי שנרשם/ה בעצמו/ה אישר/ה כבר בהרשמה, אז זה קורה רק בכניסה הראשונה שלהם.
+  if (!profile.terms_accepted_at && profile.role !== "admin") redirect("/accept-terms");
 
   return { userId, profile };
 }

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { toE164Israel } from "@/lib/phone";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -83,4 +85,107 @@ export async function addSkeddaRowAction(input: unknown): Promise<ActionResult> 
 
   revalidatePath("/admin/therapists/skedda");
   return { ok: true };
+}
+
+export type ProvisionRowResult = {
+  id: string;
+  name: string;
+  ok: boolean;
+  /** מה נעשה בפועל, או למה נכשל — מוצג לאדמין כמו שהוא. */
+  message: string;
+};
+
+const provisionSchema = z.object({ rowIds: z.array(z.guid()).min(1).max(10) });
+
+/**
+ * פתיחת חשבונות Cleana מראש למטפלים מ-Skedda (בקבוצות קטנות — הלקוח קורא
+ * שוב ושוב עד שהרשימה נגמרת, כדי לא לחרוג ממגבלת הזמן של פונקציה ב-Vercel).
+ *
+ * לכל שורה: יוצר משתמש (auth, מייל מאומת, בלי סיסמה — המטפל/ת קובע/ת דרך
+ * "שכחתי סיסמה") + פרופיל בלי אישור תקנון (נדרש בכניסה הראשונה, ר'
+ * requireTherapistProfile). אם כבר יש חשבון עם המייל — משתמש בו. אחר כך
+ * מעביר את יתרת ה-Skedda (admin_transfer_skedda_balance) ומשייך רכישות
+ * ממתינות מהחנות באותו מייל. ססיה לא נוצרת כאן — נשארת לקליטה מהחסימות.
+ */
+export async function provisionSkeddaAccountsAction(
+  input: unknown,
+): Promise<{ ok: true; results: ProvisionRowResult[] } | { ok: false; error: string }> {
+  await requireAdmin();
+  const parsed = provisionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
+
+  const supabase = await createClient();
+  const admin = createAdminClient();
+
+  const { data: rows, error: rowsError } = await supabase
+    .from("skedda_migration")
+    .select("id, full_name, email, phone, balance_hours, status")
+    .in("id", parsed.data.rowIds);
+  if (rowsError || !rows) return { ok: false, error: "טעינת השורות נכשלה" };
+
+  const results: ProvisionRowResult[] = [];
+  for (const row of rows) {
+    results.push(await provisionOne(supabase, admin, row));
+  }
+  revalidatePath("/admin/therapists/skedda");
+  revalidatePath("/admin/therapists");
+  return { ok: true, results };
+}
+
+async function provisionOne(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
+  row: { id: string; full_name: string; email: string | null; phone: string | null; balance_hours: number | null; status: string },
+): Promise<ProvisionRowResult> {
+  const fail = (message: string): ProvisionRowResult => ({ id: row.id, name: row.full_name, ok: false, message });
+  if (row.status !== "pending") return fail("השורה כבר טופלה");
+  if (!row.email) return fail("חסר מייל");
+  const email = row.email.trim().toLowerCase();
+
+  const { data: existing } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
+  let userId = existing?.id ?? null;
+  const notes: string[] = [];
+
+  if (!userId) {
+    const phone = row.phone ? toE164Israel(row.phone) : null;
+    if (!phone) return fail("חסר טלפון תקין");
+
+    const { data: created, error: createError } = await admin.auth.admin.createUser({ email, email_confirm: true });
+    if (createError || !created.user) return fail("יצירת המשתמש נכשלה — ייתכן שהמייל כבר קיים בהרשמה חלקית");
+
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: created.user.id,
+      full_name: row.full_name,
+      email,
+      phone,
+      // terms_accepted_at נשאר ריק בכוונה: אישור אמיתי נדרש בכניסה הראשונה.
+    });
+    if (profileError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      return fail(profileError.code === "23505" ? "מספר הטלפון כבר רשום לחשבון אחר" : "יצירת הפרופיל נכשלה");
+    }
+    userId = created.user.id;
+    notes.push("חשבון נפתח");
+  } else {
+    notes.push("חשבון קיים");
+  }
+
+  if (row.balance_hours !== null && row.balance_hours >= 0) {
+    const { error } = await supabase.rpc("admin_transfer_skedda_balance", { p_row_id: row.id, p_user_id: userId });
+    notes.push(error ? "העברת היתרה נכשלה" : `יתרה ${row.balance_hours} ש׳ הועברה`);
+  } else {
+    notes.push("יתרה לא הועברה (לא ידועה/שלילית)");
+  }
+
+  const { data: woo } = await supabase
+    .from("woo_pending_purchases")
+    .select("id, woo_order_id")
+    .eq("status", "pending")
+    .eq("email", email);
+  for (const w of woo ?? []) {
+    const { error } = await supabase.rpc("admin_assign_woo_pending_purchase", { p_pending_id: w.id, p_user_id: userId });
+    notes.push(error ? `שיוך הזמנה ${w.woo_order_id} נכשל` : `הזמנה ${w.woo_order_id} מהחנות שויכה`);
+  }
+
+  return { id: row.id, name: row.full_name, ok: true, message: notes.join(" · ") };
 }
