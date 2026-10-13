@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
   const [
     { data: todayBookingsList },
     { count: newPunchCardBookingsToday },
-    { count: newSessionRequestsToday },
+    { data: sessionsRequestedToday },
     { data: expiringCardsThisWeek },
     { data: endingSessionsThisWeek },
     { data: rooms },
@@ -45,12 +45,14 @@ export default async function AdminDashboardPage() {
       .gte("starts_at", todayStart)
       .lt("starts_at", todayEnd)
       .order("starts_at", { ascending: true }),
-    // הזמנת כרטיסייה חדשה שנוצרה היום — פעולה אמיתית של מטפל/ת.
+    // הזמנת כרטיסייה חדשה שנוצרה היום — פעולה אמיתית של מטפל/ת. admin_note
+    // ריק = המטפל/ת קבע/ה בעצמו/ה (שיבוץ אדמין שקוזז מכרטיסייה מסומן בהערה).
     supabase
       .from("bookings")
       .select("id", { count: "exact", head: true })
       .eq("status", "confirmed")
       .eq("source", "punch_card")
+      .is("admin_note", null)
       .gte("created_at", todayStart)
       .lt("created_at", todayEnd),
     // בקשת ססיה חדשה שהוגשה היום. לא סופרים שורות bookings של source='session' —
@@ -58,7 +60,7 @@ export default async function AdminDashboardPage() {
     // רולינג 90 יום מראש לכל ססיה פעילה, ולא משקפות פעולה שמישהו ביצע היום.
     supabase
       .from("session_subscriptions")
-      .select("id", { count: "exact", head: true })
+      .select("requested_at, reviewed_at")
       .gte("requested_at", todayStart)
       .lt("requested_at", todayEnd),
     // כרטיסיות שפגות בשבוע הנוכחי (ראשון-שבת)
@@ -109,7 +111,13 @@ export default async function AdminDashboardPage() {
     };
   });
 
-  const newTodayTotal = (newPunchCardBookingsToday ?? 0) + (newSessionRequestsToday ?? 0);
+  // ססיה שאדמין קבע ישירות נוצרת עם reviewed_at = requested_at (אותו now()
+  // בטרנזקציה) — זו לא בקשה של מטפל/ת, לא נספרת.
+  const newSessionRequestsToday = (sessionsRequestedToday ?? []).filter(
+    (s) => s.reviewed_at === null || s.reviewed_at !== s.requested_at,
+  ).length;
+
+  const newTodayTotal = (newPunchCardBookingsToday ?? 0) + newSessionRequestsToday;
 
   const endingThisWeek = [
     ...(expiringCardsThisWeek ?? []).map((c) => ({
@@ -135,7 +143,7 @@ export default async function AdminDashboardPage() {
           <p className="font-medium">הזמנות חדשות היום</p>
           <p className="text-2xl font-semibold">{newTodayTotal}</p>
           <p className="text-sm text-muted-foreground">
-            {newPunchCardBookingsToday ?? 0} כרטיסייה · {newSessionRequestsToday ?? 0} בקשות ססיה
+            {newPunchCardBookingsToday ?? 0} כרטיסייה · {newSessionRequestsToday} בקשות ססיה
           </p>
         </CardContent>
       </Card>
