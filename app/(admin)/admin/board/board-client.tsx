@@ -721,6 +721,8 @@ function SlotActionPanel({
   const [startTime, setStartTime] = useState(initialStart);
   const [endTime, setEndTime] = useState(initialEnd);
   const [note, setNote] = useState("");
+  // בקשת הבעלים: בכל שיבוץ ידני — לבחור אם לקזז ממכסת השעות. ברירת מחדל: כן.
+  const [charge, setCharge] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -773,7 +775,15 @@ function SlotActionPanel({
     }
 
     if (mode === "recurring") {
-      const res = await adminCreateRecurringBookingAction(selectedTherapistId, targetRoomId, date, startTime, endTime, note);
+      const res = await adminCreateRecurringBookingAction(
+        selectedTherapistId,
+        targetRoomId,
+        date,
+        startTime,
+        endTime,
+        note,
+        charge,
+      );
       setLoading(false);
       if (!res.ok) {
         onError(res.error);
@@ -801,7 +811,7 @@ function SlotActionPanel({
 
     const res =
       mode === "booking"
-        ? await adminCreateBookingAction(selectedTherapistId, targetRoomId, startsAt, endsAt, note)
+        ? await adminCreateBookingAction(selectedTherapistId, targetRoomId, startsAt, endsAt, note, charge)
         : await createRoomBlockAction(targetRoomId, startsAt, endsAt, note || "תחזוקה");
     setLoading(false);
 
@@ -882,9 +892,26 @@ function SlotActionPanel({
       )}
       {mode === "recurring" && (
         <p className="text-xs text-muted-foreground">
-          יוצר הזמנת {WEEKDAY_LABELS[weekday]} רגילה מ-{date} ואילך, כל שבוע, עד סוף החודש. בלי תשלום, בלי הגבלת שעות —
-          כל הופעה נבדקת בנפרד.
+          יוצר הזמנת {WEEKDAY_LABELS[weekday]} רגילה מ-{date} ואילך, כל שבוע, עד סוף החודש. בלי הגבלת שעות — כל
+          הופעה נבדקת בנפרד.
         </p>
+      )}
+
+      {(mode === "booking" || mode === "recurring") && (
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4"
+            checked={charge}
+            onChange={(e) => setCharge(e.target.checked)}
+          />
+          <span>
+            לקזז מהכרטיסייה ({pickedHours} ש׳{mode === "recurring" ? " לכל שבוע" : ""})
+            <span className="block text-xs text-muted-foreground">
+              {charge ? "השעות יירדו מהיתרה (גם למינוס אם אין מספיק)" : "שיבוץ בלי חיוב — היתרה לא משתנה"}
+            </span>
+          </span>
+        </label>
       )}
 
       {mode !== "session" && (

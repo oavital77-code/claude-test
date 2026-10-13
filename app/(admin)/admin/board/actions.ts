@@ -40,6 +40,7 @@ export async function adminCreateRecurringBookingAction(
   startTime: string,
   endTime: string,
   note: string,
+  charge: boolean,
 ): Promise<RecurringBookingResult> {
   await requireAdmin();
   const supabase = await createClient();
@@ -61,6 +62,7 @@ export async function adminCreateRecurringBookingAction(
       p_starts_at: startsAt,
       p_ends_at: endsAt,
       p_note: note || null,
+      p_charge: charge,
     });
 
     if (error) skipped.push({ date: d, error: bookingErrorMessage(error.message) });
@@ -79,15 +81,18 @@ export async function adminCreateBookingAction(
   startsAt: string,
   endsAt: string,
   note: string,
+  charge: boolean,
 ): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
+  // charge: לקזז מהכרטיסייה (יכול לרדת למינוס — החלטת אדמין) או שיבוץ בלי חיוב.
   const { error } = await supabase.rpc("admin_create_booking", {
     p_user_id: userId,
     p_room_id: roomId,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
     p_note: note || null,
+    p_charge: charge,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
   return { ok: true };
