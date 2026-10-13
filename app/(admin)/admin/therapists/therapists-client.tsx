@@ -16,13 +16,29 @@ type TherapistRow = Pick<
   "id" | "full_name" | "phone" | "email" | "status" | "created_at"
 > & { hoursRemaining: number; hoursPurchased: number };
 
+/** מטפל/ת מ-Skedda שעוד לא נרשם/ה ל-Cleana (טבלת skedda_migration). */
+export type PendingSkeddaRow = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  balance_hours: number | null;
+  has_session: boolean;
+};
+
 const STATUS_LABELS: Record<TherapistRow["status"], string> = {
   active: "פעיל",
   suspended: "מושעה",
   archived: "בארכיון",
 };
 
-export function TherapistsClient({ therapists }: { therapists: TherapistRow[] }) {
+export function TherapistsClient({
+  therapists,
+  pendingSkedda,
+}: {
+  therapists: TherapistRow[];
+  pendingSkedda: PendingSkeddaRow[];
+}) {
   const [query, setQuery] = useState("");
   const [resetState, setResetState] = useState<
     Record<string, { loading: boolean; url?: string; error?: string }>
@@ -46,6 +62,17 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
       (t) => t.full_name.includes(q) || t.phone.includes(q) || t.email.includes(q),
     );
   }, [therapists, query]);
+
+  const filteredPending = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return pendingSkedda;
+    return pendingSkedda.filter(
+      (t) =>
+        t.full_name.toLowerCase().includes(q) ||
+        (t.phone ?? "").includes(q) ||
+        (t.email ?? "").includes(q),
+    );
+  }, [pendingSkedda, query]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -72,7 +99,7 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && filteredPending.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
                   {therapists.length === 0 ? "אין עדיין מטפלים רשומים" : "אין תוצאות לחיפוש"}
@@ -144,6 +171,30 @@ export function TherapistsClient({ therapists }: { therapists: TherapistRow[] })
                 </tr>
               );
             })}
+            {filteredPending.map((t) => (
+              <tr key={`skedda-${t.id}`} className="border-b bg-muted/20 text-muted-foreground last:border-0 align-top">
+                <td className="p-2">
+                  {t.full_name}
+                  {t.has_session && <span className="ms-1 text-violet-600">· ססיה</span>}
+                </td>
+                <td className="p-2" dir="ltr">
+                  {t.phone ?? "—"}
+                </td>
+                <td className="p-2" dir="ltr">
+                  {t.email ?? "—"}
+                </td>
+                <td className="p-2">טרם נרשם/ה</td>
+                <td className="p-2">
+                  {t.balance_hours === null ? "יתרה מ-Skedda: לא ידועה" : `יתרה מ-Skedda: ${t.balance_hours} ש׳`}
+                </td>
+                <td className="p-2">—</td>
+                <td className="p-2">
+                  <Link href="/admin/therapists/skedda" className="text-sm text-violet-600 hover:underline">
+                    עריכה בהעברה מ-Skedda
+                  </Link>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
