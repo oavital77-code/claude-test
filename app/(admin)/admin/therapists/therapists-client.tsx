@@ -14,7 +14,7 @@ import { createDemoTherapistAction, generatePasswordResetLinkAction } from "./ac
 type TherapistRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
   "id" | "full_name" | "phone" | "email" | "status" | "created_at"
-> & { hoursRemaining: number; hoursPurchased: number };
+> & { hoursRemaining: number; hasCard: boolean };
 
 /** מטפל/ת מ-Skedda שעוד לא נרשם/ה ל-Cleana (טבלת skedda_migration). */
 export type PendingSkeddaRow = {
@@ -93,7 +93,7 @@ export function TherapistsClient({
               <th className="p-2">טלפון</th>
               <th className="p-2">מייל</th>
               <th className="p-2">סטטוס</th>
-              <th className="p-2">שעות (נותרו/נרכשו)</th>
+              <th className="p-2">יתרת שעות</th>
               <th className="p-2">הצטרפות</th>
               <th className="p-2">פעולות</th>
             </tr>
@@ -123,7 +123,7 @@ export function TherapistsClient({
                   </td>
                   <td className="p-2">{STATUS_LABELS[t.status]}</td>
                   <td className="p-2">
-                    <HoursStatus remaining={t.hoursRemaining} purchased={t.hoursPurchased} />
+                    <HoursStatus remaining={t.hoursRemaining} hasCard={t.hasCard} />
                   </td>
                   <td className="p-2">{formatDateHe(new Date(t.created_at))}</td>
                   <td className="p-2">
@@ -202,15 +202,15 @@ export function TherapistsClient({
   );
 }
 
-/** תג "נותרו/נרכשו" — אדום כשהיתרה נמוכה (≤2), כמו סף ההתראה הקיים. */
-function HoursStatus({ remaining, purchased }: { remaining: number; purchased: number }) {
-  if (purchased === 0) {
+/** יתרת השעות בלבד (סכום כל הכרטיסיות הפעילות; יכולה להיות במינוס) — אדום כשהיתרה נמוכה (≤2), כמו סף ההתראה הקיים. */
+function HoursStatus({ remaining, hasCard }: { remaining: number; hasCard: boolean }) {
+  if (!hasCard) {
     return <span className="text-muted-foreground">אין כרטיסייה פעילה</span>;
   }
   const low = remaining <= 2;
   return (
-    <span className={low ? "font-medium text-destructive" : ""}>
-      {remaining}/{purchased} שעות
+    <span className={low ? "font-medium text-destructive" : ""} dir="ltr">
+      {remaining} ש׳
       {low && " ⚠️"}
     </span>
   );
