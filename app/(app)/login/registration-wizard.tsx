@@ -187,10 +187,22 @@ export function RegistrationWizard({
     setLoading(true);
     // Supabase לא מחזירה שגיאה על כתובת שלא קיימת — בכוונה, כדי שלא יהיה
     // אפשר לברר דרך המסך הזה מי רשום במערכת. לכן המסך הבא זהה בכל מקרה.
-    await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
       redirectTo: callbackUrl("/reset-password"),
     });
     setLoading(false);
+
+    // כתובת לא קיימת לא מחזירה שגיאה (ר' למעלה), אז שגיאה כאן היא כשל אמיתי
+    // בשליחה — בעיקר מגבלת שליחת מיילים בעומס. בלי זה המסך היה אומר "שלחנו"
+    // והמייל לא היה מגיע לעולם.
+    if (resetError) {
+      setError(
+        resetError.status === 429
+          ? "יש כרגע עומס בשליחת מיילים. נסו שוב בעוד כמה דקות, או פנו להנהלה לקבלת קישור כניסה."
+          : "לא הצלחנו לשלוח את המייל. נסו שוב, או פנו להנהלה לקבלת קישור כניסה.",
+      );
+      return;
+    }
 
     setEmail(parsed.data.email);
     goToSent("reset");
@@ -203,9 +215,18 @@ export function RegistrationWizard({
     setLoading(true);
 
     if (sentKind === "reset") {
-      await supabase.auth.resetPasswordForEmail(email, {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: callbackUrl("/reset-password"),
       });
+      if (resetError) {
+        setLoading(false);
+        setError(
+          resetError.status === 429
+            ? "יש כרגע עומס בשליחת מיילים. נסו שוב בעוד כמה דקות, או פנו להנהלה לקבלת קישור כניסה."
+            : "לא הצלחנו לשלוח את המייל. נסו שוב, או פנו להנהלה לקבלת קישור כניסה.",
+        );
+        return;
+      }
     } else {
       await supabase.auth.resend({
         type: "signup",
