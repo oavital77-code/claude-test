@@ -14,7 +14,7 @@ import { createDemoTherapistAction, generatePasswordResetLinkAction } from "./ac
 type TherapistRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
   "id" | "full_name" | "phone" | "email" | "status" | "created_at"
-> & { hoursRemaining: number; hasCard: boolean };
+> & { hoursRemaining: number; hasCard: boolean; newCards: { purchased: number; used: number }[] };
 
 /** מטפל/ת מ-Skedda שעוד לא נרשם/ה ל-Cleana (טבלת skedda_migration). */
 export type PendingSkeddaRow = {
@@ -124,6 +124,11 @@ export function TherapistsClient({
                   <td className="p-2">{STATUS_LABELS[t.status]}</td>
                   <td className="p-2">
                     <HoursStatus remaining={t.hoursRemaining} hasCard={t.hasCard} />
+                    {t.newCards.map((c, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">
+                        כרטיסייה {c.purchased} ש׳ · נוצלו {c.used} ש׳
+                      </p>
+                    ))}
                   </td>
                   <td className="p-2">{formatDateHe(new Date(t.created_at))}</td>
                   <td className="p-2">

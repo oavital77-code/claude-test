@@ -96,13 +96,24 @@ export async function adminCreateBookingAction(
 export async function adminCancelBookingAction(bookingId: string, refundHours: boolean): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("source, admin_note")
+    .eq("id", bookingId)
+    .maybeSingle();
   const { error } = await supabase.rpc("admin_cancel_booking", {
     p_booking_id: bookingId,
     p_refund_hours: refundHours,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
 
-  notifyBookingCancelled(bookingId, refundHours).catch(() => {});
+  // מייל ביטול רק להזמנה שהמטפל/ת קבע/ה בעצמו/ה. שיבוץ שהאדמין פרס (שיבוץ
+  // ידני, מפגש ססיה, או כרטיסייה שקוזזה בהעברה מ-Skedda — admin_note מסומן)
+  // מבוטל בשקט — בקשת הבעלים: בלי הודעות למטפלים על פריסת המעבר.
+  const placedByAdmin = !booking || booking.source !== "punch_card" || booking.admin_note !== null;
+  if (!placedByAdmin) {
+    notifyBookingCancelled(bookingId, refundHours).catch(() => {});
+  }
 
   return { ok: true };
 }
