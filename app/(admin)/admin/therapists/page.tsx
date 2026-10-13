@@ -7,7 +7,7 @@ export default async function AdminTherapistsPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: therapists }, { data: cards }] = await Promise.all([
+  const [{ data: therapists }, { data: cards }, { data: skeddaRows }, { data: allEmails }] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, phone, email, status, created_at")
@@ -18,6 +18,13 @@ export default async function AdminTherapistsPage() {
       .select("user_id, hours_remaining, hours_purchased")
       .eq("active", true)
       .gt("expires_at", new Date().toISOString()),
+    // מטפלים מ-Skedda שעוד לא נרשמו — מוצגים ברשימה עם "טרם נרשם/ה" עד שיירשמו.
+    supabase
+      .from("skedda_migration")
+      .select("id, full_name, email, phone, balance_hours, has_session")
+      .eq("status", "pending")
+      .order("full_name"),
+    supabase.from("profiles").select("email"),
   ]);
 
   // סכום שעות (נותרו/נרכשו) על פני כל הכרטיסיות הפעילות של כל מטפל —
@@ -35,6 +42,9 @@ export default async function AdminTherapistsPage() {
     hoursPurchased: hoursByUser.get(t.id)?.purchased ?? 0,
   }));
 
+  const registered = new Set((allEmails ?? []).map((p) => p.email.toLowerCase()));
+  const pendingSkedda = (skeddaRows ?? []).filter((r) => !r.email || !registered.has(r.email.toLowerCase()));
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -43,7 +53,7 @@ export default async function AdminTherapistsPage() {
           העברה מ-Skedda: יתרות וססיות ←
         </Link>
       </div>
-      <TherapistsClient therapists={therapistsWithHours} />
+      <TherapistsClient therapists={therapistsWithHours} pendingSkedda={pendingSkedda} />
     </div>
   );
 }
