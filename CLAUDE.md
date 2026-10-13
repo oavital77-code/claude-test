@@ -84,6 +84,12 @@ where (status = 'confirmed')
 כרטיסייה בתוקף עם `hours_remaining >= hours` **וגם** `deposit_remaining = deposit_amount`.
 בחירה FIFO לפי `expires_at ASC`, עם `FOR UPDATE`.
 
+**חריגה מפורשת (החלטת הבעלים, 13/10):** מטפל/ת שאדמין הפעיל לו/ה "אשראי
+שעות" (`therapist_credit_allowance.allowed`) — אם אין כרטיסייה עם יתרה
+מספיקה, `create_booking` מחייב את הכרטיסייה הפעילה עם התוקף הארוך ביותר
+לתוך מינוס (או פותח כרטיסייה ריקה). החוב מתקזז אוטומטית בכרטיסייה הבאה
+(`absorb_punch_card_debt`). רק אדמין מפעיל/מכבה; כל השאר — כמו תמיד.
+
 ### 8. זמנים
 - הכל `timestamptz`. אזור: `Asia/Jerusalem`. שים לב ל-DST.
 - הזמנות מיושרות ל-30 דקות.

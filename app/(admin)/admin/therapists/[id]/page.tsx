@@ -6,6 +6,7 @@ import { lookupSkeddaRoster } from "@/lib/skedda-import/roster";
 import { TherapistDetailClient } from "./therapist-detail-client";
 import { PendingPurchasesSection, type PendingPurchase } from "./pending-purchases-section";
 import { SkeddaInfoSection } from "./skedda-info-section";
+import { CreditAllowanceSection } from "./credit-allowance-section";
 
 export default async function AdminTherapistDetailPage({
   params,
@@ -31,6 +32,7 @@ export default async function AdminTherapistDetailPage({
     { data: tiers },
     { data: skeddaRows },
     { data: branches },
+    { data: creditAllowance },
   ] = await Promise.all([
     supabase.from("punch_cards").select("*").eq("user_id", id).order("purchased_at", { ascending: false }),
     supabase
@@ -63,6 +65,7 @@ export default async function AdminTherapistDetailPage({
       // המייל במרכאות — PostgREST מפרש פסיקים/סוגריים בערך כחלק מהתחביר.
       .or(`claimed_by.eq.${id},email.eq."${profile.email.toLowerCase()}"`),
     supabase.from("branches").select("id, name"),
+    supabase.from("therapist_credit_allowance").select("allowed").eq("user_id", id).maybeSingle(),
   ]);
   // "Room 1" קיים בשני הסניפים — בלי שם הסניף אי אפשר להבחין ביניהם ברשימות.
   const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
@@ -95,6 +98,7 @@ export default async function AdminTherapistDetailPage({
     <div className="flex flex-1 flex-col gap-4 p-4">
       <h1 className="text-xl font-semibold">{profile.full_name}</h1>
       <SkeddaInfoSection rows={skeddaRows ?? []} />
+      <CreditAllowanceSection userId={profile.id} allowed={creditAllowance?.allowed === true} />
       <TherapistDetailClient
         profile={profile}
         adminNote={notesRow?.note ?? ""}

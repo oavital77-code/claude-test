@@ -33,7 +33,7 @@ export default async function HomePage() {
   const { userId, profile } = await requireTherapistProfile();
   const supabase = await createClient();
 
-  const [{ data: cards }, { data: nextBooking }, { data: sessionSubscriptions }] = await Promise.all([
+  const [{ data: cards }, { data: nextBooking }, { data: sessionSubscriptions }, { data: creditAllowance }] = await Promise.all([
     supabase
       .from("punch_cards")
       .select("hours_remaining, deposit_amount, deposit_remaining, expires_at")
@@ -57,9 +57,16 @@ export default async function HomePage() {
       .eq("user_id", userId)
       .in("status", ["requested", "awaiting_payment", "active", "pending_cancellation"])
       .order("created_at", { ascending: false }),
+    // אשראי שעות שאדמין אישר (מעבר מ-Skedda) — אפשר לקבוע גם בלי יתרה / במינוס.
+    supabase
+      .from("therapist_credit_allowance")
+      .select("allowed")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   const hoursRemaining = (cards ?? []).reduce((sum, c) => sum + c.hours_remaining, 0);
+  const onCredit = creditAllowance?.allowed === true;
   const depositShort = (cards ?? []).some((c) => c.deposit_remaining < c.deposit_amount);
   const nearestExpiry = (cards ?? [])
     .map((c) => new Date(c.expires_at))
@@ -86,9 +93,14 @@ export default async function HomePage() {
               יש להשלים פיקדון — הזמנות חדשות חסומות עד ההשלמה
             </p>
           )}
-          {hoursRemaining === 0 && (
+          {hoursRemaining <= 0 && !onCredit && (
             <p className="text-sm text-amber-600 dark:text-amber-500">
               לא נותרו לך שעות — יש לרכוש כרטיסייה כדי להמשיך לקבוע תורים.
+            </p>
+          )}
+          {hoursRemaining <= 0 && onCredit && (
+            <p className="text-sm text-amber-600 dark:text-amber-500">
+              אפשר להמשיך לקבוע תורים כרגיל — את השעות נסדיר יחד בהמשך.
             </p>
           )}
           {hoursRemaining > 0 && hoursRemaining <= 2 && (
@@ -96,7 +108,7 @@ export default async function HomePage() {
               ⚠️ נשארו לך רק {hoursRemaining} שעות — כדאי לרכוש כרטיסייה נוספת בקרוב.
             </p>
           )}
-          {hoursRemaining > 0 && !depositShort && (
+          {(hoursRemaining > 0 || onCredit) && !depositShort && (
             <Button asChild className="mt-2">
               <Link href="/schedule">קביעת תור עכשיו</Link>
             </Button>
