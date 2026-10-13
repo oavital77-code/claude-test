@@ -526,6 +526,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      therapist_credit_allowance: {
+        Row: {
+          user_id: string;
+          allowed: boolean;
+          granted_by: string | null;
+          granted_at: string;
+          note: string | null;
+        };
+        Insert: {
+          user_id: string;
+          allowed?: boolean;
+          granted_by?: string | null;
+          granted_at?: string;
+          note?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          allowed?: boolean;
+          granted_by?: string | null;
+          granted_at?: string;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
       woo_pending_purchases: {
         Row: {
           id: string;
@@ -633,6 +657,10 @@ export type Database = {
       };
       admin_set_session_price: {
         Args: { p_subscription_id: string; p_monthly_price: number };
+        Returns: undefined;
+      };
+      admin_set_credit_allowance: {
+        Args: { p_user_id: string; p_allowed: boolean };
         Returns: undefined;
       };
       admin_renew_session_term: {

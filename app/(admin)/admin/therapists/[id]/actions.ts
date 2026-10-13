@@ -271,3 +271,23 @@ export async function assignPendingPurchaseAction(input: unknown): Promise<Actio
   }
   return { ok: true };
 }
+
+const creditAllowanceSchema = z.object({
+  userId: z.string().uuid(),
+  allowed: z.boolean(),
+});
+
+/** אשראי שעות: מטפל/ת יכול/ה לקבוע גם בלי יתרה (נכנס/ת למינוס) — החלטת אדמין. */
+export async function setCreditAllowanceAction(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = creditAllowanceSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_credit_allowance", {
+    p_user_id: parsed.data.userId,
+    p_allowed: parsed.data.allowed,
+  });
+  if (error) return { ok: false, error: "העדכון נכשל" };
+  return { ok: true };
+}
