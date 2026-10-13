@@ -10,7 +10,14 @@ export default async function AdminTherapistsPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: therapists }, { data: cards }, { data: skeddaRows }, { data: allEmails }] = await Promise.all([
+  const [
+    { data: therapists },
+    { data: cards },
+    { data: skeddaRows },
+    { data: allEmails },
+    { data: activeSessions },
+    { data: skeddaSessionRows },
+  ] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, phone, email, status, created_at")
@@ -28,7 +35,24 @@ export default async function AdminTherapistsPage() {
       .eq("status", "pending")
       .order("full_name"),
     supabase.from("profiles").select("email"),
+    supabase
+      .from("session_subscriptions")
+      .select("user_id")
+      .in("status", ["active", "pending_cancellation"]),
+    // ססיה שעדיין רשומה רק כחסימת Skedda (טרם הוגדרה כססיה אמיתית במערכת).
+    supabase.from("skedda_migration").select("email, claimed_by").eq("has_session", true),
   ]);
+
+  const sessionUserIds = new Set((activeSessions ?? []).map((s) => s.user_id));
+  const skeddaSessionKeys = new Set(
+    (skeddaSessionRows ?? []).flatMap((r) => [r.claimed_by, r.email?.toLowerCase()].filter((k): k is string => !!k)),
+  );
+  const sessionStatusOf = (t: { id: string; email: string }): "active" | "skedda" | null =>
+    sessionUserIds.has(t.id)
+      ? "active"
+      : skeddaSessionKeys.has(t.id) || skeddaSessionKeys.has(t.email.toLowerCase())
+        ? "skedda"
+        : null;
 
   // יתרת השעות (סכום כל הכרטיסיות הפעילות של כל מטפל, יכולה להיות במינוס) —
   // כדי להציג ברשימה עצמה כמה נשאר בלי להיכנס לכרטיס שלו.
@@ -49,6 +73,7 @@ export default async function AdminTherapistsPage() {
     hoursRemaining: hoursByUser.get(t.id) ?? 0,
     hasCard: hoursByUser.has(t.id),
     newCards: newCardsByUser.get(t.id) ?? [],
+    session: sessionStatusOf(t),
   }));
 
   const registered = new Set((allEmails ?? []).map((p) => p.email.toLowerCase()));
