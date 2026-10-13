@@ -748,10 +748,6 @@ function SlotActionPanel({
       onError("יש לבחור מטפל/ת");
       return;
     }
-    if (mode === "session" && pickedHours !== baseHours) {
-      onError(`ססיה אמיתית חייבת בדיוק ${baseHours} שעות שבועיות — טווח השעות הנוכחי הוא ${pickedHours}.`);
-      return;
-    }
 
     setLoading(true);
 
@@ -760,6 +756,8 @@ function SlotActionPanel({
         selectedTherapistId,
         [{ roomId: targetRoomId, weekday, startTime, endTime }],
         date,
+        null,
+        null, // מחיר יחסי לשעות; ניתן לעדכן אחר כך בכרטיס המטפל/ת
       );
       setLoading(false);
       if (!res.ok) {
@@ -873,8 +871,9 @@ function SlotActionPanel({
 
       {mode === "session" && (
         <p className="text-xs text-muted-foreground">
-          {WEEKDAY_LABELS[weekday]}, {pickedHours} שעות שבועיות מתוך {baseHours} נדרשות · {formatCurrency(basePrice)}
-          /חודש. יוצר מנוי ססיה אמיתי — נשלח קישור תשלום למייל, בלי בדיקת התנגשות.
+          {WEEKDAY_LABELS[weekday]}, {pickedHours} שעות שבועיות ·{" "}
+          {formatCurrency(Math.round((basePrice / baseHours) * pickedHours))}/חודש (יחסי לשעות, ניתן לשינוי בכרטיס
+          המטפל/ת). יוצר מנוי ססיה אמיתי — נשלח קישור תשלום למייל, בלי בדיקת התנגשות.
         </p>
       )}
       {mode === "recurring" && (

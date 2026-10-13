@@ -30,6 +30,7 @@ export default async function AdminTherapistDetailPage({
     { data: pendingRows },
     { data: tiers },
     { data: skeddaRows },
+    { data: branches },
   ] = await Promise.all([
     supabase.from("punch_cards").select("*").eq("user_id", id).order("purchased_at", { ascending: false }),
     supabase
@@ -41,7 +42,7 @@ export default async function AdminTherapistDetailPage({
     supabase.from("payments").select("*").eq("user_id", id).order("created_at", { ascending: false }),
     supabase.from("session_subscriptions").select("*").eq("user_id", id).order("created_at", { ascending: false }),
     supabase.from("therapist_admin_notes").select("note").eq("user_id", id).maybeSingle(),
-    supabase.from("rooms").select("id, name").eq("active", true).order("sort_order"),
+    supabase.from("rooms").select("id, name, branch_id").eq("active", true).order("sort_order"),
     supabase
       .from("room_blocks")
       .select("id, room_id, starts_at, ends_at, reason")
@@ -61,13 +62,19 @@ export default async function AdminTherapistDetailPage({
       .select("*")
       // המייל במרכאות — PostgREST מפרש פסיקים/סוגריים בערך כחלק מהתחביר.
       .or(`claimed_by.eq.${id},email.eq."${profile.email.toLowerCase()}"`),
+    supabase.from("branches").select("id, name"),
   ]);
+  // "Room 1" קיים בשני הסניפים — בלי שם הסניף אי אפשר להבחין ביניהם ברשימות.
+  const branchNameById = new Map((branches ?? []).map((b) => [b.id, b.name]));
+  const roomLabel = (r: { name: string; branch_id: string }) =>
+    `${r.name} · ${branchNameById.get(r.branch_id) ?? ""}`;
+  const roomOptions = (activeRooms ?? []).map((r) => ({ id: r.id, name: roomLabel(r) }));
 
   const roomIds = [...new Set((bookings ?? []).map((b) => b.room_id))];
   const { data: rooms } = roomIds.length
-    ? await supabase.from("rooms").select("id, name").in("id", roomIds)
+    ? await supabase.from("rooms").select("id, name, branch_id").in("id", roomIds)
     : { data: [] };
-  const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]));
+  const roomNameById = new Map((rooms ?? []).map((r) => [r.id, roomLabel(r)]));
 
   const bookingsWithRoom = (bookings ?? []).map((b) => ({ ...b, roomName: roomNameById.get(b.room_id) ?? "" }));
   const skeddaGroups = groupSkeddaBlocks(skeddaBlocks ?? []);
@@ -95,7 +102,7 @@ export default async function AdminTherapistDetailPage({
         bookings={bookingsWithRoom}
         payments={payments ?? []}
         subscriptions={subscriptions ?? []}
-        roomOptions={activeRooms ?? []}
+        roomOptions={roomOptions}
         skeddaGroups={skeddaGroups}
         skeddaRosterMatch={skeddaRosterMatch}
       />

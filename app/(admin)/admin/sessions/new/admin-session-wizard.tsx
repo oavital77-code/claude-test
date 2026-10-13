@@ -60,7 +60,10 @@ export function AdminSessionWizard({
   const [loading, setLoading] = useState(false);
 
   const weeklyHours = useMemo(() => slots.reduce((sum, s) => sum + slotHours(s), 0), [slots]);
-  const hoursMatch = weeklyHours === baseHours;
+  // אדמין: היקף חופשי. המחיר — ברירת מחדל יחסית לשעות, ניתן לעריכה.
+  const proportionalPrice = Math.round((basePrice / baseHours) * weeklyHours);
+  const [priceInput, setPriceInput] = useState("");
+  const monthlyPrice = priceInput.trim() === "" ? proportionalPrice : Number(priceInput);
 
   const filteredTherapists = therapists
     .filter((t) => t.full_name.includes(therapistQuery) || t.phone.includes(therapistQuery))
@@ -93,8 +96,12 @@ export function AdminSessionWizard({
       setError("יש לבחור מטפל/ת");
       return;
     }
-    if (!hoursMatch) {
-      setError(`ססיה היא תמיד בהיקף קבוע של ${baseHours} שעות שבועיות`);
+    if (weeklyHours <= 0) {
+      setError("יש להוסיף לפחות משבצת אחת");
+      return;
+    }
+    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+      setError("מחיר חודשי לא תקין");
       return;
     }
     setLoading(true);
@@ -103,6 +110,7 @@ export function AdminSessionWizard({
       slots,
       startDate,
       termMonths ? Number(termMonths) : null,
+      monthlyPrice,
     );
     setLoading(false);
     if (!result.ok) {
@@ -161,8 +169,8 @@ export function AdminSessionWizard({
           </div>
 
           <p className="text-sm text-muted-foreground">
-            יש לבחור משבצות שסך משכן {baseHours} שעות שבועיות בדיוק — {formatCurrency(basePrice)} לחודש (לפני מע״מ).
-            לא מתבצעת בדיקת התנגשות — קביעה חופשית.
+            היקף חופשי — כל מספר משבצות ושעות. מחיר ברירת מחדל: {formatCurrency(basePrice)} ל-{baseHours} שעות,
+            יחסית לשעות (ניתן לשנות). לא מתבצעת בדיקת התנגשות — קביעה חופשית.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="col-span-1 flex flex-col gap-1.5 sm:col-span-2">
@@ -263,22 +271,24 @@ export function AdminSessionWizard({
           )}
           <div className="flex justify-between border-t pt-2 text-sm">
             <span>סה״כ שעות שבועיות</span>
-            <span>
-              {weeklyHours} מתוך {baseHours} נדרשות
-            </span>
+            <span>{weeklyHours}</span>
           </div>
-          <div className="flex justify-between font-medium">
-            <span>מחיר חודשי (לפני מע״מ)</span>
-            <span>{formatCurrency(basePrice)}</span>
+          <div className="flex items-center justify-between gap-2 font-medium">
+            <Label htmlFor="monthly_price">מחיר חודשי (לפני מע״מ, ₪)</Label>
+            <Input
+              id="monthly_price"
+              inputMode="decimal"
+              className="w-32"
+              placeholder={String(proportionalPrice)}
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+            />
           </div>
-          {!hoursMatch && (
-            <p className="text-xs text-muted-foreground">
-              ססיה היא תמיד בהיקף קבוע של {baseHours} שעות שבועיות —{" "}
-              {weeklyHours < baseHours ? "יש להוסיף עוד משבצות" : "יש להסיר משבצות"} עד שהסכום יהיה בדיוק {baseHours}.
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            ריק = {formatCurrency(proportionalPrice)} (יחסי ל-{weeklyHours} שעות)
+          </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button disabled={!hoursMatch || loading} onClick={handleSubmit}>
+          <Button disabled={weeklyHours <= 0 || loading} onClick={handleSubmit}>
             {loading ? "קובע..." : "קביעת הססיה"}
           </Button>
         </CardContent>

@@ -24,6 +24,7 @@ import {
   setTherapistStatus,
   updateTherapistProfile,
 } from "./actions";
+import { setSessionPriceAction } from "../../sessions/actions";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type PunchCard = Database["public"]["Tables"]["punch_cards"]["Row"];
@@ -332,6 +333,8 @@ function SkeddaSessionDraftForm({
 }) {
   const [slots, setSlots] = useState<DerivedSlot[]>(initialSlots);
   const [startDate, setStartDate] = useState("");
+  const [priceInput, setPriceInput] = useState("");
+  const [termMonths, setTermMonths] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -355,12 +358,19 @@ function SkeddaSessionDraftForm({
       setError("יש להשאיר לפחות משבצת אחת");
       return;
     }
+    const monthlyPrice = priceInput.trim() === "" ? null : Number(priceInput);
+    if (monthlyPrice !== null && (!Number.isFinite(monthlyPrice) || monthlyPrice < 0)) {
+      setError("מחיר חודשי לא תקין");
+      return;
+    }
     setLoading(true);
     setError(null);
     const result = await claimSkeddaSessionAction({
       userId,
       slots: slots.map((s) => ({ roomId: s.roomId, weekday: s.weekday, startTime: s.startTime, endTime: s.endTime })),
       startDate: startDate || null,
+      termMonths: termMonths ? Number(termMonths) : null,
+      monthlyPrice,
     });
     setLoading(false);
     if (!result.ok) {
@@ -374,8 +384,8 @@ function SkeddaSessionDraftForm({
     <div className="flex flex-col gap-3 rounded-md border bg-background p-3">
       <p className="text-sm text-muted-foreground">
         המשבצות הבאות הוצעו מתוך התאריכים ב-Skedda — אפשר לערוך לפני היצירה. היא כבר שילמה על זה
-        ב-Skedda, אז הססיה תיווצר ישר כ<strong>פעילה</strong> — בלי תשלום ראשוני. החיוב החודשי הרגיל
-        (600₪+מע&quot;מ) ממשיך כרגיל מהחודש הבא. הבלוק הישן ב-Skedda יימחק אוטומטית מיד.
+        ב-Skedda, אז הססיה תיווצר ישר כ<strong>פעילה</strong> — בלי תשלום ראשוני. היקף חופשי (כל מספר
+        משבצות ושעות). החיוב החודשי ממשיך מהחודש הבא לפי המחיר שתזין כאן. הבלוק הישן ב-Skedda יימחק אוטומטית מיד.
       </p>
 
       {slots.map((slot, i) => (
@@ -438,16 +448,42 @@ function SkeddaSessionDraftForm({
         + הוספת משבצת
       </Button>
 
-      <div className="flex flex-col gap-1">
-        <Label className="text-xs">תאריך התחלה (ריק = היום)</Label>
-        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">תאריך התחלה (ריק = היום)</Label>
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">מחיר חודשי לפני מע״מ (ריק = יחסי לשעות)</Label>
+          <Input
+            inputMode="decimal"
+            value={priceInput}
+            onChange={(e) => setPriceInput(e.target.value)}
+            className="w-40"
+            placeholder="₪"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">התחייבות</Label>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={termMonths}
+            onChange={(e) => setTermMonths(e.target.value)}
+          >
+            <option value="">ללא הגבלה</option>
+            <option value="1">חודש</option>
+            <option value="3">3 חודשים</option>
+            <option value="6">חצי שנה</option>
+            <option value="12">שנה</option>
+          </select>
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-2">
         <Button size="sm" onClick={handleCreate} disabled={loading}>
-          {loading ? "יוצר..." : "יצירת ססיה ושליחת תשלום"}
+          {loading ? "יוצר..." : "יצירת ססיה (פעילה, בלי תשלום ראשוני)"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={loading}>
           ביטול
@@ -732,6 +768,11 @@ function SubscriptionRow({
           {subscription.weekly_hours} ש׳/שבוע · {formatCurrency(subscription.monthly_price)}/חודש · סטטוס:{" "}
           {subscription.status}
         </p>
+        <SessionPriceEditor
+          subscriptionId={subscription.id}
+          currentPrice={subscription.monthly_price}
+          onChanged={onChanged}
+        />
         {canAddSlot && (
           <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
             {open ? "סגירה" : "+ הוספת משבצת"}
@@ -783,6 +824,60 @@ function SubscriptionRow({
         </div>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/** עדכון המחיר החודשי של ססיה קיימת (אדמין) — לססיות בהיקף שאינו 5 שעות. */
+function SessionPriceEditor({
+  subscriptionId,
+  currentPrice,
+  onChanged,
+}: {
+  subscriptionId: string;
+  currentPrice: number;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(String(currentPrice));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const price = Number(value);
+    if (!Number.isFinite(price) || price < 0) {
+      setError("מחיר לא תקין");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const result = await setSessionPriceAction(subscriptionId, price);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setOpen(false);
+    onChanged();
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+        עדכון מחיר
+      </Button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <Input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className="w-28" />
+      <Button size="sm" onClick={save} disabled={loading}>
+        {loading ? "שומר..." : "שמירה"}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={loading}>
+        ביטול
+      </Button>
+      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
 }

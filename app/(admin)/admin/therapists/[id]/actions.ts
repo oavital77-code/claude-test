@@ -191,6 +191,7 @@ const claimSkeddaSessionSchema = z.object({
     .min(1),
   startDate: z.string().optional().nullable(),
   termMonths: z.number().int().optional().nullable(),
+  monthlyPrice: z.number().min(0).max(100000).optional().nullable(),
 });
 
 /**
@@ -203,7 +204,7 @@ export async function claimSkeddaSessionAction(input: unknown): Promise<ActionRe
   await requireAdmin();
   const parsed = claimSkeddaSessionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "פרטי המשבצות לא תקינים" };
-  const { userId, slots, startDate, termMonths } = parsed.data;
+  const { userId, slots, startDate, termMonths, monthlyPrice } = parsed.data;
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_create_session_prepaid", {
@@ -216,6 +217,8 @@ export async function claimSkeddaSessionAction(input: unknown): Promise<ActionRe
     })),
     p_start_date: startDate ?? null,
     p_term_months: termMonths ?? null,
+    // תמיד נשלח (גם null = יחסי לשעות) — בוחר את החתימה עם היקף חופשי.
+    p_monthly_price: monthlyPrice ?? null,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
   return { ok: true };

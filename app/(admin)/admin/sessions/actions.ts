@@ -14,8 +14,12 @@ export async function adminCreateSessionAction(
   slots: { roomId: string; weekday: number; startTime: string; endTime: string }[],
   startDate?: string | null,
   termMonths?: number | null,
+  monthlyPrice?: number | null,
 ): Promise<ActionResult> {
   await requireAdmin();
+  if (monthlyPrice != null && (!Number.isFinite(monthlyPrice) || monthlyPrice < 0 || monthlyPrice > 100000)) {
+    return { ok: false, error: "מחיר חודשי לא תקין" };
+  }
   const supabase = await createClient();
 
   const payload = slots.map((s) => ({
@@ -31,6 +35,8 @@ export async function adminCreateSessionAction(
       p_slots: payload,
       p_start_date: startDate ?? null,
       p_term_months: termMonths ?? null,
+      // תמיד נשלח (גם null) — כך PostgREST בוחר את החתימה החדשה עם היקף חופשי.
+      p_monthly_price: monthlyPrice ?? null,
     })
     .single();
 
@@ -134,4 +140,18 @@ async function notifyTherapistOfRejection(subscriptionId: string, reason: string
 
   const { subject, html } = sessionRejectedEmail(reason);
   await sendEmail({ to: profile.email, subject, html });
+}
+
+export async function setSessionPriceAction(subscriptionId: string, monthlyPrice: number): Promise<ActionResult> {
+  await requireAdmin();
+  if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0 || monthlyPrice > 100000) {
+    return { ok: false, error: "מחיר חודשי לא תקין" };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_session_price", {
+    p_subscription_id: subscriptionId,
+    p_monthly_price: monthlyPrice,
+  });
+  if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  return { ok: true };
 }
