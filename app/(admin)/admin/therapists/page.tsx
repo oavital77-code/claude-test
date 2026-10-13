@@ -15,7 +15,7 @@ export default async function AdminTherapistsPage() {
       .order("full_name"),
     supabase
       .from("punch_cards")
-      .select("user_id, hours_remaining, hours_purchased")
+      .select("user_id, hours_remaining")
       .eq("active", true)
       .gt("expires_at", new Date().toISOString()),
     // מטפלים מ-Skedda שעוד לא נרשמו — מוצגים ברשימה עם "טרם נרשם/ה" עד שיירשמו.
@@ -27,19 +27,16 @@ export default async function AdminTherapistsPage() {
     supabase.from("profiles").select("email"),
   ]);
 
-  // סכום שעות (נותרו/נרכשו) על פני כל הכרטיסיות הפעילות של כל מטפל —
-  // כדי להציג ברשימה עצמה "כמה נשאר מתוך כמה נרכש" בלי להיכנס לכרטיס שלו.
-  const hoursByUser = new Map<string, { remaining: number; purchased: number }>();
+  // יתרת השעות (סכום כל הכרטיסיות הפעילות של כל מטפל, יכולה להיות במינוס) —
+  // כדי להציג ברשימה עצמה כמה נשאר בלי להיכנס לכרטיס שלו.
+  const hoursByUser = new Map<string, number>();
   for (const c of cards ?? []) {
-    const cur = hoursByUser.get(c.user_id) ?? { remaining: 0, purchased: 0 };
-    cur.remaining += c.hours_remaining;
-    cur.purchased += c.hours_purchased;
-    hoursByUser.set(c.user_id, cur);
+    hoursByUser.set(c.user_id, (hoursByUser.get(c.user_id) ?? 0) + c.hours_remaining);
   }
   const therapistsWithHours = (therapists ?? []).map((t) => ({
     ...t,
-    hoursRemaining: hoursByUser.get(t.id)?.remaining ?? 0,
-    hoursPurchased: hoursByUser.get(t.id)?.purchased ?? 0,
+    hoursRemaining: hoursByUser.get(t.id) ?? 0,
+    hasCard: hoursByUser.has(t.id),
   }));
 
   const registered = new Set((allEmails ?? []).map((p) => p.email.toLowerCase()));
