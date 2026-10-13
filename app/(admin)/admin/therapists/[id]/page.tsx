@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
-import { groupSkeddaBlocks, IMPORT_MARKERS } from "@/lib/skedda-import/group";
-import { lookupSkeddaRoster } from "@/lib/skedda-import/roster";
 import { TherapistDetailClient } from "./therapist-detail-client";
 import { PendingPurchasesSection, type PendingPurchase } from "./pending-purchases-section";
 import { SkeddaInfoSection } from "./skedda-info-section";
@@ -27,7 +25,6 @@ export default async function AdminTherapistDetailPage({
     { data: subscriptions },
     { data: notesRow },
     { data: activeRooms },
-    { data: skeddaBlocks },
     { data: pendingRows },
     { data: tiers },
     { data: skeddaRows },
@@ -45,13 +42,6 @@ export default async function AdminTherapistDetailPage({
     supabase.from("session_subscriptions").select("*").eq("user_id", id).order("created_at", { ascending: false }),
     supabase.from("therapist_admin_notes").select("note").eq("user_id", id).maybeSingle(),
     supabase.from("rooms").select("id, name, branch_id").eq("active", true).order("sort_order"),
-    supabase
-      .from("room_blocks")
-      .select("id, room_id, starts_at, ends_at, reason")
-      // חסימות שממתינות לשיוך — בין אם יובאו מ-Skedda ובין אם מקובץ
-      // CSV/אקסל דרך מסך ההגדרות. אותו תהליך קליטה בדיוק.
-      .or(IMPORT_MARKERS.map((marker) => `reason.ilike.%${marker}%`).join(","))
-      .order("starts_at", { ascending: true }),
     // רכישות Woo שלא נמשכו אוטומטית (אין חשבון עם אותו מייל) — לשיוך ידני.
     supabase
       .from("woo_pending_purchases")
@@ -80,8 +70,6 @@ export default async function AdminTherapistDetailPage({
   const roomNameById = new Map((rooms ?? []).map((r) => [r.id, roomLabel(r)]));
 
   const bookingsWithRoom = (bookings ?? []).map((b) => ({ ...b, roomName: roomNameById.get(b.room_id) ?? "" }));
-  const skeddaGroups = groupSkeddaBlocks(skeddaBlocks ?? []);
-  const skeddaRosterMatch = lookupSkeddaRoster(profile.phone);
 
   const tierHoursById = new Map((tiers ?? []).map((t) => [t.id, t.hours]));
   const pendingPurchases: PendingPurchase[] = (pendingRows ?? []).map((p) => ({
@@ -107,8 +95,6 @@ export default async function AdminTherapistDetailPage({
         payments={payments ?? []}
         subscriptions={subscriptions ?? []}
         roomOptions={roomOptions}
-        skeddaGroups={skeddaGroups}
-        skeddaRosterMatch={skeddaRosterMatch}
       />
       <PendingPurchasesSection
         userId={profile.id}
