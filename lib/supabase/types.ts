@@ -613,6 +613,7 @@ export type Database = {
           p_slots: Json;
           p_start_date?: string | null;
           p_term_months?: number | null;
+          p_monthly_price?: number | null;
         };
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
       };
@@ -626,8 +627,13 @@ export type Database = {
           p_slots: Json;
           p_start_date?: string | null;
           p_term_months?: number | null;
+          p_monthly_price?: number | null;
         };
         Returns: { subscription_id: string }[];
+      };
+      admin_set_session_price: {
+        Args: { p_subscription_id: string; p_monthly_price: number };
+        Returns: undefined;
       };
       admin_renew_session_term: {
         Args: { p_subscription_id: string; p_term_months: number };
