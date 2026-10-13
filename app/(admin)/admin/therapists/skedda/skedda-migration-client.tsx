@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
-import { addSkeddaRowAction, updateSkeddaRowAction } from "./actions";
+import { addSkeddaRowAction, provisionSkeddaAccountsAction, updateSkeddaRowAction } from "./actions";
+import type { ProvisionRowResult } from "./actions";
 
 type Row = Database["public"]["Tables"]["skedda_migration"]["Row"];
 
@@ -39,7 +40,8 @@ function matches(r: Row, f: Filter) {
     case "review":
       return needsReview(r);
     case "session":
-      return r.has_session && r.status === "pending";
+      // גם אחרי שהחשבון נפתח והיתרה עברה — הססיה עצמה עוד ממתינה לקליטה.
+      return r.has_session && r.status !== "skipped";
     case "negative":
       return r.status === "pending" && (r.balance_hours ?? 0) < 0;
     case "ready":
@@ -95,6 +97,8 @@ export function SkeddaMigrationClient({
           </p>
         </CardContent>
       </Card>
+
+      <ProvisionAccounts rows={rows} registered={registered} />
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
@@ -314,5 +318,77 @@ function AddRow() {
       </Button>
       {error && <span className="text-sm text-destructive">{error}</span>}
     </div>
+  );
+}
+
+/**
+ * פתיחת חשבונות מראש לכל מי שבטבלה: שורות pending עם מייל, וטלפון (או
+ * חשבון קיים). רץ בקבוצות של 5 — כל קבוצה היא קריאה נפרדת לשרת.
+ */
+function ProvisionAccounts({ rows, registered }: { rows: Row[]; registered: Set<string> }) {
+  const router = useRouter();
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
+  const [results, setResults] = useState<ProvisionRowResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const eligible = rows.filter(
+    (r) => r.status === "pending" && !!r.email && (!!r.phone || registered.has(r.email.toLowerCase())),
+  );
+  const missingPhone = rows.filter(
+    (r) => r.status === "pending" && !!r.email && !r.phone && !registered.has(r.email.toLowerCase()),
+  );
+
+  async function run() {
+    const ok = window.confirm(
+      `לפתוח חשבון Cleana ל-${eligible.length} מטפלים, להעביר להם את יתרת ה-Skedda ולשייך רכישות מהחנות?\n` +
+        "המטפלים ייכנסו דרך 'שכחתי סיסמה' עם המייל שלהם. הפעולה לא נשלחת אליהם במייל.",
+    );
+    if (!ok) return;
+    setRunning(true);
+    setError(null);
+    setResults([]);
+    setDone(0);
+    const ids = eligible.map((r) => r.id);
+    for (let i = 0; i < ids.length; i += 5) {
+      const res = await provisionSkeddaAccountsAction({ rowIds: ids.slice(i, i + 5) });
+      if (!res.ok) {
+        setError(res.error);
+        break;
+      }
+      setResults((prev) => [...prev, ...res.results]);
+      setDone(Math.min(i + 5, ids.length));
+    }
+    setRunning(false);
+    router.refresh();
+  }
+
+  const failed = results.filter((r) => !r.ok);
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-2 pt-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            <b>פתיחת חשבונות:</b> {eligible.length} מטפלים מוכנים
+            {missingPhone.length > 0 && ` · ${missingPhone.length} ממתינים לטלפון`}
+          </span>
+          <Button size="sm" onClick={run} disabled={running || eligible.length === 0}>
+            {running ? `פותח... ${done}/${eligible.length}` : "פתיחת חשבונות"}
+          </Button>
+        </div>
+        {error && <p className="text-destructive">{error}</p>}
+        {results.length > 0 && !running && (
+          <p>
+            הסתיים: {results.length - failed.length} הצליחו{failed.length > 0 && `, ${failed.length} נכשלו`}.
+          </p>
+        )}
+        {failed.map((r) => (
+          <p key={r.id} className="text-destructive">
+            {r.name}: {r.message}
+          </p>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

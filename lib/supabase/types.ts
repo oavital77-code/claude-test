@@ -763,6 +763,10 @@ export type Database = {
         Args: Record<string, never>;
         Returns: { claimed_count: number; hours_granted: number }[];
       };
+      admin_transfer_skedda_balance: {
+        Args: { p_row_id: string; p_user_id: string };
+        Returns: { hours_transferred: number }[];
+      };
       claim_skedda_balance: {
         Args: Record<string, never>;
         Returns: { hours_transferred: number }[];
