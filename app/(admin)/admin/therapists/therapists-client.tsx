@@ -14,7 +14,13 @@ import { createDemoTherapistAction, generatePasswordResetLinkAction } from "./ac
 type TherapistRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
   "id" | "full_name" | "phone" | "email" | "status" | "created_at"
-> & { hoursRemaining: number; hasCard: boolean; newCards: { purchased: number; used: number }[] };
+> & {
+  hoursRemaining: number;
+  hasCard: boolean;
+  newCards: { purchased: number; used: number }[];
+  /** active = ססיה פעילה במערכת; skedda = ססיה שעדיין רשומה כחסימת Skedda. */
+  session: "active" | "skedda" | null;
+};
 
 /** מטפל/ת מ-Skedda שעוד לא נרשם/ה ל-Cleana (טבלת skedda_migration). */
 export type PendingSkeddaRow = {
@@ -93,7 +99,8 @@ export function TherapistsClient({
               <th className="p-2">טלפון</th>
               <th className="p-2">מייל</th>
               <th className="p-2">סטטוס</th>
-              <th className="p-2">יתרת שעות</th>
+              <th className="p-2">יתרת שעות בכרטיסייה</th>
+              <th className="p-2 text-center">ססיה</th>
               <th className="p-2">הצטרפות</th>
               <th className="p-2">פעולות</th>
             </tr>
@@ -101,7 +108,7 @@ export function TherapistsClient({
           <tbody>
             {filtered.length === 0 && filteredPending.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">
                   {therapists.length === 0 ? "אין עדיין מטפלים רשומים" : "אין תוצאות לחיפוש"}
                 </td>
               </tr>
@@ -129,6 +136,9 @@ export function TherapistsClient({
                         כרטיסייה {c.purchased} ש׳ · נוצלו {c.used} ש׳
                       </p>
                     ))}
+                  </td>
+                  <td className="p-2 text-center">
+                    <SessionBadge session={t.session} />
                   </td>
                   <td className="p-2">{formatDateHe(new Date(t.created_at))}</td>
                   <td className="p-2">
@@ -180,7 +190,6 @@ export function TherapistsClient({
               <tr key={`skedda-${t.id}`} className="border-b bg-muted/20 text-muted-foreground last:border-0 align-top">
                 <td className="p-2">
                   {t.full_name}
-                  {t.has_session && <span className="ms-1 text-violet-600">· ססיה</span>}
                 </td>
                 <td className="p-2" dir="ltr">
                   {t.phone ?? "—"}
@@ -191,6 +200,9 @@ export function TherapistsClient({
                 <td className="p-2">טרם נרשם/ה</td>
                 <td className="p-2">
                   {t.balance_hours === null ? "יתרה מ-Skedda: לא ידועה" : `יתרה מ-Skedda: ${t.balance_hours} ש׳`}
+                </td>
+                <td className="p-2 text-center">
+                  <SessionBadge session={t.has_session ? "skedda" : null} />
                 </td>
                 <td className="p-2">—</td>
                 <td className="p-2">
@@ -204,6 +216,34 @@ export function TherapistsClient({
         </table>
       </div>
     </div>
+  );
+}
+
+/**
+ * עמודת ססיה: וי ירוק לססיה פעילה, וי ירוק עם "Skedda" לססיה שעדיין רשומה
+ * כחסימת Skedda (החדר שמור, טרם הוגדרה כססיה במערכת), איקס אדום — אין ססיה.
+ */
+function SessionBadge({ session }: { session: "active" | "skedda" | null }) {
+  if (session === null) {
+    return (
+      <span
+        title="אין ססיה"
+        className="inline-flex size-6 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-600 dark:bg-red-950 dark:text-red-400"
+      >
+        ✕
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-col items-center gap-0.5">
+      <span
+        title={session === "active" ? "ססיה פעילה" : "ססיה מ-Skedda (חסימה בלוח)"}
+        className="inline-flex size-6 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
+      >
+        ✓
+      </span>
+      {session === "skedda" && <span className="text-[10px] text-muted-foreground">Skedda</span>}
+    </span>
   );
 }
 
