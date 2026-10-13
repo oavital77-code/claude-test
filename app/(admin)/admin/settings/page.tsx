@@ -13,6 +13,8 @@ const SETTING_LABELS: Record<string, string> = {
   session_hold_hours: "תוקף hold לססיה (שעות)",
   woo_session_product_id: "Product ID של מוצר הססיה בחנות Woo",
   woo_purchase_email_enabled: "מייל הזמנה להרשמה אחרי רכישה ב-Woo (0 = כבוי עד ההשקה, 1 = פועל)",
+  session_billing_paused:
+    "השהיית חיוב ססיות (1 = מושהה: אין תזכורות חידוש ואין פקיעה. לפני החזרה ל-0 — לעדכן תאריכי חיוב)",
   skedda_balance_claim_enabled:
     "העברת יתרות שעות מ-Skedda למטפלות שנרשמות (0 = כבוי עד ההשקה, 1 = פועל). ר' מטפלים → העברה מ-Skedda",
 };
