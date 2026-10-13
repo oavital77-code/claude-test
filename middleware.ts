@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 //                          (מתוכנן — טרם הופעל בפרודקשן; האדמין מגיע כרגע דרך /admin/* ישיר)
 // בסביבת פיתוח (localhost) אפשר לגשת ישירות ל-/admin בלי rewrite.
 const ADMIN_HOST_PREFIX = "admin.";
+const AUTH_REFRESH_TIMEOUT_MS = 5000;
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
@@ -37,7 +38,13 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  // רענון ה-session הוא best-effort: אם Auth של Supabase לא עונה, לא תוקעים
+  // את הדף עד ה-timeout של Vercel (25 שנ' — קרה בפרודקשן 13/10). הדף עצמו
+  // בודק שוב את המשתמש בצד השרת, אז ממשיכים בלי הרענון.
+  await Promise.race([
+    supabase.auth.getUser().catch(() => null),
+    new Promise((resolve) => setTimeout(resolve, AUTH_REFRESH_TIMEOUT_MS)),
+  ]);
 
   return response;
 }
