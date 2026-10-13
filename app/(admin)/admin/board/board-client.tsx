@@ -47,7 +47,7 @@ import {
   createRoomBlockAction,
   deleteRoomBlockAction,
 } from "./actions";
-import { adminCreateSessionAction } from "../sessions/actions";
+import { claimSkeddaSessionAction } from "../therapists/[id]/actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
 type Room = Database["public"]["Tables"]["rooms"]["Row"];
@@ -752,13 +752,17 @@ function SlotActionPanel({
     setLoading(true);
 
     if (mode === "session") {
-      const res = await adminCreateSessionAction(
-        selectedTherapistId,
-        [{ roomId: targetRoomId, weekday, startTime, endTime }],
-        date,
-        null,
-        null, // מחיר יחסי לשעות; ניתן לעדכן אחר כך בכרטיס המטפל/ת
-      );
+      // בקשת הבעלים (13/10, מעבר מ-Skedda): ססיה שאדמין מסמן בלוח נקבעת מיד
+      // כפעילה — בלי קישור תשלום ובלי מייל (אותו מסלול "שולם מראש" של קליטה
+      // מ-Skedda). החיוב החודשי מתחיל מחודש מתאריך ההתחלה; המחיר יחסי לשעות
+      // וניתן לעדכון בכרטיס המטפל/ת.
+      const res = await claimSkeddaSessionAction({
+        userId: selectedTherapistId,
+        slots: [{ roomId: targetRoomId, weekday, startTime, endTime }],
+        startDate: date,
+        termMonths: null,
+        monthlyPrice: null,
+      });
       setLoading(false);
       if (!res.ok) {
         onError(res.error);
@@ -873,7 +877,7 @@ function SlotActionPanel({
         <p className="text-xs text-muted-foreground">
           {WEEKDAY_LABELS[weekday]}, {pickedHours} שעות שבועיות ·{" "}
           {formatCurrency(Math.round((basePrice / baseHours) * pickedHours))}/חודש (יחסי לשעות, ניתן לשינוי בכרטיס
-          המטפל/ת). יוצר מנוי ססיה אמיתי — נשלח קישור תשלום למייל, בלי בדיקת התנגשות.
+          המטפל/ת). נקבעת מיד כססיה פעילה — בלי קישור תשלום ובלי מייל, בלי בדיקת התנגשות.
         </p>
       )}
       {mode === "recurring" && (
