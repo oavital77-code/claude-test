@@ -92,17 +92,26 @@ export const GET = withCronAlert("send-reminders", async () => {
     }
   }
 
-  // תזכורת חידוש ססיה — 7 ימים לפני next_billing_date, למטפל/ת ולהנהלה
+  // תזכורת חידוש ססיה — 7 ימים לפני next_billing_date, למטפל/ת ולהנהלה.
+  // לא נשלחת כשחיוב הססיות מושהה (app_settings.session_billing_paused = 1).
   const in7Days = addDaysToDateStr(today, 7);
   let sessionReminders = 0;
-  const { data: expiringSubs } = await supabase
-    .from("session_subscriptions")
-    .select("id, user_id, weekly_hours, next_billing_date")
-    .eq("status", "active")
-    .is("renewal_reminder_sent_at", null)
-    .not("next_billing_date", "is", null)
-    .lte("next_billing_date", in7Days)
-    .gte("next_billing_date", today);
+  const { data: pauseRow } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "session_billing_paused")
+    .maybeSingle();
+  const sessionBillingPaused = pauseRow?.value === 1;
+  const { data: expiringSubs } = sessionBillingPaused
+    ? { data: [] }
+    : await supabase
+        .from("session_subscriptions")
+        .select("id, user_id, weekly_hours, next_billing_date")
+        .eq("status", "active")
+        .is("renewal_reminder_sent_at", null)
+        .not("next_billing_date", "is", null)
+        .lte("next_billing_date", in7Days)
+        .gte("next_billing_date", today);
 
   if (expiringSubs && expiringSubs.length > 0) {
     const adminEmails = await getAdminEmails(supabase);
