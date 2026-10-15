@@ -110,12 +110,11 @@ export async function generatePasswordResetLinkAction(
   await requireAdmin();
 
   const admin = createAdminClient();
-  const { data: profile, error: profileError } = await admin
-    .from("profiles")
-    .select("email")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profileError || !profile) {
+  // מייל ההתחברות (auth.users), לא profiles.email — אם השניים נפרדו (עריכת
+  // מייל ישנה בפרופיל בלבד), generateLink לפי מייל הפרופיל נכשל.
+  const { data: authUser, error: authError } = await admin.auth.admin.getUserById(userId);
+  const loginEmail = authUser?.user?.email;
+  if (authError || !loginEmail) {
     return { ok: false, error: "מטפל/ת לא נמצא/ה" };
   }
 
@@ -125,7 +124,7 @@ export async function generatePasswordResetLinkAction(
 
   const { data: link, error: linkError } = await admin.auth.admin.generateLink({
     type: "recovery",
-    email: profile.email,
+    email: loginEmail,
     options: { redirectTo: `${origin}/auth/callback?next=${next}` },
   });
   if (linkError || !link) {
