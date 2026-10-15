@@ -2,7 +2,20 @@ import { formatInTimeZone } from "date-fns-tz";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { TIMEZONE, isoDaysAgo } from "@/lib/time";
+import { Card, CardContent } from "@/components/ui/card";
 import { ReportsClient } from "./reports-client";
+
+function StatTile({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-1 p-4">
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-3xl font-semibold tabular-nums">{value.toLocaleString("he-IL")}</span>
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default async function AdminReportsPage() {
   await requireAdmin();
@@ -21,6 +34,7 @@ export default async function AdminReportsPage() {
     { data: recentBookingsByUser },
     { data: allActiveCards },
     { data: subscriptions },
+    { count: therapistCount },
   ] = await Promise.all([
     supabase.from("payments").select("amount_total, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo),
     supabase.from("bookings").select("room_id").eq("status", "confirmed").gte("starts_at", thirtyDaysAgo),
@@ -42,7 +56,12 @@ export default async function AdminReportsPage() {
       .from("session_subscriptions")
       .select("user_id, status, weekly_hours, monthly_price, created_at")
       .order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "therapist").eq("status", "active"),
   ]);
+
+  // סיכום: ססיות פעילות, כרטיסיות בתוקף ועם יתרה חיובית
+  const activeSubs = (subscriptions ?? []).filter((s) => s.status === "active" || s.status === "pending_cancellation");
+  const cardsWithBalance = (allActiveCards ?? []).filter((c) => c.hours_remaining > 0);
 
   // הכנסות חודשיות
   const revenueByMonth = new Map<string, number>();
@@ -107,6 +126,19 @@ export default async function AdminReportsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-4">
       <h1 className="text-xl font-semibold">דוחות</h1>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile label="מטפלים פעילים" value={therapistCount ?? 0} />
+        <StatTile
+          label="ססיות פעילות"
+          value={activeSubs.length}
+          hint={`אצל ${new Set(activeSubs.map((s) => s.user_id)).size} מטפלים`}
+        />
+        <StatTile
+          label="כרטיסיות פעילות"
+          value={cardsWithBalance.length}
+          hint={`בתוקף ועם יתרה · אצל ${new Set(cardsWithBalance.map((c) => c.user_id)).size} מטפלים`}
+        />
+      </div>
       <ReportsClient
         monthlyRevenue={monthlyRevenue}
         occupancy={occupancy}
