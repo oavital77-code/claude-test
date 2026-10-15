@@ -42,6 +42,7 @@ import {
 } from "@/app/(app)/schedule/availability-grid";
 import {
   adminCancelBookingAction,
+  adminEditBookingAction,
   adminCreateBookingAction,
   adminCreateRecurringBookingAction,
   createRoomBlockAction,
@@ -93,6 +94,7 @@ export function BoardClient({
   const [viewMode, setViewMode] = useState<"list" | "grid" | "week" | "month">("list");
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [slotDialog, setSlotDialog] = useState<SlotDialogState | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
 
   function openSlotDialog(state: SlotDialogState) {
     setError(null);
@@ -373,7 +375,9 @@ export function BoardClient({
       {viewMode === "grid" && (
         <div className="flex flex-col gap-3">
           <Legend />
-          <p className="text-xs text-muted-foreground">רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים.</p>
+          <p className="text-xs text-muted-foreground">
+            רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים, לחצו עליה לעריכה.
+          </p>
           <AvailabilityGrid
             columns={gridColumns}
             slots={gridSlots}
@@ -382,6 +386,10 @@ export function BoardClient({
             titleFor={(columnKey, slot, status) => gridTitleFor(columnKey, slot, status)}
             labelFor={(columnKey, slot, status) => gridLabelFor(columnKey, slot, status)}
             colorFor={(columnKey, slot, status) => gridColorFor(columnKey, slot, status)}
+            onTakenClick={(columnKey, slot) => {
+              const b = bookingAt(columnKey, slot);
+              if (b) setEditBooking(b);
+            }}
           />
         </div>
       )}
@@ -392,7 +400,7 @@ export function BoardClient({
           {selectedRoomId ? (
             <>
               <p className="text-xs text-muted-foreground">
-                לחיצה על משבצת פנויה פותחת שיבוץ. רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים.
+                לחיצה על משבצת פנויה פותחת שיבוץ, ועל משבצת תפוסה — עריכה.
               </p>
               <AvailabilityGrid
                 columns={weekColumns}
@@ -408,6 +416,10 @@ export function BoardClient({
                 colorFor={(columnKey, slot, status) =>
                   gridColorFor(selectedRoomId, resolveWeekSlot(columnKey, slot), status)
                 }
+                onTakenClick={(columnKey, slot) => {
+                  const b = bookingAt(selectedRoomId, resolveWeekSlot(columnKey, slot));
+                  if (b) setEditBooking(b);
+                }}
                 onSlotClick={(columnKey, slot) => {
                   const resolved = resolveWeekSlot(columnKey, slot);
                   openSlotDialog({
@@ -547,7 +559,12 @@ export function BoardClient({
                       </span>{" "}
                       · {therapistById.get(b.user_id)?.full_name ?? "מטפל/ת"} · {SOURCE_LABELS[b.source]}
                     </span>
-                    <CancelBookingButton bookingId={b.id} onDone={reload} />
+                    <span className="flex">
+                      <Button size="sm" variant="ghost" onClick={() => setEditBooking(b)}>
+                        עריכה
+                      </Button>
+                      <CancelBookingButton bookingId={b.id} onDone={reload} />
+                    </span>
                   </div>
                 ))}
 
@@ -635,6 +652,139 @@ export function BoardClient({
           </Card>
         </div>
       )}
+
+      {editBooking && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setEditBooking(null)}
+        >
+          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <CardContent className="flex flex-col gap-3 p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-medium">עריכת שיבוץ</p>
+                <button
+                  onClick={() => setEditBooking(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="סגירה"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <EditBookingPanel
+                key={editBooking.id}
+                booking={editBooking}
+                rooms={rooms}
+                therapistName={therapistById.get(editBooking.user_id)?.full_name ?? "מטפל/ת"}
+                onDone={() => {
+                  setEditBooking(null);
+                  reload();
+                  router.refresh();
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * עריכת שיבוץ קיים: תאריך / שעות / חדר (בסניף הנוכחי). כרטיסייה — הפרש
+ * השעות יורד/חוזר אוטומטית; ססיה — רק המפגש הזה זז. ר' adminEditBookingAction.
+ */
+function EditBookingPanel({
+  booking,
+  rooms,
+  therapistName,
+  onDone,
+}: {
+  booking: Booking;
+  rooms: Room[];
+  therapistName: string;
+  onDone: () => void;
+}) {
+  const start = new Date(booking.starts_at);
+  const end = new Date(booking.ends_at);
+  const [date, setDate] = useState(formatInTimeZone(start, TIMEZONE, "yyyy-MM-dd"));
+  const [roomId, setRoomId] = useState(booking.room_id);
+  const [startTime, setStartTime] = useState(formatInTimeZone(start, TIMEZONE, "HH:mm"));
+  const [endTime, setEndTime] = useState(formatInTimeZone(end, TIMEZONE, "HH:mm"));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const oldHours = (end.getTime() - start.getTime()) / 3_600_000;
+  const newHours = slotHours({ startTime, endTime });
+  async function handleSave() {
+    setError(null);
+    if (endTime <= startTime) {
+      setError("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
+      return;
+    }
+    const { start: dayStart } = dayBoundaries(date);
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    setLoading(true);
+    const res = await adminEditBookingAction(
+      booking.id,
+      roomId,
+      new Date(dayStart.getTime() + (sh * 60 + sm) * 60_000).toISOString(),
+      new Date(dayStart.getTime() + (eh * 60 + em) * 60_000).toISOString(),
+    );
+    setLoading(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm">
+        <span className="font-medium">{therapistName}</span> · {SOURCE_LABELS[booking.source]}
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">תאריך</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">חדר</Label>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+          >
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+        <Input type="time" step={1800} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+      </div>
+      {booking.source === "punch_card" && newHours !== oldHours && newHours > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {newHours > oldHours
+            ? `יירדו עוד ${newHours - oldHours} ש׳ מהכרטיסייה.`
+            : `יחזרו ${oldHours - newHours} ש׳ לכרטיסייה.`}
+        </p>
+      )}
+      {booking.source === "session" && (
+        <p className="text-xs text-muted-foreground">רק המפגש הזה זז — שאר מפגשי הססיה נשארים כמו שהם.</p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center justify-between gap-2">
+        <Button size="sm" onClick={handleSave} disabled={loading}>
+          {loading ? "שומר..." : "שמירה"}
+        </Button>
+        <CancelBookingButton bookingId={booking.id} onDone={onDone} />
+      </div>
     </div>
   );
 }
