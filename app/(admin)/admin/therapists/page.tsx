@@ -17,6 +17,7 @@ export default async function AdminTherapistsPage() {
     { data: allEmails },
     { data: activeSessions },
     { data: skeddaSessionRows },
+    { data: futureCharged },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -25,7 +26,7 @@ export default async function AdminTherapistsPage() {
       .order("full_name"),
     supabase
       .from("punch_cards")
-      .select("user_id, hours_remaining, hours_purchased, purchased_at, tier_id")
+      .select("id, user_id, hours_remaining, hours_purchased, purchased_at, tier_id")
       .eq("active", true)
       .gt("expires_at", new Date().toISOString()),
     // מטפלים מ-Skedda שעוד לא נרשמו — מוצגים ברשימה עם "טרם נרשם/ה" עד שיירשמו.
@@ -41,6 +42,15 @@ export default async function AdminTherapistsPage() {
       .in("status", ["active", "pending_cancellation"]),
     // ססיה שעדיין רשומה רק כחסימת Skedda (טרם הוגדרה כססיה אמיתית במערכת).
     supabase.from("skedda_migration").select("email, claimed_by").eq("has_session", true),
+    // שיבוצים עתידיים שכבר קוזזו מכרטיסייה — השעות ירדו ביצירה, לא בפועל.
+    supabase
+      .from("bookings")
+      .select("punch_card_id, hours_charged")
+      .eq("status", "confirmed")
+      .gt("starts_at", new Date().toISOString())
+      .not("punch_card_id", "is", null)
+      .gt("hours_charged", 0)
+      .limit(10000),
   ]);
 
   const sessionUserIds = new Set((activeSessions ?? []).map((s) => s.user_id));
@@ -60,8 +70,16 @@ export default async function AdminTherapistsPage() {
   // כרטיסיות שנרכשו מיום ההשקה — מוצגות ברשימה עם "נרכשו/נוצלו". כרטיסיות
   // ההעברה מ-Skedda (בלי tier) ומה שנרכש לפני ההשקה מוצגות כיתרה בלבד.
   const newCardsByUser = new Map<string, { purchased: number; used: number }[]>();
+  const futureByCard = new Map<string, number>();
+  for (const b of futureCharged ?? []) {
+    futureByCard.set(b.punch_card_id!, (futureByCard.get(b.punch_card_id!) ?? 0) + Number(b.hours_charged));
+  }
+  // שעות של שיבוצים עתידיים (רק בכרטיסיות שמוצגות ביתרה) — "נכון להיום" = יתרה + שעות אלה.
+  const futureByUser = new Map<string, number>();
   for (const c of cards ?? []) {
     hoursByUser.set(c.user_id, (hoursByUser.get(c.user_id) ?? 0) + c.hours_remaining);
+    const future = futureByCard.get(c.id) ?? 0;
+    if (future) futureByUser.set(c.user_id, (futureByUser.get(c.user_id) ?? 0) + future);
     if (c.tier_id && new Date(c.purchased_at).getTime() >= LAUNCH_AT_MS) {
       const list = newCardsByUser.get(c.user_id) ?? [];
       list.push({ purchased: c.hours_purchased, used: c.hours_purchased - c.hours_remaining });
@@ -71,6 +89,7 @@ export default async function AdminTherapistsPage() {
   const therapistsWithHours = (therapists ?? []).map((t) => ({
     ...t,
     hoursRemaining: hoursByUser.get(t.id) ?? 0,
+    futureHours: futureByUser.get(t.id) ?? 0,
     hasCard: hoursByUser.has(t.id),
     newCards: newCardsByUser.get(t.id) ?? [],
     session: sessionStatusOf(t),

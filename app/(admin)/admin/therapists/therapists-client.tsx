@@ -16,6 +16,8 @@ type TherapistRow = Pick<
   "id" | "full_name" | "phone" | "email" | "status" | "created_at"
 > & {
   hoursRemaining: number;
+  /** שעות של שיבוצים עתידיים שכבר קוזזו מהכרטיסייה. */
+  futureHours: number;
   hasCard: boolean;
   newCards: { purchased: number; used: number }[];
   /** active = ססיה פעילה במערכת; skedda = ססיה שעדיין רשומה כחסימת Skedda. */
@@ -99,7 +101,8 @@ export function TherapistsClient({
               <th className="p-2">טלפון</th>
               <th className="p-2">מייל</th>
               <th className="p-2">סטטוס</th>
-              <th className="p-2">יתרת שעות בכרטיסייה</th>
+              <th className="p-2">יתרה נכון להיום</th>
+              <th className="p-2">יתרה כולל שיבוצים עתידיים</th>
               <th className="p-2 text-center">ססיה</th>
               <th className="p-2">הצטרפות</th>
               <th className="p-2">פעולות</th>
@@ -108,7 +111,7 @@ export function TherapistsClient({
           <tbody>
             {filtered.length === 0 && filteredPending.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-sm text-muted-foreground">
+                <td colSpan={9} className="p-6 text-center text-sm text-muted-foreground">
                   {therapists.length === 0 ? "אין עדיין מטפלים רשומים" : "אין תוצאות לחיפוש"}
                 </td>
               </tr>
@@ -130,12 +133,24 @@ export function TherapistsClient({
                   </td>
                   <td className="p-2">{STATUS_LABELS[t.status]}</td>
                   <td className="p-2">
-                    <HoursStatus remaining={t.hoursRemaining} hasCard={t.hasCard} />
+                    {t.hasCard ? (
+                      <span dir="ltr">{t.hoursRemaining + t.futureHours} ש׳</span>
+                    ) : (
+                      <span className="text-muted-foreground">אין כרטיסייה פעילה</span>
+                    )}
                     {t.newCards.map((c, i) => (
                       <p key={i} className="text-xs text-muted-foreground">
                         כרטיסייה {c.purchased} ש׳ · נוצלו {c.used} ש׳
                       </p>
                     ))}
+                  </td>
+                  <td className="p-2">
+                    <HoursStatus remaining={t.hoursRemaining} hasCard={t.hasCard} />
+                    {t.futureHours > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {t.futureHours} ש׳ בשיבוצים עתידיים
+                      </p>
+                    )}
                   </td>
                   <td className="p-2 text-center">
                     <SessionBadge session={t.session} />
@@ -201,6 +216,7 @@ export function TherapistsClient({
                 <td className="p-2">
                   {t.balance_hours === null ? "יתרה מ-Skedda: לא ידועה" : `יתרה מ-Skedda: ${t.balance_hours} ש׳`}
                 </td>
+                <td className="p-2">—</td>
                 <td className="p-2 text-center">
                   <SessionBadge session={t.has_session ? "skedda" : null} />
                 </td>
