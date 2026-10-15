@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { formatDateHe, formatTimeHe } from "@/lib/time";
 import { WEEKDAY_LABELS } from "@/lib/pricing/session";
-import { dayBoundaries } from "@/lib/availability/grid";
+import { dayBoundaries, israelDateTime } from "@/lib/availability/grid";
 import type { Database } from "@/lib/supabase/types";
 import {
   addSlotAction,
@@ -51,11 +51,9 @@ function dateLabel(d: string) {
   return formatDateHe(new Date(`${d}T12:00:00`));
 }
 
-/** ISO של תאריך+שעה בשעון ישראל (כמו בלוח המלא). */
+/** ISO של תאריך+שעה בשעון ישראל — דרך israelDateTime (נכון גם ביום מעבר שעון). */
 function israelIso(date: string, time: string) {
-  const { start } = dayBoundaries(date);
-  const [h, m] = time.split(":").map(Number);
-  return new Date(start.getTime() + (h * 60 + m) * 60_000).toISOString();
+  return israelDateTime(date, time).toISOString();
 }
 
 export function ManageSessionsClient({

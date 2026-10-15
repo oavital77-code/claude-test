@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
 import { notifyBookingCancelled } from "@/lib/notifications/cancellation";
-import { dayBoundaries, addDaysToDateStr } from "@/lib/availability/grid";
+import { israelDateTime, addDaysToDateStr } from "@/lib/availability/grid";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -45,16 +45,13 @@ export async function adminCreateRecurringBookingAction(
   await requireAdmin();
   const supabase = await createClient();
 
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
-
   let created = 0;
   const skipped: { date: string; error: string }[] = [];
 
   for (const d of monthlyOccurrences(anchorDate)) {
-    const { start: dayStart } = dayBoundaries(d);
-    const startsAt = new Date(dayStart.getTime() + (sh * 60 + sm) * 60_000).toISOString();
-    const endsAt = new Date(dayStart.getTime() + (eh * 60 + em) * 60_000).toISOString();
+    // israelDateTime — חזרה חודשית חוצה לפעמים את יום מעבר השעון.
+    const startsAt = israelDateTime(d, startTime).toISOString();
+    const endsAt = israelDateTime(d, endTime).toISOString();
 
     const { error } = await supabase.rpc("admin_create_booking", {
       p_user_id: userId,

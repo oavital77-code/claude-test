@@ -18,6 +18,8 @@ import {
 import {
   daySlots,
   dayBoundaries,
+  israelDateTime,
+  israelHHmm,
   todayInIsrael,
   addDaysToDateStr,
   addMonthsToDateStr,
@@ -103,7 +105,7 @@ export function ScheduleClient({
 
   const monthDates = useMemo(() => monthCalendarDates(date), [date]);
 
-  const { rangeStart, rangeEnd, slots, columns, slotsAnchorDate } = useMemo(() => {
+  const { rangeStart, rangeEnd, slots, columns } = useMemo(() => {
     if (view === "day") {
       const { start, end } = dayBoundaries(date);
       const cols: GridColumn[] = filteredRooms.map((r) => ({
@@ -181,10 +183,10 @@ export function ScheduleClient({
     if (view === "day") {
       return { roomId: columnKey, start: slot.start, end: slot.end };
     }
-    const { start: dayStart } = dayBoundaries(columnKey);
-    const offsetMs = slot.start.getTime() - dayBoundaries(slotsAnchorDate).start.getTime();
-    const start = new Date(dayStart.getTime() + offsetMs);
-    const end = new Date(start.getTime() + (slot.end.getTime() - slot.start.getTime()));
+    // לפי השעה המקומית של המשבצת, לא לפי היסט במילישניות מחצות — אחרת ביום
+    // מעבר שעון (25/10, סוף מרץ) כל העמודה זזה בשעה.
+    const start = israelDateTime(columnKey, israelHHmm(slot.start));
+    const end = israelDateTime(columnKey, israelHHmm(slot.end));
     return { roomId: selectedRoomId, start, end };
   }
 

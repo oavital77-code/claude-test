@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { TIMEZONE, formatTimeHe } from "@/lib/time";
 import {
   dayBoundaries,
+  israelDateTime,
+  israelHHmm,
   daySlots,
   todayInIsrael,
   addDaysToDateStr,
@@ -236,11 +238,11 @@ export function BoardClient({
   const weekSlots = useMemo(() => daySlots(weekDates[0]), [weekDates]);
 
   function resolveWeekSlot(columnKey: string, slot: Slot): Slot {
-    const { start: dayStart } = dayBoundaries(columnKey);
-    const offsetMs = slot.start.getTime() - dayBoundaries(weekDates[0]).start.getTime();
-    const start = new Date(dayStart.getTime() + offsetMs);
-    const end = new Date(start.getTime() + (slot.end.getTime() - slot.start.getTime()));
-    return { start, end };
+    // לפי השעה המקומית, לא היסט במילישניות — ר' israelDateTime (מעבר שעון).
+    return {
+      start: israelDateTime(columnKey, israelHHmm(slot.start)),
+      end: israelDateTime(columnKey, israelHHmm(slot.end)),
+    };
   }
 
   // ═══ תצוגה חודשית: כל מה שקורה באותו יום בסניף — הזמנות *וחסימות* יחד,
@@ -721,15 +723,12 @@ function EditBookingPanel({
       setError("שעת הסיום חייבת להיות אחרי שעת ההתחלה");
       return;
     }
-    const { start: dayStart } = dayBoundaries(date);
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = endTime.split(":").map(Number);
     setLoading(true);
     const res = await adminEditBookingAction(
       booking.id,
       roomId,
-      new Date(dayStart.getTime() + (sh * 60 + sm) * 60_000).toISOString(),
-      new Date(dayStart.getTime() + (eh * 60 + em) * 60_000).toISOString(),
+      israelDateTime(date, startTime).toISOString(),
+      israelDateTime(date, endTime).toISOString(),
     );
     setLoading(false);
     if (!res.ok) {
@@ -953,11 +952,9 @@ function SlotActionPanel({
       return;
     }
 
-    const { start } = dayBoundaries(date);
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = endTime.split(":").map(Number);
-    const startsAt = new Date(start.getTime() + (sh * 60 + sm) * 60_000).toISOString();
-    const endsAt = new Date(start.getTime() + (eh * 60 + em) * 60_000).toISOString();
+    // israelDateTime ולא "חצות + שעות" — ביום מעבר שעון זה היה מזיז בשעה.
+    const startsAt = israelDateTime(date, startTime).toISOString();
+    const endsAt = israelDateTime(date, endTime).toISOString();
 
     const res =
       mode === "booking"
