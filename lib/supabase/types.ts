@@ -663,6 +663,10 @@ export type Database = {
         Args: { p_subscription_id: string; p_monthly_price: number };
         Returns: undefined;
       };
+      admin_edit_booking: {
+        Args: { p_booking_id: string; p_room_id: string; p_starts_at: string; p_ends_at: string };
+        Returns: string;
+      };
       admin_session_change_slot: {
         Args: {
           p_slot_id: string;

@@ -82,6 +82,7 @@ export function AvailabilityGrid({
   titleFor,
   labelFor,
   colorFor,
+  onTakenClick,
   rowHeightClass = "h-5",
 }: {
   columns: GridColumn[];
@@ -95,6 +96,8 @@ export function AvailabilityGrid({
   labelFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
   /** דריסת צבע התא (למשל לפי סוג הזמנה) — ברירת המחדל היא STATUS_STYLES[status]. */
   colorFor?: (columnKey: string, slot: Slot, status: SlotStatus) => string | undefined;
+  /** לחיצה על תא תפוס (לוח האדמין — עריכת השיבוץ). בלי זה תא תפוס לא לחיץ. */
+  onTakenClick?: (columnKey: string, slot: Slot) => void;
   /** גובה שורה — ברירת מחדל h-5 (מתאים ללוח המטפל בלי טקסט); לוח עם labelFor כדאי גבוה יותר. */
   rowHeightClass?: string;
 }) {
@@ -153,26 +156,33 @@ export function AvailabilityGrid({
               {columns.map((col) => {
                 const status = statusFor(col.key, slot);
                 const isFree = status === "free" && Boolean(onSlotClick);
+                const isEditable = status === "taken" && Boolean(onTakenClick);
+                const clickable = isFree || isEditable;
+                const activate = () => {
+                  if (isFree) onSlotClick?.(col.key, slot, status);
+                  else if (isEditable) onTakenClick?.(col.key, slot);
+                };
                 const selected = isSelected?.(col.key, slot) ?? false;
                 const label = labelFor?.(col.key, slot, status);
                 const colorOverride = colorFor?.(col.key, slot, status);
                 return (
                   <div
                     key={col.key}
-                    role={isFree ? "button" : undefined}
-                    tabIndex={isFree ? 0 : undefined}
+                    role={clickable ? "button" : undefined}
+                    tabIndex={clickable ? 0 : undefined}
                     title={titleFor?.(col.key, slot, status)}
-                    onClick={() => isFree && onSlotClick?.(col.key, slot, status)}
+                    onClick={activate}
                     onKeyDown={(e) => {
-                      if (isFree && (e.key === "Enter" || e.key === " ")) {
+                      if (clickable && (e.key === "Enter" || e.key === " ")) {
                         e.preventDefault();
-                        onSlotClick?.(col.key, slot, status);
+                        activate();
                       }
                     }}
                     className={cn(
                       rowHeightClass,
                       "flex items-center overflow-hidden border-b border-l last:border-l-0",
-                      isFree && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+                      clickable && "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+                      isEditable && "cursor-pointer hover:opacity-80",
                       colorOverride ?? STATUS_STYLES[status],
                       selected && "ring-2 ring-inset ring-primary",
                     )}

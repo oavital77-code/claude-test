@@ -98,6 +98,29 @@ export async function adminCreateBookingAction(
   return { ok: true };
 }
 
+/**
+ * עריכת שיבוץ: תאריך / שעות / חדר. כרטיסייה — הפרש שעות יורד או חוזר
+ * לכרטיסייה; מפגש ססיה — מוזז (ביטול + מפגש חדש) כדי שה-cron לא ישחזר את
+ * המקורי. בלי מייל. ר' admin_edit_booking (20261015000002).
+ */
+export async function adminEditBookingAction(
+  bookingId: string,
+  roomId: string,
+  startsAt: string,
+  endsAt: string,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_edit_booking", {
+    p_booking_id: bookingId,
+    p_room_id: roomId,
+    p_starts_at: startsAt,
+    p_ends_at: endsAt,
+  });
+  if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  return { ok: true };
+}
+
 export async function adminCancelBookingAction(bookingId: string, refundHours: boolean): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
