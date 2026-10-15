@@ -290,6 +290,8 @@ export type Database = {
           weekday: number;
           start_time: string;
           end_time: string;
+          valid_from: string | null;
+          valid_until: string | null;
         };
         Insert: {
           id?: string;
@@ -298,6 +300,8 @@ export type Database = {
           weekday: number;
           start_time: string;
           end_time: string;
+          valid_from?: string | null;
+          valid_until?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["session_slots"]["Insert"]>;
       Relationships: [];
@@ -658,6 +662,40 @@ export type Database = {
       admin_set_session_price: {
         Args: { p_subscription_id: string; p_monthly_price: number };
         Returns: undefined;
+      };
+      admin_session_change_slot: {
+        Args: {
+          p_slot_id: string;
+          p_room_id: string;
+          p_weekday: number;
+          p_start_time: string;
+          p_end_time: string;
+          p_from: string;
+        };
+        Returns: { cancelled: number; conflicts: number }[];
+      };
+      admin_session_remove_slot: {
+        Args: { p_slot_id: string; p_from: string };
+        Returns: number;
+      };
+      admin_session_add_slot_from: {
+        Args: {
+          p_subscription_id: string;
+          p_room_id: string;
+          p_weekday: number;
+          p_start_time: string;
+          p_end_time: string;
+          p_from: string;
+        };
+        Returns: { conflicts: number }[];
+      };
+      admin_session_cancel: {
+        Args: { p_subscription_id: string; p_from: string };
+        Returns: number;
+      };
+      admin_session_move_occurrence: {
+        Args: { p_booking_id: string; p_room_id: string; p_starts_at: string; p_ends_at: string };
+        Returns: string;
       };
       admin_set_credit_allowance: {
         Args: { p_user_id: string; p_allowed: boolean };
