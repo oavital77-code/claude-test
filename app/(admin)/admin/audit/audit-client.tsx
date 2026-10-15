@@ -27,17 +27,62 @@ const SEVERITY_STYLES: Record<AuditSeverity, string> = {
   alert: "bg-destructive/15 text-destructive",
 };
 
-/** מציג את ה-jsonb של `after` כזוגות מפתח=ערך קריאים, בלי להציף את השורה. */
-function formatDetails(details: unknown): string {
+export interface AuditLookups {
+  names: Record<string, string>;
+  rooms: Record<string, string>;
+}
+
+// שמות שדות ה-jsonb בעברית. שדה שלא כאן מוצג בשמו המקורי.
+const DETAIL_KEY_LABELS: Record<string, string> = {
+  user_id: "מטפל/ת",
+  room_id: "חדר",
+  starts_at: "התחלה",
+  ends_at: "סיום",
+  hours: "שעות",
+  hours_granted: "שעות",
+  debt_hours: "חוב שקוזז (ש׳)",
+  delta: "שינוי (ש׳)",
+  new_hours_remaining: "יתרה חדשה",
+  charged: "קוזז מכרטיסייה",
+  on_credit: "באשראי שעות",
+  note: "הערה",
+  reason: "סיבה",
+  woo_order_id: "הזמנה בחנות",
+  amount: "סכום",
+  amount_total: "סכום",
+  weekly_hours: "שעות שבועיות",
+  monthly_price: "מחיר חודשי",
+  start_date: "מתאריך",
+  refund_hours: "החזר שעות",
+  before: "לפני",
+  after: "אחרי",
+};
+
+// מזהים פנימיים שלא אומרים כלום לאדם — לא מוצגים.
+const HIDDEN_DETAIL_KEYS = new Set(["payment_id", "punch_card_id", "subscription_id", "booking_id", "card_id"]);
+
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+function formatDetailValue(key: string, value: unknown, lookups: AuditLookups): string {
+  if (key === "user_id" && typeof value === "string") return lookups.names[value] ?? "—";
+  if (key === "room_id" && typeof value === "string") return lookups.rooms[value] ?? "—";
+  if (typeof value === "boolean") return value ? "כן" : "לא";
+  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return formatDateTimeHe(new Date(value));
+  if (value === null || value === undefined) return "—";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+/** מציג את ה-jsonb של `after` כזוגות שדה=ערך בעברית, עם שמות במקום מזהים. */
+function formatDetails(details: unknown, lookups: AuditLookups): string {
   if (!details || typeof details !== "object" || Array.isArray(details)) return "";
-  const entries = Object.entries(details as Record<string, unknown>);
+  const entries = Object.entries(details as Record<string, unknown>).filter(([key]) => !HIDDEN_DETAIL_KEYS.has(key));
   if (entries.length === 0) return "";
   return entries
-    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`)
+    .map(([key, value]) => `${DETAIL_KEY_LABELS[key] ?? key}: ${formatDetailValue(key, value, lookups)}`)
     .join(" · ");
 }
 
-export function AdminAuditClient({ rows }: { rows: AuditRow[] }) {
+export function AdminAuditClient({ rows, lookups }: { rows: AuditRow[]; lookups: AuditLookups }) {
   const [severityFilter, setSeverityFilter] = useState<AuditSeverity | "all">("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -123,7 +168,7 @@ export function AdminAuditClient({ rows }: { rows: AuditRow[] }) {
             <tbody>
               {filtered.map((r) => {
                 const { label, severity } = describeAuditAction(r.action);
-                const details = formatDetails(r.details);
+                const details = formatDetails(r.details, lookups);
                 return (
                   <tr key={r.id} className="border-t align-top">
                     <td className="whitespace-nowrap p-2 tabular-nums text-muted-foreground">

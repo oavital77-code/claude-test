@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { formatInTimeZone } from "date-fns-tz";
+import { formatCurrency } from "@/lib/format";
 import { he } from "date-fns/locale";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
@@ -30,8 +32,8 @@ export default async function AdminDashboardPage() {
 
   const [
     { data: todayBookingsList },
-    { count: newPunchCardBookingsToday },
-    { data: sessionsRequestedToday },
+    { data: newPunchCardBookingsToday },
+    { data: purchasesToday },
     { data: expiringCardsThisWeek },
     { data: endingSessionsThisWeek },
     { data: rooms },
@@ -45,24 +47,27 @@ export default async function AdminDashboardPage() {
       .gte("starts_at", todayStart)
       .lt("starts_at", todayEnd)
       .order("starts_at", { ascending: true }),
-    // הזמנת כרטיסייה חדשה שנוצרה היום — פעולה אמיתית של מטפל/ת. admin_note
+    // שיבוץ כרטיסייה חדש שנוצר היום — פעולה אמיתית של מטפל/ת. admin_note
     // ריק = המטפל/ת קבע/ה בעצמו/ה (שיבוץ אדמין שקוזז מכרטיסייה מסומן בהערה).
+    // שיבוצי ססיה לא נספרים: ה-cron materialize_session_bookings יוצר אותם
+    // בעשרות בכל לילה (רולינג 90 יום) — לא פעולה שמישהו ביצע היום.
     supabase
       .from("bookings")
-      .select("id", { count: "exact", head: true })
+      .select("hours_charged")
       .eq("status", "confirmed")
       .eq("source", "punch_card")
       .is("admin_note", null)
       .gte("created_at", todayStart)
       .lt("created_at", todayEnd),
-    // בקשת ססיה חדשה שהוגשה היום. לא סופרים שורות bookings של source='session' —
-    // אלה נוצרות בעשרות בכל לילה ע"י ה-cron materialize_session_bookings שממלא
-    // רולינג 90 יום מראש לכל ססיה פעילה, ולא משקפות פעולה שמישהו ביצע היום.
+    // רכישות שהתקבלו היום (כרטיסייה/ססיה מהחנות). amount_total > 0 — לא
+    // שעות מתנה/העברה.
     supabase
-      .from("session_subscriptions")
-      .select("requested_at, reviewed_at")
-      .gte("requested_at", todayStart)
-      .lt("requested_at", todayEnd),
+      .from("payments")
+      .select("amount_total")
+      .eq("status", "paid")
+      .gt("amount_total", 0)
+      .gte("paid_at", todayStart)
+      .lt("paid_at", todayEnd),
     // כרטיסיות שפגות בשבוע הנוכחי (ראשון-שבת)
     supabase
       .from("punch_cards")
@@ -111,13 +116,10 @@ export default async function AdminDashboardPage() {
     };
   });
 
-  // ססיה שאדמין קבע ישירות נוצרת עם reviewed_at = requested_at (אותו now()
-  // בטרנזקציה) — זו לא בקשה של מטפל/ת, לא נספרת.
-  const newSessionRequestsToday = (sessionsRequestedToday ?? []).filter(
-    (s) => s.reviewed_at === null || s.reviewed_at !== s.requested_at,
-  ).length;
-
-  const newTodayTotal = (newPunchCardBookingsToday ?? 0) + newSessionRequestsToday;
+  const newBookingsCount = (newPunchCardBookingsToday ?? []).length;
+  const newBookingsHours = (newPunchCardBookingsToday ?? []).reduce((sum, b) => sum + Number(b.hours_charged), 0);
+  const purchasesCount = (purchasesToday ?? []).length;
+  const purchasesTotal = (purchasesToday ?? []).reduce((sum, p) => sum + Number(p.amount_total), 0);
 
   const endingThisWeek = [
     ...(expiringCardsThisWeek ?? []).map((c) => ({
@@ -138,15 +140,28 @@ export default async function AdminDashboardPage() {
     <div className="flex flex-1 flex-col gap-6 p-4">
       <h1 className="text-xl font-semibold">שלום, {profile.full_name}</h1>
 
-      <Card>
-        <CardContent className="flex flex-col gap-2 p-4">
-          <p className="font-medium">הזמנות חדשות היום</p>
-          <p className="text-2xl font-semibold">{newTodayTotal}</p>
-          <p className="text-sm text-muted-foreground">
-            {newPunchCardBookingsToday ?? 0} כרטיסייה · {newSessionRequestsToday} בקשות ססיה
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link href="/admin/audit?view=bookings" className="rounded-xl transition-shadow hover:shadow-md">
+          <Card className="h-full">
+            <CardContent className="flex flex-col gap-2 p-4">
+              <p className="font-medium">שיבוצים חדשים היום</p>
+              <p className="text-2xl font-semibold">{newBookingsCount}</p>
+              <p className="text-sm text-muted-foreground">
+                {newBookingsHours} ש׳ מכרטיסייה · שמטפלים קבעו בעצמם ←
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/admin/audit?view=purchases" className="rounded-xl transition-shadow hover:shadow-md">
+          <Card className="h-full">
+            <CardContent className="flex flex-col gap-2 p-4">
+              <p className="font-medium">רכישות היום</p>
+              <p className="text-2xl font-semibold">{purchasesCount}</p>
+              <p className="text-sm text-muted-foreground">סה״כ {formatCurrency(purchasesTotal)} ←</p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
 
       <Card>
         <CardContent className="flex flex-col gap-2 p-4">

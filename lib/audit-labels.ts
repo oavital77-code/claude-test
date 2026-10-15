@@ -19,6 +19,11 @@ export const AUDIT_LABELS: Record<string, { label: string; severity: AuditSeveri
 
   // ── כרטיסיות ושעות ──
   woo_purchase_claimed: { label: "רכישה מהחנות זוכתה", severity: "money" },
+  woo_purchase_auto_claimed: { label: "רכישה מהחנות זוכתה אוטומטית", severity: "money" },
+  woo_purchase_assigned_by_admin: { label: "רכישה מהחנות שויכה ע״י אדמין", severity: "money" },
+  punch_card_debt_absorbed: { label: "קיזוז מינוס מכרטיסייה חדשה", severity: "money" },
+  balance_aligned_to_skedda: { label: "יישור יתרה ל-Skedda", severity: "admin" },
+  session_created_prepaid_migration: { label: "ססיה הועברה מ-Skedda", severity: "admin" },
   bonus_hours_granted: { label: "הענקת שעות מתנה", severity: "admin" },
   admin_adjusted_punch_card_hours: { label: "התאמת שעות בכרטיסייה", severity: "admin" },
   deposit_completed_manually: { label: "השלמת פיקדון ידנית", severity: "admin" },
