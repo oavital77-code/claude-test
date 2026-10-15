@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { bookingErrorMessage } from "@/lib/booking-errors";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -26,6 +27,18 @@ export async function updateTherapistProfile(
 
   const supabase = await createClient();
   const { full_name, email, profession, business_number, door_code, admin_notes } = parsed.data;
+
+  // שינוי מייל חייב לעדכן גם את מייל ההתחברות (auth.users) — אחרת המטפל/ת
+  // ממשיכ/ה להתחבר עם הישן, ואיפוס סיסמה/שיוך רכישות Woo לפי החדש נשברים.
+  const admin = createAdminClient();
+  const { data: authUser } = await admin.auth.admin.getUserById(userId);
+  if (authUser?.user && authUser.user.email?.toLowerCase() !== email.toLowerCase()) {
+    const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+      email,
+      email_confirm: true,
+    });
+    if (authError) return { ok: false, error: "המייל כבר רשום אצל משתמש אחר" };
+  }
 
   const [{ error: profileError }, { error: notesError }] = await Promise.all([
     supabase
