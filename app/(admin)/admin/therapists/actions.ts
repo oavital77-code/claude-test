@@ -132,5 +132,11 @@ export async function generatePasswordResetLinkAction(
     return { ok: false, error: "יצירת קישור איפוס הסיסמה נכשלה" };
   }
 
-  return { ok: true, resetUrl: link.properties.action_link };
+  // קישור ישיר ל-callback עם token_hash (לא action_link, שעובר דרך /verify
+  // ומחזיר את הסשן ב-fragment שה-route בצד השרת לא רואה) — עובד בכל דפדפן
+  // ומכשיר, כולל הדפדפן הפנימי של Gmail/WhatsApp.
+  const resetUrl = `${origin}/auth/callback?token_hash=${encodeURIComponent(
+    link.properties.hashed_token,
+  )}&type=recovery&next=${next}`;
+  return { ok: true, resetUrl };
 }
