@@ -33,6 +33,15 @@ type SentKind = "verify" | "reset";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
+/**
+ * 429 "you can only request this after N seconds" = מגבלת דקה לאותה כתובת:
+ * מייל כבר נשלח אליה הרגע (לחיצה כפולה). לא עומס — המייל בדרך. לעומת זאת
+ * "email rate limit exceeded" (המכסה השעתית) הוא עומס אמיתי.
+ */
+function isRecentlySentCooldown(error: { status?: number; message?: string }): boolean {
+  return error.status === 429 && /after \d+ seconds?/i.test(error.message ?? "");
+}
+
 const emptyDetails: DetailsFormValues = {
   full_name: "",
   phone: "",
@@ -194,8 +203,9 @@ export function RegistrationWizard({
 
     // כתובת לא קיימת לא מחזירה שגיאה (ר' למעלה), אז שגיאה כאן היא כשל אמיתי
     // בשליחה — בעיקר מגבלת שליחת מיילים בעומס. בלי זה המסך היה אומר "שלחנו"
-    // והמייל לא היה מגיע לעולם.
-    if (resetError) {
+    // והמייל לא היה מגיע לעולם. חריג: "after N seconds" = כבר נשלח מייל
+    // לכתובת הזו בדקה האחרונה (לחיצה כפולה) — המייל בדרך, מציגים "שלחנו".
+    if (resetError && !isRecentlySentCooldown(resetError)) {
       setError(
         resetError.status === 429
           ? "יש כרגע עומס בשליחת מיילים. נסו שוב בעוד כמה דקות, או פנו להנהלה לקבלת קישור כניסה."
@@ -220,6 +230,11 @@ export function RegistrationWizard({
       });
       if (resetError) {
         setLoading(false);
+        if (isRecentlySentCooldown(resetError)) {
+          setNotice("כבר שלחנו מייל לפני רגע — כדאי לבדוק בתיבת הדואר (וגם בספאם).");
+          setCooldown(RESEND_COOLDOWN_SECONDS);
+          return;
+        }
         setError(
           resetError.status === 429
             ? "יש כרגע עומס בשליחת מיילים. נסו שוב בעוד כמה דקות, או פנו להנהלה לקבלת קישור כניסה."
