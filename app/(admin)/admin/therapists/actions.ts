@@ -1,6 +1,5 @@
 "use server";
 
-import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/guards";
@@ -8,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { toE164Israel } from "@/lib/phone";
 import { TERMS_VERSION } from "@/lib/terms/current";
+import { generateTemporaryPassword } from "@/lib/auth/temp-password";
 
 const demoTherapistSchema = z.object({
   full_name: z.string().trim().min(2, "יש להזין שם מלא"),
@@ -97,15 +97,6 @@ export async function createDemoTherapistAction(
 }
 
 export type TemporaryPasswordResult = { ok: true; password: string } | { ok: false; error: string };
-
-// בלי תווים שמתבלבלים בהקלדה מוואטסאפ (0/O, 1/l/I).
-const TEMP_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-
-function generateTemporaryPassword(): string {
-  const pick = () => TEMP_PASSWORD_ALPHABET[randomInt(TEMP_PASSWORD_ALPHABET.length)];
-  const block = () => Array.from({ length: 4 }, pick).join("");
-  return `${block()}-${block()}`;
-}
 
 /**
  * סיסמה זמנית למטפל/ת שלא מצליח/ה להיכנס דרך קישור במייל. האדמין מעביר
