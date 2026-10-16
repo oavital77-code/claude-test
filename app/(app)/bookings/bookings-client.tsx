@@ -8,7 +8,8 @@ import { TIMEZONE, accessWindow } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
-import { cancelBookingAction } from "./actions";
+import { GRID_END_HOUR, GRID_START_HOUR, addDaysToDateStr, israelDateTime, todayInIsrael } from "@/lib/availability/grid";
+import { cancelBookingAction, rescheduleBookingAction } from "./actions";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 export type BookingWithRoom = Booking & { roomName: string; branchName: string };
@@ -27,7 +28,17 @@ const STATUS_LABELS: Record<Booking["status"], string> = {
   no_show: "לא הגיע/ה",
 };
 
-export function BookingsClient({ bookings }: { bookings: BookingWithRoom[] }) {
+export type RoomOption = { id: string; label: string };
+
+type Policy = { cancelWindowHours: number; horizonDays: number; roomOptions: RoomOption[] };
+
+export function BookingsClient({
+  bookings,
+  cancelWindowHours,
+  horizonDays,
+  roomOptions,
+}: { bookings: BookingWithRoom[] } & Policy) {
+  const policy: Policy = { cancelWindowHours, horizonDays, roomOptions };
   const [tab, setTab] = useState<"upcoming" | "history">("upcoming");
   const now = useMemo(() => new Date(), []);
 
@@ -51,7 +62,7 @@ export function BookingsClient({ bookings }: { bookings: BookingWithRoom[] }) {
       ) : (
         <div className="flex flex-col gap-2">
           {list.map((b) => (
-            <BookingCard key={b.id} booking={b} />
+            <BookingCard key={b.id} booking={b} policy={policy} />
           ))}
         </div>
       )}
@@ -59,10 +70,12 @@ export function BookingsClient({ bookings }: { bookings: BookingWithRoom[] }) {
   );
 }
 
-function BookingCard({ booking }: { booking: BookingWithRoom }) {
+function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Policy }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const now = useMemo(() => new Date(), []);
   const startsAt = useMemo(() => new Date(booking.starts_at), [booking.starts_at]);
@@ -70,12 +83,15 @@ function BookingCard({ booking }: { booking: BookingWithRoom }) {
   const { accessStart, accessEnd } = accessWindow(startsAt, endsAt);
   const hoursBefore = (startsAt.getTime() - now.getTime()) / 3_600_000;
   const isCancellable = booking.status === "confirmed" && startsAt > now;
-  const withinCancelWindow = hoursBefore < 24;
+  const withinCancelWindow = hoursBefore < policy.cancelWindowHours;
+  // שינוי — אותה חוקיות כמו ביטול: רק כרטיסייה, ורק מחוץ לחלון (reschedule_booking אוכף).
+  const canReschedule = isCancellable && booking.source === "punch_card" && !withinCancelWindow;
+  const windowLabel = `${policy.cancelWindowHours} שעות`;
 
   async function handleCancel() {
     if (booking.source === "session") return;
     const warning = withinCancelWindow
-      ? "הביטול בתוך 24 שעות מהמועד — השעות לא יוחזרו ליתרה. להמשיך?"
+      ? `הביטול בתוך ${windowLabel} מהמועד — השעות לא יוחזרו ליתרה. להמשיך?`
       : "לבטל את ההזמנה? השעות יוחזרו ליתרה.";
     if (!window.confirm(warning)) return;
 
@@ -121,16 +137,157 @@ function BookingCard({ booking }: { booking: BookingWithRoom }) {
             <span className="text-xs text-muted-foreground">ססיה קבועה — לביטול פנו להנהלה</span>
           ) : (
             <div className="flex flex-col items-end gap-1">
-              <Button size="sm" variant="outline" onClick={handleCancel} disabled={loading}>
-                {loading ? "מבטל..." : "ביטול הזמנה"}
-              </Button>
+              <div className="flex gap-2">
+                {canReschedule && (
+                  <Button size="sm" variant="outline" onClick={() => setEditing((v) => !v)} disabled={loading}>
+                    {editing ? "סגירה" : "שינוי"}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={handleCancel} disabled={loading}>
+                  {loading ? "מבטל..." : "ביטול הזמנה"}
+                </Button>
+              </div>
               {withinCancelWindow && (
-                <span className="text-xs text-destructive">פחות מ-24 שעות — השעות לא יוחזרו</span>
+                <span className="text-xs text-destructive">
+                  פחות מ-{windowLabel} — אין שינוי, וביטול לא יחזיר את השעות
+                </span>
               )}
             </div>
           ))}
       </CardContent>
+      {editing && (
+        <RescheduleForm
+          booking={booking}
+          policy={policy}
+          onDone={(message) => {
+            setEditing(false);
+            setNotice(message);
+            router.refresh();
+          }}
+        />
+      )}
+      {notice && <p className="px-4 pb-3 text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
       {error && <p className="px-4 pb-3 text-sm text-destructive">{error}</p>}
     </Card>
+  );
+}
+
+const TIME_OPTIONS = Array.from({ length: (GRID_END_HOUR - GRID_START_HOUR) * 2 + 1 }, (_, i) => {
+  const minutes = GRID_START_HOUR * 60 + i * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${minutes % 60 === 0 ? "00" : "30"}`;
+});
+
+/**
+ * טופס שינוי: תאריך, שעות וחדר. שמירה = reschedule_booking בפעולה אחת — אם
+ * המועד החדש תפוס או שאין יתרה, ההזמנה המקורית נשארת בדיוק כמו שהייתה.
+ */
+function RescheduleForm({
+  booking,
+  policy,
+  onDone,
+}: {
+  booking: BookingWithRoom;
+  policy: Policy;
+  onDone: (message: string) => void;
+}) {
+  const start = new Date(booking.starts_at);
+  const end = new Date(booking.ends_at);
+  const today = todayInIsrael();
+  const [date, setDate] = useState(formatInTimeZone(start, TIMEZONE, "yyyy-MM-dd"));
+  const [startTime, setStartTime] = useState(formatInTimeZone(start, TIMEZONE, "HH:mm"));
+  const [endTime, setEndTime] = useState(formatInTimeZone(end, TIMEZONE, "HH:mm"));
+  const [roomId, setRoomId] = useState(booking.room_id);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const unchanged =
+    roomId === booking.room_id &&
+    israelDateTime(date, startTime).getTime() === start.getTime() &&
+    israelDateTime(date, endTime).getTime() === end.getTime();
+
+  async function handleSave() {
+    if (saving) return;
+    if (endTime <= startTime) {
+      setError("שעת הסיום חייבת להיות אחרי שעת ההתחלה.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await rescheduleBookingAction({
+      bookingId: booking.id,
+      roomId,
+      // israelDateTime — נכון גם ביום מעבר שעון (ר' lib/availability/grid.ts)
+      startsAt: israelDateTime(date, startTime).toISOString(),
+      endsAt: israelDateTime(date, endTime).toISOString(),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    const hoursNote =
+      res.hoursDelta > 0
+        ? ` ירדו עוד ${res.hoursDelta} ש׳ מהיתרה.`
+        : res.hoursDelta < 0
+          ? ` ${-res.hoursDelta} ש׳ הוחזרו ליתרה.`
+          : "";
+    onDone(`ההזמנה עודכנה ונשלח מייל עם המועד החדש.${hoursNote}`);
+  }
+
+  const selectClass = "h-9 rounded-md border border-input bg-background px-2 text-sm";
+
+  return (
+    <div className="flex flex-col gap-3 border-t px-4 py-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs">
+          תאריך
+          <input
+            type="date"
+            className={selectClass}
+            min={today}
+            max={addDaysToDateStr(today, policy.horizonDays)}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs">
+          משעה
+          <select className={selectClass} value={startTime} onChange={(e) => setStartTime(e.target.value)}>
+            {TIME_OPTIONS.slice(0, -1).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs">
+          עד שעה
+          <select className={selectClass} value={endTime} onChange={(e) => setEndTime(e.target.value)}>
+            {TIME_OPTIONS.slice(1).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs">
+          חדר
+          <select className={selectClass} value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+            {policy.roomOptions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button size="sm" onClick={handleSave} disabled={saving || unchanged}>
+          {saving ? "שומר..." : "שמירת השינוי"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        אם המועד החדש תפוס — ההזמנה הנוכחית נשארת כמו שהיא. הארכה תוריד שעות נוספות מהיתרה, קיצור יחזיר אותן.
+      </p>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
   );
 }
