@@ -32,7 +32,9 @@ export async function updateTherapistProfile(
   // ממשיכ/ה להתחבר עם הישן, ואיפוס סיסמה/שיוך רכישות Woo לפי החדש נשברים.
   const admin = createAdminClient();
   const { data: authUser } = await admin.auth.admin.getUserById(userId);
-  if (authUser?.user && authUser.user.email?.toLowerCase() !== email.toLowerCase()) {
+  const previousLoginEmail = authUser?.user?.email ?? null;
+  const loginEmailChanged = !!previousLoginEmail && previousLoginEmail.toLowerCase() !== email.toLowerCase();
+  if (loginEmailChanged) {
     const { error: authError } = await admin.auth.admin.updateUserById(userId, {
       email,
       email_confirm: true,
@@ -58,6 +60,12 @@ export async function updateTherapistProfile(
       .upsert({ user_id: userId, note: admin_notes || null, updated_by: adminId, updated_at: new Date().toISOString() }),
   ]);
 
+  // הפרופיל לא נשמר — מחזירים את מייל ההתחברות לקודם, כדי ששני המיילים לא
+  // יתפצלו (כך נוצר הפער אצל מטפלת אחת בליל ההשקה).
+  if (profileError && loginEmailChanged) {
+    await admin.auth.admin.updateUserById(userId, { email: previousLoginEmail!, email_confirm: true });
+  }
+  if (profileError?.code === "23505") return { ok: false, error: "המייל כבר רשום אצל מטפל/ת אחר/ת" };
   if (profileError || notesError) return { ok: false, error: "השמירה נכשלה" };
   return { ok: true };
 }
