@@ -1,5 +1,6 @@
 "use server";
 
+import { randomInt } from "node:crypto";
 import { z } from "zod";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/guards";
@@ -93,6 +94,38 @@ export async function createDemoTherapistAction(
   }
 
   return { ok: true, loginUrl: link.properties.action_link };
+}
+
+export type TemporaryPasswordResult = { ok: true; password: string } | { ok: false; error: string };
+
+// בלי תווים שמתבלבלים בהקלדה מוואטסאפ (0/O, 1/l/I).
+const TEMP_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+
+function generateTemporaryPassword(): string {
+  const pick = () => TEMP_PASSWORD_ALPHABET[randomInt(TEMP_PASSWORD_ALPHABET.length)];
+  const block = () => Array.from({ length: 4 }, pick).join("");
+  return `${block()}-${block()}`;
+}
+
+/**
+ * סיסמה זמנית למטפל/ת שלא מצליח/ה להיכנס דרך קישור במייל. האדמין מעביר
+ * אותה בוואטסאפ; בכניסה הראשונה המטפל/ת מועבר/ת לבחירת סיסמה קבועה
+ * (must_change_password → requireTherapistProfile → /reset-password).
+ * הסיסמה מוצגת לאדמין פעם אחת בלבד ולא נשמרת בשום מקום.
+ */
+export async function setTemporaryPasswordAction(userId: string): Promise<TemporaryPasswordResult> {
+  await requireAdmin();
+  if (!z.string().uuid().safeParse(userId).success) return { ok: false, error: "קלט לא תקין" };
+
+  const admin = createAdminClient();
+  const password = generateTemporaryPassword();
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    password,
+    email_confirm: true,
+    user_metadata: { must_change_password: true },
+  });
+  if (error) return { ok: false, error: "קביעת הסיסמה הזמנית נכשלה" };
+  return { ok: true, password };
 }
 
 export type GeneratePasswordResetLinkResult =

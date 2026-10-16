@@ -64,4 +64,13 @@ describe("guard: אין ניצול קוד מייל ב-GET", () => {
   it("דף האישור לא מנצל את הקוד בטעינה", () => {
     expect(repoFile("app/auth/confirm/page.tsx")).not.toMatch(/verifyOtp/);
   });
+  // לחיצות חוזרות בזמן ההמתנה ניצלו קוד שכבר נוצל והאחרונה הכושלת "ניצחה" (16/10).
+  it("הכפתור מנוטרל בזמן ההמתנה, ולחיצה כפולה לא שולחת שוב", () => {
+    const button = repoFile("app/auth/confirm/confirm-button.tsx");
+    expect(button).toMatch(/disabled=\{state === "working"\}/);
+    expect(button).toMatch(/if \(state === "working"\) return/);
+  });
+  it("קוד שכבר נוצל עם סשן תקף — ממשיכים במקום 'פג תוקף'", () => {
+    expect(repoFile("app/auth/confirm/actions.ts")).toMatch(/getUser\(\)/);
+  });
 });

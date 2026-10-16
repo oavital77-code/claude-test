@@ -39,7 +39,11 @@ export function ResetPasswordForm() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    // must_change_password: מנקה את סימון ה"סיסמה זמנית" (אם האדמין קבע כזו).
+    const { error } = await supabase.auth.updateUser({
+      password: parsed.data.password,
+      data: { must_change_password: false },
+    });
     setLoading(false);
 
     if (error) {

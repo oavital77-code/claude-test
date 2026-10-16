@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateHe } from "@/lib/time";
 import type { Database } from "@/lib/supabase/types";
-import { createDemoTherapistAction, generatePasswordResetLinkAction } from "./actions";
+import { createDemoTherapistAction, generatePasswordResetLinkAction, setTemporaryPasswordAction } from "./actions";
 
 type TherapistRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
@@ -195,6 +195,7 @@ export function TherapistsClient({
                           {reset?.loading ? "מייצר..." : "איפוס סיסמה"}
                         </Button>
                         {reset?.error && <p className="text-xs text-destructive">{reset.error}</p>}
+                        <TemporaryPasswordButton userId={t.id} email={t.email} />
                       </div>
                     )}
                   </td>
@@ -232,6 +233,53 @@ export function TherapistsClient({
         </table>
       </div>
     </div>
+  );
+}
+
+/**
+ * סיסמה זמנית — למטפל/ת שהקישור במייל לא עובד לה/לו. מוצגת פעם אחת, עם
+ * הודעה מוכנה להעתקה לוואטסאפ. בכניסה הראשונה המערכת מחייבת סיסמה חדשה.
+ */
+function TemporaryPasswordButton({ userId, email }: { userId: string; email: string }) {
+  const [state, setState] = useState<{ loading: boolean; password?: string; error?: string }>({ loading: false });
+
+  async function handleCreate() {
+    if (!window.confirm("לקבוע סיסמה זמנית? הסיסמה הנוכחית של המטפל/ת תוחלף.")) return;
+    setState({ loading: true });
+    const res = await setTemporaryPasswordAction(userId);
+    setState(res.ok ? { loading: false, password: res.password } : { loading: false, error: res.error });
+  }
+
+  if (state.password) {
+    const message = `היי! זו סיסמה זמנית לכניסה ל-Cleana:\nכתובת: cleana.co.il\nמייל: ${email}\nסיסמה: ${state.password}\nבכניסה הראשונה המערכת תבקש לבחור סיסמה חדשה.`;
+    return (
+      <div className="flex flex-col gap-1 rounded-md border bg-muted/40 p-2 text-xs">
+        <span>
+          סיסמה זמנית:{" "}
+          <span dir="ltr" className="font-mono text-sm font-semibold">
+            {state.password}
+          </span>
+        </span>
+        <span className="text-muted-foreground">מוצגת פעם אחת בלבד.</span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(message)}>
+            העתקת הודעה
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setState({ loading: false })}>
+            סגירה
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="ghost" disabled={state.loading} onClick={handleCreate}>
+        {state.loading ? "קובע..." : "סיסמה זמנית"}
+      </Button>
+      {state.error && <p className="text-xs text-destructive">{state.error}</p>}
+    </>
   );
 }
 

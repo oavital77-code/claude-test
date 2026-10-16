@@ -17,13 +17,14 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 const loadAuthState = cache(async (): Promise<{
   userId: string | null;
   profile: Profile | null;
+  mustChangePassword: boolean;
 }> => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { userId: null, profile: null };
+  if (!user) return { userId: null, profile: null, mustChangePassword: false };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -31,7 +32,12 @@ const loadAuthState = cache(async (): Promise<{
     .eq("id", user.id)
     .maybeSingle();
 
-  return { userId: user.id, profile: profile ?? null };
+  return {
+    userId: user.id,
+    profile: profile ?? null,
+    // סיסמה זמנית שאדמין קבע (setTemporaryPasswordAction) — חובה להחליף.
+    mustChangePassword: user.user_metadata?.must_change_password === true,
+  };
 });
 
 /**
@@ -43,10 +49,13 @@ export async function requireTherapistProfile(): Promise<{
   userId: string;
   profile: Profile;
 }> {
-  const { userId, profile } = await loadAuthState();
+  const { userId, profile, mustChangePassword } = await loadAuthState();
 
   if (!userId || !profile) redirect("/login");
   if (profile.status === "suspended") redirect("/suspended");
+  // נכנס/ה עם סיסמה זמנית מהאדמין — קודם בוחרים סיסמה קבועה (/reset-password
+  // לא עובר דרך הפונקציה הזו, אז אין לולאה).
+  if (mustChangePassword && profile.role !== "admin") redirect("/reset-password");
   // חשבון שנפתח מראש ע"י אדמין (העברה מ-Skedda) — עוד לא אישר/ה תקנון.
   // מי שנרשם/ה בעצמו/ה אישר/ה כבר בהרשמה, אז זה קורה רק בכניסה הראשונה שלהם.
   if (!profile.terms_accepted_at && profile.role !== "admin") redirect("/accept-terms");
