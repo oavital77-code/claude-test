@@ -22,8 +22,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // לא עובר/ת דרך completeRegistration שוב, ולכן הבדיקה חוזרת בכל כניסה.
     // חלון קצר (90 דק') כי היא רצה כמעט בכל טעינת עמוד; ה-cron היומי
     // (poll-woo-orders) הוא רשת הביטחון למי שלא פותח את האפליקציה בכלל.
+    // throttleSeconds: לכל היותר בדיקה אחת לדקה מול החנות, לכל המטפלים יחד —
+    // ורכישה שהתגלתה נזקפת מיד (trigger auto_claim, 20261015000003).
     after(async () => {
-      await pollWooOrders(90).catch(() => {});
+      await pollWooOrders(90, { throttleSeconds: 60 }).catch(() => {});
       try {
         await supabase.rpc("claim_woo_pending_purchase");
       } catch {

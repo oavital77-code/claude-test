@@ -859,6 +859,10 @@ export type Database = {
         Args: Record<string, never>;
         Returns: { hours_transferred: number }[];
       };
+      try_claim_woo_poll: {
+        Args: { p_min_interval_seconds: number };
+        Returns: boolean;
+      };
       admin_assign_woo_pending_purchase: {
         Args: { p_pending_id: string; p_user_id: string };
         Returns: { cards_created: number; hours_granted: number }[];
