@@ -28,6 +28,26 @@ export function bookingConfirmedEmail(params: {
   };
 }
 
+export function bookingRescheduledEmail(params: {
+  roomName: string;
+  branchName: string;
+  startsAt: Date;
+  endsAt: Date;
+  accessStart: Date;
+  accessEnd: Date;
+}): EmailContent {
+  return {
+    subject: `ההזמנה עודכנה — ${params.roomName}, ${formatDateHe(params.startsAt)}`,
+    html: emailLayout(`
+      <p>ההזמנה שלך עודכנה. המועד החדש:</p>
+      <p style="font-weight:700;font-size:17px;">${params.roomName} · ${params.branchName}</p>
+      <p>${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}–${formatTimeHe(params.endsAt)}</p>
+      <p style="color:#6b7570;">🔑 כניסה בפועל: ${formatTimeHe(params.accessStart)} · פינוי: ${formatTimeHe(params.accessEnd)}</p>
+      <p style="color:#6b7570;font-size:13px;">קובץ ICS מצורף עם המועד החדש — ניתן להוסיף ליומן (כדאי למחוק מהיומן את המועד הקודם).</p>
+    `),
+  };
+}
+
 export function bookingCancelledEmail(params: {
   roomName: string;
   startsAt: Date;
@@ -38,7 +58,7 @@ export function bookingCancelledEmail(params: {
     html: emailLayout(`
       <p>ההזמנה הבאה בוטלה:</p>
       <p style="font-weight:700;">${params.roomName} · ${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}</p>
-      <p>${params.hoursRefunded ? "השעות הוחזרו ליתרה שלך." : "הביטול בוצע בתוך 24 שעות מהמועד — השעות לא הוחזרו."}</p>
+      <p>${params.hoursRefunded ? "השעות הוחזרו ליתרה שלך." : "הביטול בוצע סמוך מדי למועד (בתוך חלון הביטול) — השעות לא הוחזרו."}</p>
     `),
   };
 }

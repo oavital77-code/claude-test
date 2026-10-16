@@ -631,6 +631,10 @@ export type Database = {
         Args: { p_booking_id: string };
         Returns: { hours_refunded: boolean }[];
       };
+      reschedule_booking: {
+        Args: { p_booking_id: string; p_room_id: string; p_starts_at: string; p_ends_at: string };
+        Returns: { booking_id: string; hours_charged: number; hours_delta: number }[];
+      };
       request_session: {
         Args: { p_slots: Json; p_start_date?: string | null };
         Returns: { subscription_id: string; weekly_hours: number; monthly_price: number }[];
