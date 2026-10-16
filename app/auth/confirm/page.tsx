@@ -3,7 +3,7 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { confirmButtonLabel, parseOtpType, safeNext } from "@/lib/auth/email-link";
-import { confirmEmailLink } from "./actions";
+import { ConfirmButton } from "./confirm-button";
 
 // דף ביניים לקישורי מייל: הקוד מנוצל רק בלחיצה על הכפתור, כדי שסורקי
 // קישורים של שירותי מייל לא "ישרפו" אותו. ר' lib/auth/email-link.ts.
@@ -30,14 +30,12 @@ export default async function ConfirmEmailLinkPage({
         </CardHeader>
         <CardContent>
           {valid ? (
-            <form action={confirmEmailLink} className="flex flex-col gap-3">
-              <input type="hidden" name="token_hash" value={params.token_hash} />
-              <input type="hidden" name="type" value={type!} />
-              <input type="hidden" name="next" value={safeNext(params.next)} />
-              <Button type="submit" size="lg">
-                {confirmButtonLabel(type!)}
-              </Button>
-            </form>
+            <ConfirmButton
+              tokenHash={params.token_hash!}
+              type={type!}
+              next={safeNext(params.next)}
+              label={confirmButtonLabel(type!)}
+            />
           ) : (
             <Button asChild variant="outline">
               <a href="/login">למסך ההתחברות</a>
