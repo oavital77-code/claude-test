@@ -5,6 +5,11 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
+import { formatInTimeZone } from "date-fns-tz";
+import { he } from "date-fns/locale";
+import { TIMEZONE } from "@/lib/time";
+import { todayInIsrael } from "@/lib/availability/grid";
+import { slotOccurrences } from "@/lib/sessions/occurrences";
 
 // ניהול ססיות ע"י אדמין — כל שינוי "החל מתאריך": מה שלפניו נשאר כמו שהוא.
 // שום פעולה כאן לא שולחת מייל ולא יוצרת תשלום (ר' 20261015000001).
@@ -42,6 +47,95 @@ function conflictNote(conflicts: number): string | undefined {
 function done(message?: string): ManageResult {
   revalidatePath("/admin/sessions/manage");
   return { ok: true, message };
+}
+
+export type SlotConflict = {
+  kind: "room" | "self" | "block";
+  date: string;
+  time: string;
+  roomName: string;
+  who: string;
+};
+
+export type ConflictCheckResult = { ok: true; conflicts: SlotConflict[] } | { ok: false; error: string };
+
+const SOURCE_LABELS: Record<string, string> = {
+  punch_card: "כרטיסייה",
+  session: "ססיה",
+  admin_comp: "שיבוץ אדמין",
+};
+
+/**
+ * בדיקה *לפני* שמירה: אילו הזמנות עתידיות (כל סוג, כל מטפל/ת) או חסימות
+ * חדר מתנגשות עם המשבצות החדשות/המעודכנות. שום דבר לא נדרס גם בלי זה —
+ * מפגש מתנגש פשוט לא נקבע — אבל כך האדמין רואה מראש ומחליט.
+ * קלט: משבצות שבועיות (from/until) או טווח יחיד (הזזת מפגש).
+ */
+export async function checkSlotConflictsAction(input: unknown): Promise<ConflictCheckResult> {
+  await requireAdmin();
+  const parsed = z
+    .object({
+      slots: z
+        .array(z.object({ roomId: z.string().uuid(), weekday: z.number().int().min(0).max(6), startTime: time, endTime: time }))
+        .max(14)
+        .optional(),
+      from: date.optional(),
+      until: date.nullable().optional(),
+      single: z.object({ roomId: z.string().uuid(), startsAt: z.string().datetime(), endsAt: z.string().datetime() }).optional(),
+      userId: z.string().uuid().optional(),
+      excludeSubscriptionId: z.string().uuid().optional(),
+      excludeBookingId: z.string().uuid().optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
+  const d = parsed.data;
+
+  const today = todayInIsrael();
+  const ranges = d.single
+    ? [{ room_id: d.single.roomId, starts_at: d.single.startsAt, ends_at: d.single.endsAt }]
+    : slotOccurrences(d.slots ?? [], d.from ?? today, d.until ?? null, today).map((o) => ({
+        room_id: o.roomId,
+        starts_at: o.startsAt.toISOString(),
+        ends_at: o.endsAt.toISOString(),
+      }));
+  if (ranges.length === 0) return { ok: true, conflicts: [] };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_session_slot_conflicts", {
+    p_ranges: ranges,
+    p_user_id: d.userId ?? null,
+    p_exclude_subscription_id: d.excludeSubscriptionId ?? null,
+    p_exclude_booking_id: d.excludeBookingId ?? null,
+  });
+  if (error) return { ok: false, error: "בדיקת ההתנגשויות נכשלה" };
+
+  const userIds = [...new Set((data ?? []).map((c) => c.other_user_id).filter((id): id is string => !!id))];
+  const [{ data: profiles }, { data: rooms }] = await Promise.all([
+    userIds.length
+      ? supabase.from("profiles").select("id, full_name").in("id", userIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    supabase.from("rooms").select("id, name"),
+  ]);
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const roomById = new Map((rooms ?? []).map((r) => [r.id, r.name]));
+
+  const conflicts = (data ?? [])
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .map((c) => {
+      const start = new Date(c.starts_at);
+      const end = new Date(c.ends_at);
+      return {
+        kind: c.kind as SlotConflict["kind"],
+        date: formatInTimeZone(start, TIMEZONE, "EEEE dd/MM", { locale: he }),
+        time: `${formatInTimeZone(start, TIMEZONE, "HH:mm")}–${formatInTimeZone(end, TIMEZONE, "HH:mm")}`,
+        roomName: roomById.get(c.room_id) ?? "חדר",
+        who:
+          c.kind === "block"
+            ? `חסימת חדר${c.block_reason ? ` · ${c.block_reason}` : ""}`
+            : `${nameById.get(c.other_user_id ?? "") ?? "מטפל/ת"} · ${SOURCE_LABELS[c.source ?? ""] ?? ""}`,
+      };
+    });
+  return { ok: true, conflicts };
 }
 
 export async function changeSlotAction(input: unknown): Promise<ManageResult> {

@@ -14,6 +14,8 @@ import { dayBoundaries, israelDateTime } from "@/lib/availability/grid";
 import type { Database } from "@/lib/supabase/types";
 import {
   addSlotAction,
+  checkSlotConflictsAction,
+  type SlotConflict,
   cancelOccurrenceAction,
   cancelSessionAction,
   changeSlotAction,
@@ -139,6 +141,101 @@ function useAction() {
   return { busy, error, notice, run };
 }
 
+/**
+ * בדיקת התנגשויות לפני שמירה. אין התנגשויות → שומר מיד. יש → מציג רשימה
+ * ומחכה ל"לשמור בכל זאת" (מפגש מתנגש פשוט לא נקבע; שום הזמנה לא נדרסת).
+ */
+function useConflictGuard() {
+  const [pending, setPending] = useState<{ conflicts: SlotConflict[]; proceed: () => void } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+
+  async function guard(input: unknown, proceed: () => void) {
+    setChecking(true);
+    setCheckError(null);
+    setPending(null);
+    const res = await checkSlotConflictsAction(input);
+    setChecking(false);
+    if (!res.ok) {
+      setCheckError(res.error);
+      return;
+    }
+    if (res.conflicts.length === 0) {
+      proceed();
+      return;
+    }
+    setPending({ conflicts: res.conflicts, proceed });
+  }
+
+  const panel = (
+    <>
+      {checkError && <p className="text-sm text-destructive">{checkError}</p>}
+      {pending && (
+        <ConflictWarning
+          conflicts={pending.conflicts}
+          onConfirm={() => {
+            const proceed = pending.proceed;
+            setPending(null);
+            proceed();
+          }}
+          onCancel={() => setPending(null)}
+        />
+      )}
+    </>
+  );
+
+  return { guard, checking, panel };
+}
+
+const CONFLICT_KIND_LABELS: Record<SlotConflict["kind"], string> = {
+  room: "החדר תפוס",
+  self: "המטפל/ת כבר משובצ/ת בחדר אחר",
+  block: "חסימה",
+};
+
+const MAX_CONFLICTS_SHOWN = 15;
+
+function ConflictWarning({
+  conflicts,
+  onConfirm,
+  onCancel,
+}: {
+  conflicts: SlotConflict[];
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      <p className="font-medium">⚠️ נמצאו {conflicts.length} התנגשויות עם הזמנות קיימות</p>
+      <p className="text-xs">
+        ההזמנות הקיימות לא יידרסו — המפגשים של הססיה בתאריכים האלה פשוט לא ייקבעו.
+      </p>
+      <ul className="flex flex-col gap-0.5">
+        {conflicts.slice(0, MAX_CONFLICTS_SHOWN).map((c, i) => (
+          <li key={i}>
+            <span className="font-medium">{c.date}</span> · <span dir="ltr">{c.time}</span> · {c.roomName} · {c.who}{" "}
+            <span className="text-xs opacity-75">({CONFLICT_KIND_LABELS[c.kind]})</span>
+          </li>
+        ))}
+        {conflicts.length > MAX_CONFLICTS_SHOWN && (
+          <li className="text-xs">ועוד {conflicts.length - MAX_CONFLICTS_SHOWN}…</li>
+        )}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={onCancel}>
+          חזרה לעריכה
+        </Button>
+        <Button size="sm" variant="destructive" onClick={onConfirm}>
+          לשמור בכל זאת
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function Feedback({ error, notice }: { error: string | null; notice: string | null }) {
   return (
     <>
@@ -179,7 +276,7 @@ function SubscriptionBlock({
 
       <ul className="flex flex-col gap-1">
         {sub.slots.map((slot) => (
-          <SlotRow key={slot.id} slot={slot} roomOptions={roomOptions} roomName={roomName} today={today} />
+          <SlotRow key={slot.id} slot={slot} sub={sub} roomOptions={roomOptions} roomName={roomName} today={today} />
         ))}
         {sub.slots.length === 0 && <li className="text-sm text-muted-foreground">אין משבצות פעילות.</li>}
       </ul>
@@ -199,9 +296,7 @@ function SubscriptionBlock({
         </Button>
       </div>
 
-      {panel === "add" && (
-        <AddSlotForm subscriptionId={sub.id} roomOptions={roomOptions} today={today} onDone={() => setPanel(null)} />
-      )}
+      {panel === "add" && <AddSlotForm sub={sub} roomOptions={roomOptions} today={today} onDone={() => setPanel(null)} />}
       {panel === "price" && <PriceForm sub={sub} onDone={() => setPanel(null)} />}
       {panel === "cancel" && <CancelForm sub={sub} today={today} onDone={() => setPanel(null)} />}
       {panel === "upcoming" && <UpcomingList sub={sub} roomOptions={roomOptions} roomName={roomName} />}
@@ -211,11 +306,13 @@ function SubscriptionBlock({
 
 function SlotRow({
   slot,
+  sub,
   roomOptions,
   roomName,
   today,
 }: {
   slot: Slot;
+  sub: ManagedSubscription;
   roomOptions: RoomOption[];
   roomName: Map<string, string>;
   today: string;
@@ -223,6 +320,7 @@ function SlotRow({
   const [mode, setMode] = useState<null | "edit" | "remove">(null);
   const [from, setFrom] = useState(slot.valid_from && slot.valid_from > today ? slot.valid_from : today);
   const { busy, error, notice, run } = useAction();
+  const { guard, checking, panel } = useConflictGuard();
 
   return (
     <li className="flex flex-col gap-2 rounded-md bg-muted/40 p-2 text-sm">
@@ -253,12 +351,17 @@ function SlotRow({
           setFrom={setFrom}
           today={today}
           submitLabel="שמירת השינוי"
-          busy={busy}
+          busy={busy || checking}
           onSubmit={(draft) =>
-            run(() => changeSlotAction({ slotId: slot.id, ...draft, from }), () => setMode(null))
+            guard(
+              // מפגשי הססיה הזו עצמה לא נחשבים התנגשות — הישנים מבוטלים מהתאריך.
+              { slots: [draft], from, until: sub.effective_end_date, userId: sub.user_id, excludeSubscriptionId: sub.id },
+              () => run(() => changeSlotAction({ slotId: slot.id, ...draft, from }), () => setMode(null)),
+            )
           }
         />
       )}
+      {panel}
       {mode === "remove" && (
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
@@ -378,18 +481,19 @@ function SlotFields({
 }
 
 function AddSlotForm({
-  subscriptionId,
+  sub,
   roomOptions,
   today,
   onDone,
 }: {
-  subscriptionId: string;
+  sub: ManagedSubscription;
   roomOptions: RoomOption[];
   today: string;
   onDone: () => void;
 }) {
   const [from, setFrom] = useState(today);
   const { busy, error, notice, run } = useAction();
+  const { guard, checking, panel } = useConflictGuard();
   return (
     <div className="flex flex-col gap-2 rounded-md border border-dashed p-2">
       <SlotForm
@@ -399,9 +503,14 @@ function AddSlotForm({
         setFrom={setFrom}
         today={today}
         submitLabel="הוספה"
-        busy={busy}
-        onSubmit={(draft) => run(() => addSlotAction({ subscriptionId, ...draft, from }), onDone)}
+        busy={busy || checking}
+        onSubmit={(draft) =>
+          guard({ slots: [draft], from, until: sub.effective_end_date, userId: sub.user_id }, () =>
+            run(() => addSlotAction({ subscriptionId: sub.id, ...draft, from }), onDone),
+          )
+        }
       />
+      {panel}
       <Feedback error={error} notice={notice} />
     </div>
   );
@@ -503,7 +612,7 @@ function UpcomingList({
   return (
     <ul className="flex flex-col gap-1">
       {sub.upcoming.map((b) => (
-        <OccurrenceRow key={b.id} booking={b} roomOptions={roomOptions} roomName={roomName} />
+        <OccurrenceRow key={b.id} booking={b} userId={sub.user_id} roomOptions={roomOptions} roomName={roomName} />
       ))}
     </ul>
   );
@@ -511,10 +620,12 @@ function UpcomingList({
 
 function OccurrenceRow({
   booking,
+  userId,
   roomOptions,
   roomName,
 }: {
   booking: ManagedSubscription["upcoming"][number];
+  userId: string;
   roomOptions: RoomOption[];
   roomName: Map<string, string>;
 }) {
@@ -530,6 +641,7 @@ function OccurrenceRow({
     endTime: formatTimeHe(end),
   });
   const { busy, error, notice, run } = useAction();
+  const { guard, checking, panel } = useConflictGuard();
 
   return (
     <li className="flex flex-col gap-1 rounded-md border p-2 text-sm">
@@ -599,24 +711,23 @@ function OccurrenceRow({
           </div>
           <Button
             size="sm"
-            disabled={busy}
-            onClick={() =>
-              run(
-                () =>
-                  moveOccurrenceAction({
-                    bookingId: booking.id,
-                    roomId: draft.roomId,
-                    startsAt: israelIso(date, draft.startTime),
-                    endsAt: israelIso(date, draft.endTime),
-                  }),
-                () => setMoving(false),
-              )
-            }
+            disabled={busy || checking}
+            onClick={() => {
+              const target = {
+                roomId: draft.roomId,
+                startsAt: israelIso(date, draft.startTime),
+                endsAt: israelIso(date, draft.endTime),
+              };
+              void guard({ single: target, userId, excludeBookingId: booking.id }, () =>
+                run(() => moveOccurrenceAction({ bookingId: booking.id, ...target }), () => setMoving(false)),
+              );
+            }}
           >
-            {busy ? "מזיז..." : "הזזת המפגש"}
+            {busy ? "מזיז..." : checking ? "בודק..." : "הזזת המפגש"}
           </Button>
         </div>
       )}
+      {panel}
       <Feedback error={error} notice={notice} />
     </li>
   );
@@ -641,6 +752,7 @@ function NewSessionForm({
   const [startDate, setStartDate] = useState(today);
   const [price, setPrice] = useState("");
   const { busy, error, notice, run } = useAction();
+  const { guard, checking, panel } = useConflictGuard();
 
   const matches = allTherapists.filter((t) => t.name.includes(query) || t.phone.includes(query)).slice(0, 8);
 
@@ -715,22 +827,25 @@ function NewSessionForm({
 
         <Button
           className="w-fit"
-          disabled={busy || !userId}
+          disabled={busy || checking || !userId}
           onClick={() =>
-            run(async () => {
-              const res = await claimSkeddaSessionAction({
-                userId,
-                slots,
-                startDate,
-                termMonths: null,
-                monthlyPrice: price.trim() === "" ? null : Number(price),
-              });
-              return res.ok ? { ok: true } : { ok: false, error: res.error };
-            }, onDone)
+            guard({ slots, from: startDate, until: null, userId }, () =>
+              run(async () => {
+                const res = await claimSkeddaSessionAction({
+                  userId,
+                  slots,
+                  startDate,
+                  termMonths: null,
+                  monthlyPrice: price.trim() === "" ? null : Number(price),
+                });
+                return res.ok ? { ok: true } : { ok: false, error: res.error };
+              }, onDone),
+            )
           }
         >
-          {busy ? "יוצר..." : "יצירת הססיה"}
+          {busy ? "יוצר..." : checking ? "בודק התנגשויות..." : "יצירת הססיה"}
         </Button>
+        {panel}
         <Feedback error={error} notice={notice} />
       </CardContent>
     </Card>
