@@ -859,6 +859,23 @@ export type Database = {
         Args: Record<string, never>;
         Returns: { hours_transferred: number }[];
       };
+      admin_session_slot_conflicts: {
+        Args: {
+          p_ranges: Json;
+          p_user_id?: string | null;
+          p_exclude_subscription_id?: string | null;
+          p_exclude_booking_id?: string | null;
+        };
+        Returns: {
+          kind: string;
+          room_id: string;
+          starts_at: string;
+          ends_at: string;
+          other_user_id: string | null;
+          source: string | null;
+          block_reason: string | null;
+        }[];
+      };
       try_claim_woo_poll: {
         Args: { p_min_interval_seconds: number };
         Returns: boolean;
