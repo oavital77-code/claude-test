@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
@@ -218,8 +219,7 @@ export function AdminSessionWizard({
 
           <div className="flex flex-col gap-1.5">
             <Label>תאריך התחלה</Label>
-            <Input
-              type="date"
+            <DateInput
               value={startDate}
               min={todayInIsrael()}
               onChange={(e) => setStartDate(e.target.value)}

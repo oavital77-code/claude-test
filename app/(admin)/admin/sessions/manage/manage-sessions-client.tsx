@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
@@ -367,7 +368,7 @@ function SlotRow({
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">להסיר החל מ-</Label>
-            <Input type="date" min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+            <DateInput min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-52" />
           </div>
           <Button
             size="sm"
@@ -409,7 +410,7 @@ function SlotForm({
       <SlotFields draft={draft} setDraft={setDraft} roomOptions={roomOptions} />
       <div className="flex flex-col gap-1">
         <Label className="text-xs">החל מתאריך</Label>
-        <Input type="date" min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+        <DateInput min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-52" />
       </div>
       <Button size="sm" disabled={busy} onClick={() => onSubmit(draft)}>
         {busy ? "שומר..." : submitLabel}
@@ -555,7 +556,7 @@ function CancelForm({ sub, today, onDone }: { sub: ManagedSubscription; today: s
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <Label className="text-xs">לבטל החל מ-</Label>
-          <Input type="date" min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+          <DateInput min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-52" />
         </div>
         <label className="flex items-center gap-2">
           <input type="checkbox" className="size-4" checked={toCard} onChange={(e) => setToCard(e.target.checked)} />
@@ -670,7 +671,7 @@ function OccurrenceRow({
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">תאריך</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+            <DateInput value={date} onChange={(e) => setDate(e.target.value)} className="w-52" />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">חדר</Label>
@@ -810,7 +811,7 @@ function NewSessionForm({
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">תאריך התחלה</Label>
-            <Input type="date" min={today} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+            <DateInput min={today} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-52" />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">מחיר חודשי (ריק = יחסי לשעות)</Label>

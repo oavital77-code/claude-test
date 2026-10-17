@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -246,8 +247,7 @@ function SkeddaRowCard({ row, isRegistered }: { row: Row; isRegistered: boolean 
                   <Input value={form.session_details} onChange={(e) => set("session_details", e.target.value)} />
                 </Field>
                 <Field label="שולם עד">
-                  <Input
-                    type="date"
+                  <DateInput
                     value={form.session_paid_until}
                     onChange={(e) => set("session_paid_until", e.target.value)}
                   />
