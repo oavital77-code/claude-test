@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -431,11 +432,11 @@ function SubscriptionRow({
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">משעה</Label>
-            <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-28" />
+            <TimeSelect value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-28" />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">עד שעה</Label>
-            <Input type="time" step={1800} value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-28" />
+            <TimeSelect value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-28" />
           </div>
           <Button size="sm" onClick={handleAddSlot} disabled={loading || !roomId}>
             {loading ? "שומר..." : "הוספה"}

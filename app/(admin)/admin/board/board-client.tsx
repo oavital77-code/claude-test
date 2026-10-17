@@ -26,6 +26,7 @@ import {
 } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -764,8 +765,8 @@ function EditBookingPanel({
         </div>
       </div>
       <div className="flex gap-2">
-        <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-        <Input type="time" step={1800} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        <TimeSelect value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+        <TimeSelect value={endTime} onChange={(e) => setEndTime(e.target.value)} />
       </div>
       {booking.source === "punch_card" && newHours !== oldHours && newHours > 0 && (
         <p className="text-xs text-muted-foreground">
@@ -1026,8 +1027,8 @@ function SlotActionPanel({
       )}
 
       <div className="flex gap-2">
-        <Input type="time" step={1800} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-        <Input type="time" step={1800} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        <TimeSelect value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+        <TimeSelect value={endTime} onChange={(e) => setEndTime(e.target.value)} />
       </div>
 
       {mode === "session" && (
