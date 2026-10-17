@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -204,11 +205,11 @@ export function AdminSessionWizard({
             <div className="hidden sm:block" />
             <div className="flex flex-col gap-1.5">
               <Label>משעה</Label>
-              <Input type="time" step={1800} value={draftStart} onChange={(e) => setDraftStart(e.target.value)} />
+              <TimeSelect value={draftStart} onChange={(e) => setDraftStart(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>עד שעה</Label>
-              <Input type="time" step={1800} value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)} />
+              <TimeSelect value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)} />
             </div>
           </div>
           <Button type="button" variant="outline" onClick={addSlot}>

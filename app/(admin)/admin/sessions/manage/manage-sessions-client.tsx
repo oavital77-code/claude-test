@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -458,9 +459,7 @@ function SlotFields({
       </div>
       <div className="flex flex-col gap-1">
         <Label className="text-xs">משעה</Label>
-        <Input
-          type="time"
-          step={1800}
+        <TimeSelect
           value={draft.startTime}
           onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
           className="w-28"
@@ -468,9 +467,7 @@ function SlotFields({
       </div>
       <div className="flex flex-col gap-1">
         <Label className="text-xs">עד שעה</Label>
-        <Input
-          type="time"
-          step={1800}
+        <TimeSelect
           value={draft.endTime}
           onChange={(e) => setDraft({ ...draft, endTime: e.target.value })}
           className="w-28"
@@ -691,9 +688,7 @@ function OccurrenceRow({
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">משעה</Label>
-            <Input
-              type="time"
-              step={1800}
+            <TimeSelect
               value={draft.startTime}
               onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
               className="w-28"
@@ -701,9 +696,7 @@ function OccurrenceRow({
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">עד שעה</Label>
-            <Input
-              type="time"
-              step={1800}
+            <TimeSelect
               value={draft.endTime}
               onChange={(e) => setDraft({ ...draft, endTime: e.target.value })}
               className="w-28"
