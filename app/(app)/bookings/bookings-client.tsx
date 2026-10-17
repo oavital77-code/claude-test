@@ -6,6 +6,7 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { TIMEZONE, accessWindow } from "@/lib/time";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import { GRID_END_HOUR, GRID_START_HOUR, addDaysToDateStr, israelDateTime, todayInIsrael } from "@/lib/availability/grid";
@@ -241,9 +242,8 @@ function RescheduleForm({
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs">
           תאריך
-          <input
-            type="date"
-            className={selectClass}
+          <DateInput
+            className="h-9 w-48 md:h-9"
             min={today}
             max={addDaysToDateStr(today, policy.horizonDays)}
             value={date}

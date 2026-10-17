@@ -25,6 +25,7 @@ import {
   type Slot,
 } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
@@ -747,7 +748,7 @@ function EditBookingPanel({
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <Label className="text-xs">תאריך</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+          <DateInput value={date} onChange={(e) => setDate(e.target.value)} className="w-52" />
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-xs">חדר</Label>
