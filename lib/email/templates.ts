@@ -260,6 +260,33 @@ export function wooPaymentUnmatchedAdminEmail(params: {
   };
 }
 
+/**
+ * עדכון להנהלה על כל רכישת כרטיסייה בחנות — מי קנה/תה, כמה שעות, והאם
+ * השעות כבר נזקפו לחשבון או ממתינות לשיוך ידני.
+ */
+export function cardPurchasedAdminEmail(params: {
+  buyer: string;
+  hours: number;
+  amountTotal: number;
+  wooOrderId: number;
+  claimed: boolean;
+}): EmailContent {
+  const buyer = escapeHtml(params.buyer);
+  return {
+    subject: `רכישת כרטיסייה — ${params.buyer} · ${params.hours} שעות`,
+    html: emailLayout(`
+      <p>התקבלה רכישת כרטיסייה בחנות:</p>
+      <p style="font-weight:700;">${buyer} · ${params.hours} שעות · ${formatCurrency(params.amountTotal)}</p>
+      <p style="color:#6b7570;font-size:13px;">הזמנה ${params.wooOrderId}</p>
+      ${
+        params.claimed
+          ? "<p>✅ השעות נזקפו לחשבון של המטפל/ת.</p>"
+          : "<p>⏳ <strong>השעות עדיין לא נזקפו</strong> — לא נמצא חשבון עם המייל שבהזמנה. הן ייזקפו אוטומטית כשייפתח חשבון באותו מייל, או שאפשר לשייך ידנית מעמוד המטפל/ת בפאנל הניהול.</p>"
+      }
+    `),
+  };
+}
+
 export function wooPurchaseReceivedEmail(params: {
   hours: number;
   registerUrl: string;
