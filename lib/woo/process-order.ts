@@ -5,6 +5,7 @@ import {
   wooPurchaseReceivedEmail,
   sessionRenewedEmail,
   wooPaymentUnmatchedAdminEmail,
+  cardPurchasedAdminEmail,
 } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
 import { toE164Israel } from "@/lib/phone";
@@ -152,7 +153,62 @@ export async function processWooOrder(
     sendEmail({ to: email, subject, html }).catch(() => {});
   }
 
+  if (newHours > 0) {
+    await notifyAdminsOfCardPurchase(supabase, {
+      wooOrderId: order.id,
+      email,
+      hours: newHours,
+      tierIds: (insertedRows ?? []).map((r) => r.tier_id),
+    });
+  }
+
   return { ok: true };
+}
+
+/**
+ * מייל להנהלה על כל רכישת כרטיסייה. נשלח פעם אחת בלבד — רק על שורות שנכתבו
+ * עכשיו לראשונה (insertedRows), כמו המייל למטפל/ת. מצב הזקיפה נקרא מחדש מה-DB
+ * כי ה-trigger (auto_claim_woo_pending_purchase) מעדכן את השורה אחרי ה-INSERT,
+ * וה-RETURNING של ה-upsert לא משקף את זה.
+ */
+async function notifyAdminsOfCardPurchase(
+  supabase: SupabaseClient<Database>,
+  params: { wooOrderId: number; email: string | null; hours: number; tierIds: string[] },
+) {
+  try {
+    const adminEmails = await getAdminEmails(supabase);
+    if (adminEmails.length === 0) return;
+
+    const { data: rows } = await supabase
+      .from("woo_pending_purchases")
+      .select("amount_total, status, claimed_by")
+      .eq("woo_order_id", params.wooOrderId)
+      .in("tier_id", params.tierIds);
+    const claimedBy = rows?.find((r) => r.claimed_by)?.claimed_by ?? null;
+    const claimed = (rows ?? []).length > 0 && (rows ?? []).every((r) => r.status === "claimed");
+    const amountTotal = (rows ?? []).reduce((sum, r) => sum + Number(r.amount_total), 0);
+
+    let buyer = params.email ?? `הזמנה ${params.wooOrderId}`;
+    if (claimedBy) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", claimedBy)
+        .maybeSingle();
+      if (profile?.full_name) buyer = profile.full_name;
+    }
+
+    const { subject, html } = cardPurchasedAdminEmail({
+      buyer,
+      hours: params.hours,
+      amountTotal,
+      wooOrderId: params.wooOrderId,
+      claimed,
+    });
+    await sendEmail({ to: adminEmails, subject, html });
+  } catch {
+    // best-effort — כישלון בעדכון ההנהלה לא מפיל את עיבוד ההזמנה.
+  }
 }
 
 // ═══ ססיה: מטפל/ת עם חשבון קיים — התשלום מותאם ישירות לתשלום הממתין שלו/ה,
