@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
+import { CANCELLATION_ACTIONS, cancellationDetails, type CancelledBooking } from "@/lib/audit-cancellation";
 import { AdminAuditClient, type AuditRow } from "./audit-client";
 import { TodayDetails, type TodayView } from "./today-details";
 
@@ -29,8 +30,27 @@ export default async function AdminAuditPage({
     .order("created_at", { ascending: false })
     .limit(500);
 
+  // ביטול: ה-RPC רושם רק hours_refunded — החדר, המועד והשעות מההזמנה עצמה.
+  const cancelledIds = [
+    ...new Set(
+      (entries ?? [])
+        .filter((e) => CANCELLATION_ACTIONS.has(e.action) && e.entity_id)
+        .map((e) => e.entity_id as string),
+    ),
+  ];
+  const { data: cancelledBookings } = cancelledIds.length
+    ? await supabase
+        .from("bookings")
+        .select("id, user_id, room_id, source, starts_at, ends_at, hours_charged, hours_refunded")
+        .in("id", cancelledIds)
+    : { data: [] as (CancelledBooking & { id: string })[] };
+  const cancelledById = new Map((cancelledBookings ?? []).map((b) => [b.id, b]));
+
   // גם user_id שבתוך הפרטים (after) — כדי להציג שם במקום מזהה.
-  const detailUserIds = (entries ?? []).map((e) => detailString(e.after, "user_id"));
+  const detailUserIds = [
+    ...(entries ?? []).map((e) => detailString(e.after, "user_id")),
+    ...(cancelledBookings ?? []).map((b) => b.user_id),
+  ];
   const actorIds = [
     ...new Set(
       [...(entries ?? []).map((e) => e.actor_id), ...detailUserIds].filter((id): id is string => !!id),
@@ -48,16 +68,22 @@ export default async function AdminAuditPage({
     rooms: Object.fromEntries((rooms ?? []).map((r) => [r.id, r.name])),
   };
 
-  const rows: AuditRow[] = (entries ?? []).map((e) => ({
-    id: e.id,
-    action: e.action,
-    entity: e.entity,
-    entityId: e.entity_id,
-    createdAt: e.created_at,
-    // actor_id ריק = פעולה שבוצעה ע"י המערכת עצמה (cron, קליטת תשלום מהחנות).
-    actorName: e.actor_id ? (nameById.get(e.actor_id) ?? "משתמש שנמחק") : "מערכת",
-    details: e.after,
-  }));
+  const rows: AuditRow[] = (entries ?? []).map((e) => {
+    const cancelled =
+      CANCELLATION_ACTIONS.has(e.action) && e.entity_id ? cancelledById.get(e.entity_id) : undefined;
+    return {
+      id: e.id,
+      action: e.action,
+      entity: e.entity,
+      entityId: e.entity_id,
+      createdAt: e.created_at,
+      // actor_id ריק = פעולה שבוצעה ע"י המערכת עצמה (cron, קליטת תשלום מהחנות).
+      actorName: e.actor_id ? (nameById.get(e.actor_id) ?? "משתמש שנמחק") : "מערכת",
+      details: cancelled
+        ? cancellationDetails(cancelled, e.action === "booking_cancelled_by_admin")
+        : e.after,
+    };
+  });
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">

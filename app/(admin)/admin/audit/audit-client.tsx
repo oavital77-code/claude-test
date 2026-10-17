@@ -54,6 +54,9 @@ const DETAIL_KEY_LABELS: Record<string, string> = {
   monthly_price: "מחיר חודשי",
   start_date: "מתאריך",
   refund_hours: "החזר שעות",
+  booking_slot: "מועד ההזמנה",
+  source_label: "סוג",
+  hours_refunded: "השעות הוחזרו",
   before: "לפני",
   after: "אחרי",
 };
