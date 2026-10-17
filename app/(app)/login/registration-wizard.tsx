@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/client";
+import { EXISTING_ACCOUNT_MESSAGE, isExistingAccountSignup } from "@/lib/auth/signup";
 import {
   authFormSchema,
   detailsFormSchema,
@@ -137,9 +138,16 @@ export function RegistrationWizard({
 
     setEmail(parsed.data.email);
 
-    // אין session → Supabase מחכה לאישור מייל. זו גם התשובה שמתקבלת כשכתובת
-    // המייל כבר רשומה (Supabase לא מגלה את זה בכוונה), ובשני המקרים המסך
-    // הנכון להציג זהה: "שלחנו לך קישור".
+    // מייל שכבר רשום ומאומת: Supabase מחזירה "הצלחה" ולא שולחת כלום. "שלחנו
+    // לך קישור" כאן השאיר אנשים לחכות למייל שלא יגיע — מפנים להתחברות.
+    if (isExistingAccountSignup(data.user)) {
+      setPassword("");
+      setError(EXISTING_ACCOUNT_MESSAGE);
+      return;
+    }
+
+    // אין session → Supabase מחכה לאישור מייל (משתמש חדש, או רשום שעוד לא
+    // אישר — לו Supabase כן שולחת מייל אימות חדש).
     if (!data.session) {
       goToSent("verify");
       return;
