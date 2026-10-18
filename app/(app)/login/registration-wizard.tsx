@@ -344,20 +344,21 @@ export function RegistrationWizard({
               <p className="text-xs text-muted-foreground">לפחות 8 תווים, ולא סיסמה נפוצה (כמו 12345678 או qwerty123)</p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <div className="flex gap-2">
-              <Button type="button" disabled={loading} className="flex-1" onClick={() => handleRegister()}>
-                {loading ? "נרשם/ת..." : "הרשמה"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                className="flex-1"
-                onClick={() => handleLogin()}
-              >
-                {loading ? "מתחבר/ת..." : "התחברות"}
-              </Button>
-            </div>
+            {/* התחברות היא הפעולה הראשית: כמעט כל המטפלים כבר רשומים (הועברו
+                מ-Skedda), ו"הרשמה" כפתור ראשי הוביל אנשים עם חשבון לנסות
+                להירשם מחדש (טל ברוך, אלון קדם, מאיה רבין — 17–18/10). */}
+            <Button type="button" disabled={loading} onClick={() => handleLogin()}>
+              {loading ? "מתחבר/ת..." : "התחברות"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => handleRegister()}
+            >
+              {loading ? "נרשם/ת..." : "חדש/ה כאן? הרשמה"}
+            </Button>
             <Button
               type="button"
               variant="ghost"
