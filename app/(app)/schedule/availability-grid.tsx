@@ -171,6 +171,7 @@ export function AvailabilityGrid({
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
                     title={titleFor?.(col.key, slot, status)}
+                    data-selected={selected || undefined}
                     onClick={activate}
                     onKeyDown={(e) => {
                       if (clickable && (e.key === "Enter" || e.key === " ")) {
