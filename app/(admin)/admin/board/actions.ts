@@ -1,9 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
 import { notifyBookingCancelled } from "@/lib/notifications/cancellation";
+import { notifyBookingPlaced } from "@/lib/notifications/booking-placed";
 import { israelDateTime, addDaysToDateStr } from "@/lib/availability/grid";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -53,7 +55,7 @@ export async function adminCreateRecurringBookingAction(
     const startsAt = israelDateTime(d, startTime).toISOString();
     const endsAt = israelDateTime(d, endTime).toISOString();
 
-    const { error } = await supabase.rpc("admin_create_booking", {
+    const { data, error } = await supabase.rpc("admin_create_booking", {
       p_user_id: userId,
       p_room_id: roomId,
       p_starts_at: startsAt,
@@ -62,8 +64,13 @@ export async function adminCreateRecurringBookingAction(
       p_charge: charge,
     });
 
-    if (error) skipped.push({ date: d, error: bookingErrorMessage(error.message) });
-    else created += 1;
+    if (error) {
+      skipped.push({ date: d, error: bookingErrorMessage(error.message) });
+    } else {
+      created += 1;
+      const bookingId = data?.[0]?.booking_id;
+      if (bookingId) after(() => notifyBookingPlaced(supabase, bookingId, "confirmed").catch(() => {}));
+    }
   }
 
   if (created === 0) {
@@ -83,7 +90,7 @@ export async function adminCreateBookingAction(
   await requireAdmin();
   const supabase = await createClient();
   // charge: לקזז מהכרטיסייה (יכול לרדת למינוס — החלטת אדמין) או שיבוץ בלי חיוב.
-  const { error } = await supabase.rpc("admin_create_booking", {
+  const { data, error } = await supabase.rpc("admin_create_booking", {
     p_user_id: userId,
     p_room_id: roomId,
     p_starts_at: startsAt,
@@ -92,13 +99,17 @@ export async function adminCreateBookingAction(
     p_charge: charge,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  // מייל אישור למטפל/ת — כמו בהזמנה עצמית (בקשת הבעלים, 18/10).
+  // after() — נשלח אחרי שהתשובה חזרה לאדמין, בלי להאט את הלוח.
+  const bookingId = data?.[0]?.booking_id;
+  if (bookingId) after(() => notifyBookingPlaced(supabase, bookingId, "confirmed").catch(() => {}));
   return { ok: true };
 }
 
 /**
  * עריכת שיבוץ: תאריך / שעות / חדר. כרטיסייה — הפרש שעות יורד או חוזר
  * לכרטיסייה; מפגש ססיה — מוזז (ביטול + מפגש חדש) כדי שה-cron לא ישחזר את
- * המקורי. בלי מייל. ר' admin_edit_booking (20261015000002).
+ * המקורי. מייל עדכון למטפל/ת. ר' admin_edit_booking (20261015000002).
  */
 export async function adminEditBookingAction(
   bookingId: string,
@@ -108,13 +119,15 @@ export async function adminEditBookingAction(
 ): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_edit_booking", {
+  const { data: newBookingId, error } = await supabase.rpc("admin_edit_booking", {
     p_booking_id: bookingId,
     p_room_id: roomId,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+  // מפגש ססיה שזז מקבל מזהה חדש — ה-RPC מחזיר את מזהה ההזמנה בפועל.
+  after(() => notifyBookingPlaced(supabase, newBookingId ?? bookingId, "rescheduled").catch(() => {}));
   return { ok: true };
 }
 
