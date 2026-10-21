@@ -1,0 +1,23 @@
+# עדכוני תלויות אוטומטיים — Dependabot פותח PR כשיש גרסה חדשה (בעיקר תיקוני
+# אבטחה). עדכוני minor/patch מקובצים ל-PR אחד בשבוע כדי לא להציף; major
+# נפתחים בנפרד ודורשים בדיקה ידנית לפני מיזוג.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "06:00"
+      timezone: Asia/Jerusalem
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels: [dependencies]
