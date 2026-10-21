@@ -371,9 +371,6 @@ export function RegistrationWizard({
             >
               שכחתי סיסמה
             </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              עברת אלינו מ-Skedda? החשבון שלך כבר מוכן — לחצ/י &quot;שכחתי סיסמה&quot; עם המייל שלך כדי לקבוע סיסמה.
-            </p>
           </form>
         )}
 
