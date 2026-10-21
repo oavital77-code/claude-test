@@ -1,0 +1,67 @@
+# בדיקות אבטחה תקופתיות + על כל PR ל-master:
+#  1. סודות — gitleaks סורק את הקוד ואת ההיסטוריה (מפתחות API, סיסמאות). הריפו
+#     ציבורי, אז סוד שנכנס לקוד חשוף לכולם.
+#  2. תלויות — npm audit על חבילות שרצות בפרודקשן. נכשל רק על critical;
+#     high מדווח בסיכום (חלק מהן בתוך Next.js עצמו ומטופלות דרך Dependabot).
+#  3. בדיקות + typecheck + lint — כולל בדיקות השמירה (אין type="time"/"date"
+#     נייטיב, כל קוד שגיאה מתורגם וכו').
+name: Security checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "43 3 * * 1" # יום שני 03:43 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit report (all severities)
+        run: |
+          npm audit --omit=dev || true
+          echo "## npm audit (production)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail on critical
+        run: npm audit --omit=dev --audit-level=critical
+
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
