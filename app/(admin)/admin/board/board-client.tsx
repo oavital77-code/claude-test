@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { TimeSelect } from "@/components/ui/time-select";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { useBottomSheet } from "@/components/ui/use-bottom-sheet";
 import { formatCurrency } from "@/lib/format";
 import { WEEKDAY_LABELS, slotHours } from "@/lib/pricing/session";
 import { roomTypeLabel } from "@/lib/rooms";
@@ -66,6 +67,16 @@ const SOURCE_LABELS: Record<Booking["source"], string> = {
   admin_comp: "שיבוץ אדמין",
 };
 
+interface GridSelection {
+  view: "grid" | "week";
+  /** מפתח העמודה: חדר ביומי, תאריך בשבועי. */
+  columnKey: string;
+  roomId: string;
+  date: string;
+  start: Date;
+  end: Date;
+}
+
 interface SlotDialogState {
   date: string;
   startTime: string;
@@ -98,6 +109,9 @@ export function BoardClient({
   const [viewMode, setViewMode] = useState<"list" | "grid" | "week" | "month">("list");
   const [selectedRoomId, setSelectedRoomId] = useState<string>("");
   const [slotDialog, setSlotDialog] = useState<SlotDialogState | null>(null);
+  // בחירת משבצות בלוח (יומי/שבועי) — כמו אצל המטפלים: לחיצה מסמנת, לחיצות
+  // נוספות באותה עמודה מאריכות, ומסך הפעולה צף בתחתית בלי לחסום את הלוח.
+  const [gridSelection, setGridSelection] = useState<GridSelection | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
 
   function openSlotDialog(state: SlotDialogState) {
@@ -247,6 +261,49 @@ export function BoardClient({
     };
   }
 
+  /**
+   * לחיצה על משבצת פנויה. באותה עמודה — מאריכה את הבחירה הקיימת אם כל
+   * המשבצות שבטווח פנויות (אותו כלל כמו בלוח המטפלים); אחרת בחירה חדשה.
+   */
+  function selectSlot(view: GridSelection["view"], columnKey: string, roomId: string, slotDate: string, slot: Slot) {
+    setError(null);
+    const prev = gridSelection;
+    if (prev && prev.view === view && prev.columnKey === columnKey) {
+      const start = prev.start < slot.start ? prev.start : slot.start;
+      const end = prev.end > slot.end ? prev.end : slot.end;
+      const columnSlots = view === "grid" ? gridSlots : weekSlots.map((s) => resolveWeekSlot(columnKey, s));
+      const allFree = columnSlots.every(
+        (s) => s.start < start || s.end > end || gridStatusFor(roomId, s) === "free",
+      );
+      if (allFree) {
+        setGridSelection({ ...prev, start, end });
+        return;
+      }
+    }
+    setGridSelection({ view, columnKey, roomId, date: slotDate, start: slot.start, end: slot.end });
+  }
+
+  // הבחירה מוצגת רק בתצוגה/תאריך/חדר שבהם נעשתה — מעבר יום או תצוגה מסתיר אותה.
+  const activeSelection =
+    gridSelection &&
+    gridSelection.view === viewMode &&
+    (viewMode === "grid"
+      ? gridSelection.date === date
+      : weekDates.includes(gridSelection.date) && gridSelection.roomId === selectedRoomId)
+      ? gridSelection
+      : null;
+
+  function isGridSelected(view: GridSelection["view"], columnKey: string, slot: Slot) {
+    if (!activeSelection || activeSelection.view !== view || activeSelection.columnKey !== columnKey) return false;
+    return slot.start >= activeSelection.start && slot.end <= activeSelection.end;
+  }
+
+  const { sheetRef, spacerHeight } = useBottomSheet(
+    activeSelection
+      ? `${activeSelection.columnKey}|${activeSelection.start.getTime()}|${activeSelection.end.getTime()}`
+      : null,
+  );
+
   // ═══ תצוגה חודשית: כל מה שקורה באותו יום בסניף — הזמנות *וחסימות* יחד,
   // ממוינות לפי שעת התחלה, כל אחת עם שעה · מי/מה · סוג · חדר. לחיצה עוברת
   // ל"רשימה" של אותו יום לפירוט מלא.
@@ -394,16 +451,8 @@ export function BoardClient({
               const b = bookingAt(columnKey, slot);
               if (b) setEditBooking(b);
             }}
-            // כמו בתצוגה השבועית: אותו מסך פעולה של "+ פעולה" ברשימה, עם
-            // החדר (העמודה), התאריך וחצי השעה שנלחצה כבר ממולאים.
-            onSlotClick={(columnKey, slot) =>
-              openSlotDialog({
-                roomId: columnKey,
-                date,
-                startTime: formatInTimeZone(slot.start, TIMEZONE, "HH:mm"),
-                endTime: formatInTimeZone(slot.end, TIMEZONE, "HH:mm"),
-              })
-            }
+            onSlotClick={(columnKey, slot) => selectSlot("grid", columnKey, columnKey, date, slot)}
+            isSelected={(columnKey, slot) => isGridSelected("grid", columnKey, slot)}
           />
         </div>
       )}
@@ -434,15 +483,10 @@ export function BoardClient({
                   const b = bookingAt(selectedRoomId, resolveWeekSlot(columnKey, slot));
                   if (b) setEditBooking(b);
                 }}
-                onSlotClick={(columnKey, slot) => {
-                  const resolved = resolveWeekSlot(columnKey, slot);
-                  openSlotDialog({
-                    roomId: selectedRoomId,
-                    date: columnKey,
-                    startTime: formatInTimeZone(resolved.start, TIMEZONE, "HH:mm"),
-                    endTime: formatInTimeZone(resolved.end, TIMEZONE, "HH:mm"),
-                  });
-                }}
+                onSlotClick={(columnKey, slot) =>
+                  selectSlot("week", columnKey, selectedRoomId, columnKey, resolveWeekSlot(columnKey, slot))
+                }
+                isSelected={(columnKey, slot) => isGridSelected("week", columnKey, resolveWeekSlot(columnKey, slot))}
               />
             </>
           ) : (
@@ -620,6 +664,58 @@ export function BoardClient({
           );
         })}
       </div>
+      )}
+
+      {activeSelection && (
+        <>
+          {/* ריווח בגובה הכרטיס הצף — ר' useBottomSheet. */}
+          <div aria-hidden style={{ height: spacerHeight }} />
+          {/* pointer-events-none על העטיפה: הלוח נשאר לחיץ כדי להאריך את הבחירה. */}
+          <div ref={sheetRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center p-4">
+            <Card className="pointer-events-auto max-h-[65dvh] w-full max-w-md overflow-y-auto shadow-e2">
+              <CardContent className="flex flex-col gap-2 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">
+                    {rooms.find((r) => r.id === activeSelection.roomId)?.name ?? ""} ·{" "}
+                    {formatInTimeZone(activeSelection.start, TIMEZONE, "EEEE, dd/MM/yyyy", { locale: he })}
+                  </p>
+                  <button
+                    onClick={() => setGridSelection(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label="סגירה"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  אפשר ללחוץ על משבצות פנויות נוספות באותה עמודה כדי להאריך.
+                </p>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <SlotActionPanel
+                  key={`${activeSelection.roomId}|${activeSelection.date}`}
+                  roomId={activeSelection.roomId}
+                  rooms={rooms}
+                  date={activeSelection.date}
+                  initialStart={formatInTimeZone(activeSelection.start, TIMEZONE, "HH:mm")}
+                  initialEnd={formatInTimeZone(activeSelection.end, TIMEZONE, "HH:mm")}
+                  therapists={therapists}
+                  baseHours={baseHours}
+                  basePrice={basePrice}
+                  onDone={() => {
+                    setGridSelection(null);
+                    reload();
+                    router.refresh();
+                  }}
+                  onRefresh={() => {
+                    reload();
+                    router.refresh();
+                  }}
+                  onError={setError}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
       {slotDialog && (
@@ -881,6 +977,15 @@ function SlotActionPanel({
   const [selectedTherapistId, setSelectedTherapistId] = useState("");
   const [startTime, setStartTime] = useState(initialStart);
   const [endTime, setEndTime] = useState(initialEnd);
+  // הארכת הבחירה בלוח משנה את initialStart/End — מעדכנים את השעות בלי לאפס
+  // את שאר הטופס (מטפל/ת שכבר נבחר/ה, הערה). עדכון בזמן רינדור, לא ב-effect.
+  const initialKey = `${initialStart}-${initialEnd}`;
+  const [syncedKey, setSyncedKey] = useState(initialKey);
+  if (syncedKey !== initialKey) {
+    setSyncedKey(initialKey);
+    setStartTime(initialStart);
+    setEndTime(initialEnd);
+  }
   const [note, setNote] = useState("");
   // בקשת הבעלים: בכל שיבוץ ידני — לבחור אם לקזז ממכסת השעות. ברירת מחדל: כן.
   const [charge, setCharge] = useState(true);
