@@ -380,7 +380,7 @@ export function BoardClient({
         <div className="flex flex-col gap-3">
           <Legend />
           <p className="text-xs text-muted-foreground">
-            רחפו מעל משבצת תפוסה כדי לראות את כל הפרטים, לחצו עליה לעריכה.
+            לחיצה על משבצת פנויה פותחת שיבוץ, ועל משבצת תפוסה — עריכה (ריחוף מציג את כל הפרטים).
           </p>
           <AvailabilityGrid
             columns={gridColumns}
@@ -394,6 +394,16 @@ export function BoardClient({
               const b = bookingAt(columnKey, slot);
               if (b) setEditBooking(b);
             }}
+            // כמו בתצוגה השבועית: אותו מסך פעולה של "+ פעולה" ברשימה, עם
+            // החדר (העמודה), התאריך וחצי השעה שנלחצה כבר ממולאים.
+            onSlotClick={(columnKey, slot) =>
+              openSlotDialog({
+                roomId: columnKey,
+                date,
+                startTime: formatInTimeZone(slot.start, TIMEZONE, "HH:mm"),
+                endTime: formatInTimeZone(slot.end, TIMEZONE, "HH:mm"),
+              })
+            }
           />
         </div>
       )}
@@ -617,7 +627,7 @@ export function BoardClient({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setSlotDialog(null)}
         >
-          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <Card className="max-h-[90dvh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-center justify-between">
                 <p className="font-medium">
@@ -662,7 +672,7 @@ export function BoardClient({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setEditBooking(null)}
         >
-          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <Card className="max-h-[90dvh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-center justify-between">
                 <p className="font-medium">עריכת שיבוץ</p>
