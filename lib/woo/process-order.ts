@@ -215,13 +215,26 @@ async function notifyAdminsOfCardPurchase(
 
 // ═══ ססיה: מטפל/ת עם חשבון קיים — התשלום מותאם ישירות לתשלום הממתין שלו/ה,
 // לא דרך "רכישה ממתינה" (בניגוד לכרטיסייה, שיכולה להיקנות לפני שיש חשבון).
-// אידמפוטנטי דרך activate_session_payment/finalize_session_renewal עצמם
-// (בודקים status='paid' לפני כתיבה) — קריאה כפולה על אותה הזמנה היא no-op,
-// כי אחרי ההפעלה הראשונה התשלום הממתין כבר לא יימצא ב-status='pending'. ═══
+//
+// אותה הזמנה בחנות נראית שוב ושוב (polling כל דקה בחלון 90 דק', cron יומי,
+// webhook, מעבר processing→completed). לכן (בדיקה מעמיקה 31/10):
+//   • אידמפוטנטיות לפי payplus_transaction_uid — הזמנה שכבר הוחלה: לא נוגעים,
+//     לא שולחים מייל, לא מתריעים (קודם: עשרות התראות שווא "תשלום לא שויך").
+//   • תשלום פתיחה מותאם רק למנוי שממתין לתשלום (awaiting_payment) — לא לבקשה
+//     ישנה שפקעה/בוטלה, שהייתה "מתעוררת" מתשלום שנועד לחידוש.
+//   • שגיאת RPC → התראה להנהלה ובלי מייל "החידוש הצליח" למטפל/ת. ═══
 async function activateSessionFromWooOrder(
   supabase: SupabaseClient<Database>,
   params: { email: string | null; wooOrderId: number; amountTotal: number },
 ) {
+  const transactionUid = `woo-session-${params.wooOrderId}`;
+  const { data: alreadyApplied } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("payplus_transaction_uid", transactionUid)
+    .maybeSingle();
+  if (alreadyApplied) return;
+
   // מייל בלבד — הטלפון בפרופיל לא מאומת (ר' match-profile.ts).
   const profile = await findProfileByVerifiedEmail(supabase, params.email);
   if (!profile) {
@@ -234,18 +247,7 @@ async function activateSessionFromWooOrder(
     return;
   }
 
-  const transactionUid = `woo-session-${params.wooOrderId}`;
-
-  const { data: initialPayment } = await supabase
-    .from("payments")
-    .select("id, amount_total")
-    .eq("user_id", profile.id)
-    .eq("type", "session_initial")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+  const initialPayment = await findInitialPaymentAwaitingActivation(supabase, profile.id);
   if (initialPayment) {
     if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) {
       await alertPaymentUnmatched(supabase, {
@@ -256,21 +258,29 @@ async function activateSessionFromWooOrder(
       });
       return;
     }
-    await supabase.rpc("activate_session_payment", {
+    const { error } = await supabase.rpc("activate_session_payment", {
       p_payment_id: initialPayment.id,
       p_transaction_uid: transactionUid,
       p_method: "other",
       p_token_uid: null,
     });
+    if (error) {
+      await alertPaymentUnmatched(supabase, {
+        wooOrderId: params.wooOrderId,
+        reason: `הפעלת הססיה נכשלה (${error.message})`,
+      });
+    }
     return;
   }
 
+  // רק pending: על שורה failed ה-RPC לא עושה כלום (status <> 'pending'), כך
+  // שתשלום שהותאם אליה היה "נבלע" בשקט — עדיף להתריע ולטפל ידנית.
   const { data: renewalPayment } = await supabase
     .from("payments")
     .select("id, amount_total")
     .eq("user_id", profile.id)
     .eq("type", "session_recurring")
-    .in("status", ["pending", "failed"])
+    .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -292,14 +302,42 @@ async function activateSessionFromWooOrder(
     return;
   }
 
-  await supabase.rpc("finalize_session_renewal", {
+  const { error } = await supabase.rpc("finalize_session_renewal", {
     p_payment_id: renewalPayment.id,
     p_success: true,
     p_transaction_uid: transactionUid,
   });
+  if (error) {
+    await alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      reason: `חידוש הססיה נכשל (${error.message})`,
+    });
+    return;
+  }
 
   const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
   await sendEmail({ to: profile.email, subject, html });
+}
+
+/** תשלום הפתיחה האחרון של המטפל/ת שהמנוי שלו עדיין ממתין לתשלום — או null. */
+async function findInitialPaymentAwaitingActivation(supabase: SupabaseClient<Database>, userId: string) {
+  const { data: pending } = await supabase
+    .from("payments")
+    .select("id, amount_total, subscription_id")
+    .eq("user_id", userId)
+    .eq("type", "session_initial")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  const subscriptionIds = (pending ?? []).map((p) => p.subscription_id).filter((id): id is string => !!id);
+  if (subscriptionIds.length === 0) return null;
+
+  const { data: awaiting } = await supabase
+    .from("session_subscriptions")
+    .select("id")
+    .in("id", subscriptionIds)
+    .eq("status", "awaiting_payment");
+  const awaitingIds = new Set((awaiting ?? []).map((s) => s.id));
+  return (pending ?? []).find((p) => p.subscription_id && awaitingIds.has(p.subscription_id)) ?? null;
 }
 
 /**
@@ -314,6 +352,25 @@ async function alertPaymentUnmatched(
 ) {
   console.error(`[woo] תשלום לא שויך — הזמנה ${params.wooOrderId}: ${params.reason}`);
   try {
+    // התראה אחת לכל הזמנה: אותה הזמנה נראית שוב בכל polling (כל דקה, 90 דק')
+    // וב-cron היומי — בלי זה ההנהלה קיבלה עשרות מיילים זהים, והתראות אמיתיות
+    // נקברו. הרישום ב-audit_log הוא גם העקבה בממשק (יומן פעולות).
+    const { data: alreadyAlerted } = await supabase
+      .from("audit_log")
+      .select("id")
+      .eq("action", "woo_payment_unmatched")
+      .eq("after->>woo_order_id", String(params.wooOrderId))
+      .limit(1)
+      .maybeSingle();
+    if (alreadyAlerted) return;
+    await supabase.from("audit_log").insert({
+      actor_id: null,
+      action: "woo_payment_unmatched",
+      entity: "payments",
+      entity_id: null,
+      after: { woo_order_id: String(params.wooOrderId), reason: params.reason },
+    });
+
     const adminEmails = await getAdminEmails(supabase);
     if (adminEmails.length === 0) return;
     const { subject, html } = wooPaymentUnmatchedAdminEmail(params);
