@@ -550,7 +550,11 @@ export function ScheduleClient({
         // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
         <div ref={sheetRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
           <div className="pointer-events-auto w-full max-w-sm shadow-e2">
+            {/* key: כל בחירה חדשה (חדר/שעות) מקבלת כרטיס חדש. בלי זה מצב
+                "ההזמנה אושרה" או שגיאה מהבחירה הקודמת עבר לבחירה הבאה — מטפלת
+                ראתה "אושרה!" על משבצת שלא הוזמנה (בדיקה מעמיקה 31/10). */}
             <SlotPreview
+              key={`${selected.roomId}|${selected.start.getTime()}|${selected.end.getTime()}`}
               roomId={selected.roomId}
               roomName={selected.roomName}
               roomDescription={selected.roomDescription}
@@ -558,6 +562,9 @@ export function ScheduleClient({
               start={selected.start}
               end={selected.end}
               onClose={() => setSelected(null)}
+              // רענון מיד עם האישור: המשבצת שהוזמנה מופיעה כ"שלי" גם אם
+              // ממשיכים לבחור משבצת אחרת בלי לסגור את הכרטיס.
+              onConfirmed={reload}
               onBooked={() => {
                 setSelected(null);
                 reload();
@@ -578,6 +585,7 @@ function SlotPreview({
   start,
   end,
   onClose,
+  onConfirmed,
   onBooked,
 }: {
   roomId: string;
@@ -587,6 +595,7 @@ function SlotPreview({
   start: Date;
   end: Date;
   onClose: () => void;
+  onConfirmed: () => void;
   onBooked: () => void;
 }) {
   const { accessStart, accessEnd } = accessWindow(start, end);
@@ -604,6 +613,7 @@ function SlotPreview({
       return;
     }
     setConfirmed({ hoursRemaining: result.hoursRemaining });
+    onConfirmed();
   }
 
   return (
