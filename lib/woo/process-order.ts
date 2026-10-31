@@ -150,7 +150,9 @@ export async function processWooOrder(
   if (purchaseEmailEnabled && email && newHours > 0) {
     const registerUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/login`;
     const { subject, html } = wooPurchaseReceivedEmail({ hours: newHours, registerUrl });
-    sendEmail({ to: email, subject, html }).catch(() => {});
+    // await (לא fire-and-forget): processWooOrder כבר רץ ברקע (after() / cron /
+    // webhook), ופונקציה serverless יכולה להיעצר לפני שהבטחה פתוחה מסתיימת.
+    await sendEmail({ to: email, subject, html });
   }
 
   if (newHours > 0) {
@@ -297,7 +299,7 @@ async function activateSessionFromWooOrder(
   });
 
   const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
-  sendEmail({ to: profile.email, subject, html }).catch(() => {});
+  await sendEmail({ to: profile.email, subject, html });
 }
 
 /**

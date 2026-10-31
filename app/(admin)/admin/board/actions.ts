@@ -150,7 +150,7 @@ export async function adminCancelBookingAction(bookingId: string, refundHours: b
   // מבוטל בשקט — בקשת הבעלים: בלי הודעות למטפלים על פריסת המעבר.
   const placedByAdmin = !booking || booking.source !== "punch_card" || booking.admin_note !== null;
   if (!placedByAdmin) {
-    notifyBookingCancelled(bookingId, refundHours).catch(() => {});
+    after(() => notifyBookingCancelled(bookingId, refundHours).catch(() => {}));
   }
 
   return { ok: true };

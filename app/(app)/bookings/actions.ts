@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export async function cancelBookingAction(bookingId: string): Promise<CancelBook
     return { ok: false, error: bookingErrorMessage(error?.message) };
   }
 
-  notifyBookingCancelled(bookingId, data.hours_refunded).catch(() => {});
+  after(() => notifyBookingCancelled(bookingId, data.hours_refunded).catch(() => {}));
 
   return { ok: true, hoursRefunded: data.hours_refunded };
 }
@@ -76,7 +77,7 @@ export async function rescheduleBookingAction(input: {
   if (error || !data) return { ok: false, error: bookingErrorMessage(error?.message) };
 
   // מייל עדכון אסינכרוני, מחוץ לטרנזקציה — כישלון שליחה לא מבטל את השינוי.
-  sendRescheduleEmail(profile.email, d.roomId, new Date(d.startsAt), new Date(d.endsAt), d.bookingId).catch(() => {});
+  after(() => sendRescheduleEmail(profile.email, d.roomId, new Date(d.startsAt), new Date(d.endsAt), d.bookingId).catch(() => {}));
 
   return { ok: true, hoursDelta: Number(data.hours_delta) };
 }

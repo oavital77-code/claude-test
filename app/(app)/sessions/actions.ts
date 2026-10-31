@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
@@ -39,7 +40,7 @@ export async function requestSession(
     return { ok: false, error: bookingErrorMessage(error?.message) };
   }
 
-  notifyAdminOfSessionRequest(profile.full_name, data.weekly_hours, data.monthly_price).catch(() => {});
+  after(() => notifyAdminOfSessionRequest(profile.full_name, data.weekly_hours, data.monthly_price).catch(() => {}));
 
   return { ok: true, data: { subscriptionId: data.subscription_id } };
 }
