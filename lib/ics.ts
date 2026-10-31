@@ -1,7 +1,13 @@
 // ייצור iCalendar (RFC 5545) — פורמט תקני ומתועד, מומש במלואו.
 
 function escapeIcsText(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  // \r\n ו-\r מנורמלים ל-\n לפני ה-escape: \r גולמי בתוך ערך שובר את השורה ב-ICS.
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n/g, "\\n");
 }
 
 function formatIcsDate(d: Date): string {
