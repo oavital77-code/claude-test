@@ -50,8 +50,13 @@ export async function completeRegistration(
   });
 
   if (error) {
+    // 23505 = ערך כפול — לפי שם האילוץ, לא כל כפילות היא טלפון (pkey = כבר יש
+    // פרופיל לחשבון הזה, email = המייל כבר משויך לחשבון אחר).
     if (error.code === "23505") {
-      return { ok: false, error: "מספר הטלפון כבר רשום במערכת" };
+      const detail = `${error.message} ${error.details ?? ""}`;
+      if (detail.includes("profiles_phone_key")) return { ok: false, error: "מספר הטלפון כבר רשום במערכת" };
+      if (detail.includes("profiles_pkey")) return { ok: false, error: "לחשבון הזה כבר יש פרופיל — יש להתחבר מחדש." };
+      if (detail.includes("profiles_email_key")) return { ok: false, error: "כתובת המייל כבר רשומה במערכת" };
     }
     return { ok: false, error: "שגיאה בשמירת הפרטים. נסו שוב." };
   }

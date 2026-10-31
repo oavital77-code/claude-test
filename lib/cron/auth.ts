@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 /**
  * true רק אם הבקשה נושאת את ה-header שVercel Cron שולח אוטומטית
  * (Authorization: Bearer $CRON_SECRET) כש-CRON_SECRET מוגדר בפרויקט. בלי
@@ -10,5 +12,8 @@
 export function isAuthorizedCronRequest(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
+  const provided = Buffer.from(request.headers.get("authorization") ?? "", "utf8");
+  const expected = Buffer.from(`Bearer ${secret}`, "utf8");
+  // השוואה בזמן קבוע (לא ===) — שלא יהיה אפשר לנחש את הסוד תו-אחר-תו לפי זמן תגובה.
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
 }

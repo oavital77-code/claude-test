@@ -282,8 +282,13 @@ function PunchCardRow({
 
   async function handleComplete() {
     setLoading(true);
-    await completeDepositAction(card.id);
+    setError(null);
+    const result = await completeDepositAction(card.id);
     setLoading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
     onCompleted();
   }
 

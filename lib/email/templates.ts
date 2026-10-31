@@ -20,7 +20,7 @@ export function bookingConfirmedEmail(params: {
     subject: `אישור הזמנה — ${params.roomName}, ${formatDateHe(params.startsAt)}`,
     html: emailLayout(`
       <p>ההזמנה שלך אושרה:</p>
-      <p style="font-weight:700;font-size:17px;">${params.roomName} · ${params.branchName}</p>
+      <p style="font-weight:700;font-size:17px;">${escapeHtml(params.roomName)} · ${escapeHtml(params.branchName)}</p>
       <p>${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}–${formatTimeHe(params.endsAt)}</p>
       <p style="color:#6b7570;">🔑 כניסה בפועל: ${formatTimeHe(params.accessStart)} · פינוי: ${formatTimeHe(params.accessEnd)}</p>
       <p style="color:#6b7570;font-size:13px;">קובץ ICS מצורף — ניתן להוסיף ליומן.</p>
@@ -40,7 +40,7 @@ export function bookingRescheduledEmail(params: {
     subject: `ההזמנה עודכנה — ${params.roomName}, ${formatDateHe(params.startsAt)}`,
     html: emailLayout(`
       <p>ההזמנה שלך עודכנה. המועד החדש:</p>
-      <p style="font-weight:700;font-size:17px;">${params.roomName} · ${params.branchName}</p>
+      <p style="font-weight:700;font-size:17px;">${escapeHtml(params.roomName)} · ${escapeHtml(params.branchName)}</p>
       <p>${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}–${formatTimeHe(params.endsAt)}</p>
       <p style="color:#6b7570;">🔑 כניסה בפועל: ${formatTimeHe(params.accessStart)} · פינוי: ${formatTimeHe(params.accessEnd)}</p>
       <p style="color:#6b7570;font-size:13px;">קובץ ICS מצורף עם המועד החדש — ניתן להוסיף ליומן (כדאי למחוק מהיומן את המועד הקודם).</p>
@@ -57,7 +57,7 @@ export function bookingCancelledEmail(params: {
     subject: `ההזמנה בוטלה — ${params.roomName}, ${formatDateHe(params.startsAt)}`,
     html: emailLayout(`
       <p>ההזמנה הבאה בוטלה:</p>
-      <p style="font-weight:700;">${params.roomName} · ${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}</p>
+      <p style="font-weight:700;">${escapeHtml(params.roomName)} · ${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}</p>
       <p>${params.hoursRefunded ? "השעות הוחזרו ליתרה שלך." : "הביטול בוצע סמוך מדי למועד (בתוך חלון הביטול) — השעות לא הוחזרו."}</p>
     `),
   };
@@ -149,7 +149,7 @@ export function sessionRejectedEmail(reason: string): EmailContent {
     subject: "בקשת הססיה שלך נדחתה",
     html: emailLayout(`
       <p>לצערנו בקשת הססיה שלך לא אושרה.</p>
-      <p style="font-weight:700;">סיבה: ${reason}</p>
+      <p style="font-weight:700;">סיבה: ${escapeHtml(reason)}</p>
       <p>ניתן לפנות להנהלה לבירור או להגיש בקשה חדשה.</p>
     `),
   };
@@ -170,7 +170,7 @@ export function paymentFailedEmail(params: { amountTotal: number; context: strin
   return {
     subject: "חיוב נכשל",
     html: emailLayout(`
-      <p>חיוב בסך ${formatCurrency(params.amountTotal)} עבור ${params.context} נכשל.</p>
+      <p>חיוב בסך ${formatCurrency(params.amountTotal)} עבור ${escapeHtml(params.context)} נכשל.</p>
       <p>ייתכן שהחשבון יושעה עד להסדרת אמצעי התשלום. יש לפנות להנהלה במידת הצורך.</p>
     `),
   };
@@ -198,7 +198,7 @@ export function materializationConflictAdminEmail(params: {
     subject: `🚨 התנגשות בשיבוץ ססיה — ${params.roomName}`,
     html: emailLayout(`
       <p>ניסיון שיבוץ אוטומטי של ססיה נכשל עקב חפיפה קיימת:</p>
-      <p style="font-weight:700;">${params.roomName} · ${formatDateTimeHe(params.startsAt)}</p>
+      <p style="font-weight:700;">${escapeHtml(params.roomName)} · ${formatDateTimeHe(params.startsAt)}</p>
       <p>נדרשת בדיקה ידנית בפאנל הניהול.</p>
     `),
   };
@@ -214,7 +214,7 @@ export function bookingReminderEmail(params: {
     subject: `תזכורת — הזמנה מחר ב-${params.roomName}`,
     html: emailLayout(`
       <p>תזכורת להזמנה שלך מחר:</p>
-      <p style="font-weight:700;">${params.roomName} · ${params.branchName}</p>
+      <p style="font-weight:700;">${escapeHtml(params.roomName)} · ${escapeHtml(params.branchName)}</p>
       <p>${formatDateHe(params.startsAt)}, ${formatTimeHe(params.startsAt)}</p>
       <p style="color:#6b7570;">🔑 כניסה בפועל: ${formatTimeHe(params.accessStart)}</p>
     `),
@@ -226,8 +226,8 @@ export function cronFailedAdminEmail(params: { jobName: string; detail: string }
     subject: `🚨 משימת cron נכשלה — ${params.jobName}`,
     html: emailLayout(`
       <p>משימת ה-cron הבאה נכשלה ודורשת בדיקה:</p>
-      <p style="font-weight:700;">${params.jobName}</p>
-      <p style="color:#6b7570;font-family:monospace;font-size:13px;">${params.detail}</p>
+      <p style="font-weight:700;">${escapeHtml(params.jobName)}</p>
+      <p style="color:#6b7570;font-family:monospace;font-size:13px;">${escapeHtml(params.detail)}</p>
     `),
   };
 }

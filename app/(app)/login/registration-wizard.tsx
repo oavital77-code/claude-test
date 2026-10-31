@@ -251,11 +251,27 @@ export function RegistrationWizard({
         return;
       }
     } else {
-      await supabase.auth.resend({
+      // אותו טיפול בשגיאה כמו באיפוס סיסמה — בלעדיו "שלחנו שוב" הוצג גם כשהשליחה
+      // נחסמה (מגבלת שליחה), והמשתמש/ת חיכה/תה למייל שלא יגיע.
+      const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email,
         options: { emailRedirectTo: callbackUrl("/login") },
       });
+      if (resendError) {
+        setLoading(false);
+        if (isRecentlySentCooldown(resendError)) {
+          setNotice("כבר שלחנו מייל לפני רגע — כדאי לבדוק בתיבת הדואר (וגם בספאם).");
+          setCooldown(RESEND_COOLDOWN_SECONDS);
+          return;
+        }
+        setError(
+          resendError.status === 429
+            ? "יש כרגע עומס בשליחת מיילים. נסו שוב בעוד כמה דקות, או פנו להנהלה."
+            : "לא הצלחנו לשלוח את המייל. נסו שוב, או פנו להנהלה.",
+        );
+        return;
+      }
     }
 
     setLoading(false);
