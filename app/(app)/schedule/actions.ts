@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
@@ -54,9 +55,7 @@ export async function bookSlot(
   }
 
   // מייל אישור אסינכרוני, מחוץ לטרנזקציה (§6.1) — כישלון שליחה לא מבטל הזמנה שכבר אושרה.
-  sendBookingConfirmation(profile.email, roomId, new Date(startsAt), new Date(endsAt), data.booking_id).catch(
-    () => {},
-  );
+  after(() => sendBookingConfirmation(profile.email, roomId, new Date(startsAt), new Date(endsAt), data.booking_id).catch(() => {}));
 
   return { ok: true, hoursCharged: data.hours_charged, hoursRemaining: data.hours_remaining };
 }

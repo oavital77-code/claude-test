@@ -1,6 +1,8 @@
 import "server-only";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
+const MAX_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 1500;
 
 export interface EmailAttachment {
   filename: string;
@@ -28,33 +30,42 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const from = process.env.RESEND_FROM_EMAIL;
 
   if (!apiKey || !from) {
-    console.warn(`[email] RESEND לא מוגדר — לא נשלח: "${input.subject}"`);
+    console.warn("[email] RESEND לא מוגדר — המייל לא נשלח");
     return { ok: false, error: "RESEND_NOT_CONFIGURED" };
   }
 
-  try {
-    const res = await fetch(RESEND_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: input.to,
-        subject: input.subject,
-        html: input.html,
-        attachments: input.attachments,
-      }),
-    });
-
-    if (!res.ok) {
-      console.error(`[email] Resend החזיר ${res.status} עבור "${input.subject}"`);
-      return { ok: false, error: `RESEND_${res.status}` };
+  // ניסיון חוזר אחד על ניתוק רשת / 5xx / 429 (בפרודקשן: "fetch failed — other
+  // side closed" ×3 בשבוע, ומטפלות לא קיבלו אישור הזמנה). אותו Idempotency-Key
+  // בשני הניסיונות — אם הראשון בכל זאת הגיע ל-Resend, השני לא ישלח כפול.
+  const idempotencyKey = crypto.randomUUID();
+  let lastError = "UNKNOWN";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({
+          from,
+          to: input.to,
+          subject: input.subject,
+          html: input.html,
+          attachments: input.attachments,
+        }),
+      });
+      if (res.ok) return { ok: true };
+      lastError = `RESEND_${res.status}`;
+      // בלי נושא המייל בלוג — הוא כולל שם מטפל/ת או מייל (PII).
+      console.error(`[email] Resend החזיר ${res.status} (ניסיון ${attempt})`);
+      if (res.status < 500 && res.status !== 429) break; // שגיאת תוכן — ניסיון נוסף לא יעזור
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : "UNKNOWN";
+      console.error(`[email] שליחה נכשלה (ניסיון ${attempt})`, err);
     }
-    return { ok: true };
-  } catch (err) {
-    console.error("[email] שליחה נכשלה", err);
-    return { ok: false, error: err instanceof Error ? err.message : "UNKNOWN" };
+    if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
   }
+  return { ok: false, error: lastError };
 }

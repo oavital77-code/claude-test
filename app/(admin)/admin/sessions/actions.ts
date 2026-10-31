@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { bookingErrorMessage } from "@/lib/booking-errors";
@@ -45,7 +46,7 @@ export async function adminCreateSessionAction(
   // נחיתה ישירה ב-awaiting_payment (מדלגים על 'requested' — קביעה ע"י אדמין
   // היא עצמה האישור, §5) — אבל התשלום עצמו עדיין עובר כרגיל, בדיוק כמו אישור
   // בקשה רגילה: יצירת קישור תשלום + מייל, אותה פונקציה בדיוק.
-  notifyTherapistOfApproval(data.subscription_id).catch(() => {});
+  after(() => notifyTherapistOfApproval(data.subscription_id).catch(() => {}));
 
   return { ok: true };
 }
@@ -63,7 +64,7 @@ export async function approveSessionAction(
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
 
-  notifyTherapistOfApproval(subscriptionId).catch(() => {});
+  after(() => notifyTherapistOfApproval(subscriptionId).catch(() => {}));
 
   return { ok: true };
 }
@@ -121,7 +122,7 @@ export async function rejectSessionAction(subscriptionId: string, reason: string
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
 
-  notifyTherapistOfRejection(subscriptionId, reason).catch(() => {});
+  after(() => notifyTherapistOfRejection(subscriptionId, reason).catch(() => {}));
 
   return { ok: true };
 }
