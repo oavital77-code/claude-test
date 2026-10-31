@@ -52,22 +52,39 @@ export const GET = withCronAlert("send-reminders", async () => {
     }
   }
 
-  // יתרה נמוכה (<= 2 שעות) — לפי סכום יתרות פעילות למטפל
-  const { data: activeCards } = await supabase
+  // יתרה נמוכה (<= 2 שעות) — לפי סך היתרה הפעילה של המטפל/ת, לא לפי כרטיסייה
+  // בודדת: מי שיש לו/ה כרטיסייה עם שעה ועוד אחת עם 30 לא אמור/ה לקבל "נשארה
+  // לך שעה אחת". מייל אחד למטפל/ת, וכל הכרטיסיות הנמוכות שלו/ה מסומנות.
+  const nowIso = new Date().toISOString();
+  const { data: lowCards } = await supabase
     .from("punch_cards")
-    .select("id, user_id, hours_remaining")
+    .select("id, user_id")
     .eq("active", true)
     .is("low_balance_notified_at", null)
     .lte("hours_remaining", 2)
-    .gt("expires_at", new Date().toISOString());
+    .gt("expires_at", nowIso);
 
-  for (const card of activeCards ?? []) {
-    const { data: profile } = await supabase.from("profiles").select("email").eq("id", card.user_id).maybeSingle();
+  const lowCardsByUser = new Map<string, string[]>();
+  for (const card of lowCards ?? []) {
+    lowCardsByUser.set(card.user_id, [...(lowCardsByUser.get(card.user_id) ?? []), card.id]);
+  }
+
+  for (const [userId, cardIds] of lowCardsByUser) {
+    const { data: userCards } = await supabase
+      .from("punch_cards")
+      .select("hours_remaining")
+      .eq("user_id", userId)
+      .eq("active", true)
+      .gt("expires_at", nowIso);
+    const totalHours = (userCards ?? []).reduce((sum, c) => sum + Number(c.hours_remaining), 0);
+    if (totalHours > 2) continue;
+
+    const { data: profile } = await supabase.from("profiles").select("email").eq("id", userId).maybeSingle();
     if (!profile) continue;
-    const { subject, html } = lowBalanceEmail(card.hours_remaining);
+    const { subject, html } = lowBalanceEmail(totalHours);
     const result = await sendEmail({ to: profile.email, subject, html });
     if (result.ok) {
-      await supabase.from("punch_cards").update({ low_balance_notified_at: new Date().toISOString() }).eq("id", card.id);
+      await supabase.from("punch_cards").update({ low_balance_notified_at: nowIso }).in("id", cardIds);
       lowBalance++;
     }
   }
