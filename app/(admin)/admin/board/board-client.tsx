@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { he } from "date-fns/locale";
@@ -152,6 +152,7 @@ export function BoardClient({
   }, [viewMode, date, weekDates, monthDates]);
   const roomIdsKey = roomIds.join(",");
 
+  const reloadRequestRef = useRef(0);
   const reload = useCallback(() => {
     const bookingsQuery = roomIds.length
       ? supabase
@@ -171,7 +172,11 @@ export function BoardClient({
           .gt("ends_at", start.toISOString())
       : Promise.resolve({ data: [] as RoomBlock[] });
 
+    // רק התשובה של הבקשה האחרונה נכנסת: בדפדוף מהיר בין ימים/סניפים, תשובה
+    // ישנה שמגיעה מאוחר דרסה את הנתונים של היום המוצג.
+    const requestId = ++reloadRequestRef.current;
     Promise.all([bookingsQuery, blocksQuery]).then(([{ data: b }, { data: rb }]) => {
+      if (requestId !== reloadRequestRef.current) return;
       setBookings(b ?? []);
       setBlocks(rb ?? []);
     });

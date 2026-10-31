@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { he } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -151,8 +151,14 @@ export function ScheduleClient({
   );
   const roomIdsKey = useMemo(() => roomIdsForQuery.join(","), [roomIdsForQuery]);
 
+  // רק התשובה של הבקשה האחרונה נכנסת (דפדוף מהיר בין ימים — תשובה ישנה
+  // שמגיעה מאוחר הייתה מציגה זמינות של יום אחר).
+  const reloadRequestRef = useRef(0);
   const reload = useCallback(() => {
-    fetchRoomAvailability(supabase, roomIdsForQuery, rangeStart, rangeEnd, userId).then(setAvailability);
+    const requestId = ++reloadRequestRef.current;
+    fetchRoomAvailability(supabase, roomIdsForQuery, rangeStart, rangeEnd, userId).then((data) => {
+      if (requestId === reloadRequestRef.current) setAvailability(data);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, rangeStart, rangeEnd, userId, roomIdsKey]);
 
