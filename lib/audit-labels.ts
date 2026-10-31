@@ -48,6 +48,7 @@ export const AUDIT_LABELS: Record<string, { label: string; severity: AuditSeveri
   admin_added_session_slot: { label: "הוספת משבצת לססיה", severity: "admin" },
   session_created_by_admin: { label: "ססיה נקבעה ישירות ע״י אדמין", severity: "admin" },
   session_materialization_conflict: { label: "התנגשות בשיבוץ ססיה", severity: "alert" },
+  session_materialization_blocked: { label: "מפגש ססיה לא נוצר — חדר חסום", severity: "alert" },
   session_bookings_cancelled_on_end: { label: "מפגשי ססיה בוטלו בסיום המנוי", severity: "admin" },
   session_closed_after_end_date: { label: "ססיה נסגרה בתאריך הסיום", severity: "admin" },
 
