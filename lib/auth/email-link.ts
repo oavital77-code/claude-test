@@ -10,10 +10,21 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 
 const ALLOWED_TYPES = ["recovery", "signup", "email", "invite", "magiclink", "email_change"] as const;
 
-/** מונע open redirect: רק נתיב יחסי בתוך האתר עצמו. */
+/**
+ * מונע open redirect: רק נתיב יחסי בתוך האתר עצמו. בדיקת קידומת לבדה לא
+ * מספיקה — ה-URL parser מוחק tab/newline ומתייחס ל-\ כ-/, אז "/\t/evil.com"
+ * עבר את הבדיקה ונפתר ל-https://evil.com. לכן: דוחים תווי בקרה ו-backslash,
+ * ומוודאים שהנתיב נפתר לאותו origin.
+ */
 export function safeNext(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/login";
-  return raw;
+  if (!raw || !raw.startsWith("/") || /[\u0000-\u001F\u007F\\]/.test(raw)) return "/login";
+  const base = "https://internal.invalid";
+  try {
+    const url = new URL(raw, base);
+    return url.origin === base ? url.pathname + url.search + url.hash : "/login";
+  } catch {
+    return "/login";
+  }
 }
 
 export function parseOtpType(raw: string | null | undefined): EmailOtpType | null {

@@ -106,7 +106,7 @@ export const GET = withCronAlert("send-reminders", async () => {
     ? { data: [] }
     : await supabase
         .from("session_subscriptions")
-        .select("id, user_id, weekly_hours, next_billing_date")
+        .select("id, user_id, weekly_hours, next_billing_date, effective_end_date")
         .eq("status", "active")
         .is("renewal_reminder_sent_at", null)
         .not("next_billing_date", "is", null)
@@ -117,6 +117,8 @@ export const GET = withCronAlert("send-reminders", async () => {
     const adminEmails = await getAdminEmails(supabase);
     for (const sub of expiringSubs) {
       if (!sub.next_billing_date) continue;
+      // ססיה שמסתיימת לפני מועד החידוש (ביטול, סוף טווח התחייבות) — אין מה לחדש.
+      if (sub.effective_end_date && sub.effective_end_date < sub.next_billing_date) continue;
       const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("id", sub.user_id).maybeSingle();
       if (!profile) continue;
 

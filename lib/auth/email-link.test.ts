@@ -15,6 +15,17 @@ describe("safeNext", () => {
       expect(safeNext(raw)).toBe("/login");
     },
   );
+  // ה-URL parser מוחק tab/newline ומתייחס ל-\ כ-/ — "/\t/evil.com" הופך ל-//evil.com.
+  it.each(["/\t/evil.com", "/\n/evil.com", "/\r\\evil.com", "/%09/evil.com", "/\\/evil.com", "/ /evil.com"])(
+    "דוחה עקיפה עם תווי בקרה/backslash: %j",
+    (raw) => {
+      const out = safeNext(raw);
+      expect(new URL(out, "https://cleana.co.il").origin).toBe("https://cleana.co.il");
+    },
+  );
+  it("שומר query ו-hash של נתיב פנימי", () => {
+    expect(safeNext("/reset-password?x=1#y")).toBe("/reset-password?x=1#y");
+  });
 });
 
 describe("parseOtpType", () => {
