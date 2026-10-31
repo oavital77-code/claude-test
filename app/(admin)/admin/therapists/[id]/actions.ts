@@ -31,8 +31,11 @@ export async function updateTherapistProfile(
   // שינוי מייל חייב לעדכן גם את מייל ההתחברות (auth.users) — אחרת המטפל/ת
   // ממשיכ/ה להתחבר עם הישן, ואיפוס סיסמה/שיוך רכישות Woo לפי החדש נשברים.
   const admin = createAdminClient();
-  const { data: authUser } = await admin.auth.admin.getUserById(userId);
-  const previousLoginEmail = authUser?.user?.email ?? null;
+  const { data: authUser, error: getUserError } = await admin.auth.admin.getUserById(userId);
+  // בלי זה, כשל בשליפה = "המייל לא השתנה" → רק profiles.email מתעדכן, ומייל
+  // ההתחברות נשאר הישן — בדיוק הפיצול שהקוד הזה בא למנוע.
+  if (getUserError || !authUser?.user) return { ok: false, error: "לא הצלחנו לטעון את חשבון ההתחברות. נסו שוב." };
+  const previousLoginEmail = authUser.user.email ?? null;
   const loginEmailChanged = !!previousLoginEmail && previousLoginEmail.toLowerCase() !== email.toLowerCase();
   if (loginEmailChanged) {
     const { error: authError } = await admin.auth.admin.updateUserById(userId, {
@@ -66,7 +69,10 @@ export async function updateTherapistProfile(
     await admin.auth.admin.updateUserById(userId, { email: previousLoginEmail!, email_confirm: true });
   }
   if (profileError?.code === "23505") return { ok: false, error: "המייל כבר רשום אצל מטפל/ת אחר/ת" };
-  if (profileError || notesError) return { ok: false, error: "השמירה נכשלה" };
+  if (profileError) return { ok: false, error: "השמירה נכשלה" };
+  // הפרופיל כן נשמר — רק ההערה הפנימית לא. לא "השמירה נכשלה" כללי, שהיה גורם
+  // לחשוב שגם הפרטים לא נשמרו.
+  if (notesError) return { ok: false, error: "הפרטים נשמרו, אבל ההערה הפנימית לא נשמרה. נסו שוב." };
   return { ok: true };
 }
 
@@ -129,74 +135,6 @@ const sessionSlotSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
-
-const claimSkeddaOneOffSchema = z.object({
-  userId: z.guid(),
-  blockIds: z.array(z.guid()).min(1),
-});
-
-export type ClaimSkeddaOneOffResult =
-  | { ok: true; created: number; skipped: number }
-  | { ok: false; error: string };
-
-/**
- * קליטת בלוקים חד-פעמיים (כרטיסייה) שהועברו מ-Skedda: מוחקים את הבלוק
- * ויוצרים במקומו הזמנה אמיתית ל-user_id בפועל, בלי חיוב כרטיסייה
- * (admin_create_booking עם source='admin_comp') — היא כבר שילמה על התור
- * הזה במערכת הישנה. מופעים שכבר עברו רק נמחקים, בלי הזמנה חדשה.
- *
- * שונה מסלול ה"ססיה" (ר' SkeddaImportSection): שם לא מוחקים כלום כאן —
- * הניקוי קורה אוטומטית ב-DB ברגע שהתשלום מתקבל (cleanup_skedda_import_blocks).
- */
-export async function claimSkeddaOneOffBlocksAction(input: unknown): Promise<ClaimSkeddaOneOffResult> {
-  await requireAdmin();
-  const parsed = claimSkeddaOneOffSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
-  const { userId, blockIds } = parsed.data;
-
-  const supabase = await createClient();
-  const { data: blocks, error: fetchError } = await supabase
-    .from("room_blocks")
-    .select("id, room_id, starts_at, ends_at, reason")
-    .in("id", blockIds);
-  if (fetchError) return { ok: false, error: "שליפת החסימות נכשלה" };
-  if (!blocks || blocks.length === 0) {
-    return { ok: false, error: "החסימות שנבחרו כבר טופלו (אולי כבר נלחץ קודם)" };
-  }
-
-  const { error: deleteError } = await supabase.from("room_blocks").delete().in("id", blockIds);
-  if (deleteError) return { ok: false, error: "מחיקת החסימות נכשלה" };
-
-  let created = 0;
-  let skipped = 0;
-  const now = Date.now();
-  const errors: string[] = [];
-
-  for (const block of blocks) {
-    if (new Date(block.starts_at).getTime() < now) {
-      skipped += 1;
-      continue;
-    }
-    const { error } = await supabase.rpc("admin_create_booking", {
-      p_user_id: userId,
-      p_room_id: block.room_id,
-      p_starts_at: block.starts_at,
-      p_ends_at: block.ends_at,
-      p_note: "קליטה מ-Skedda",
-    });
-    if (error) {
-      skipped += 1;
-      errors.push(bookingErrorMessage(error.message));
-    } else {
-      created += 1;
-    }
-  }
-
-  if (created === 0 && errors.length > 0) {
-    return { ok: false, error: errors[0] };
-  }
-  return { ok: true, created, skipped };
-}
 
 const claimSkeddaSessionSchema = z.object({
   userId: z.guid(),
