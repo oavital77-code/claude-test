@@ -268,7 +268,16 @@ export function BoardClient({
   function selectSlot(view: GridSelection["view"], columnKey: string, roomId: string, slotDate: string, slot: Slot) {
     setError(null);
     const prev = gridSelection;
-    if (prev && prev.view === view && prev.columnKey === columnKey) {
+    // הארכה רק של אותה עמודה באותו חדר ובאותו תאריך. columnKey לבדו לא מספיק:
+    // ביומי הוא החדר (אותו מפתח גם ביום אחר), בשבועי התאריך (אותו מפתח גם
+    // בחדר אחר) — בלי זה הבחירה התמזגה בין ימים/חדרים (בדיקה מעמיקה 31/10).
+    if (
+      prev &&
+      prev.view === view &&
+      prev.columnKey === columnKey &&
+      prev.roomId === roomId &&
+      prev.date === slotDate
+    ) {
       const start = prev.start < slot.start ? prev.start : slot.start;
       const end = prev.end > slot.end ? prev.end : slot.end;
       const columnSlots = view === "grid" ? gridSlots : weekSlots.map((s) => resolveWeekSlot(columnKey, s));
@@ -283,10 +292,12 @@ export function BoardClient({
     setGridSelection({ view, columnKey, roomId, date: slotDate, start: slot.start, end: slot.end });
   }
 
-  // הבחירה מוצגת רק בתצוגה/תאריך/חדר שבהם נעשתה — מעבר יום או תצוגה מסתיר אותה.
+  // הבחירה מוצגת רק בתצוגה/תאריך/חדר שבהם נעשתה — מעבר יום, תצוגה או סניף
+  // (החדר כבר לא ברשימה) מסתיר אותה.
   const activeSelection =
     gridSelection &&
     gridSelection.view === viewMode &&
+    rooms.some((r) => r.id === gridSelection.roomId) &&
     (viewMode === "grid"
       ? gridSelection.date === date
       : weekDates.includes(gridSelection.date) && gridSelection.roomId === selectedRoomId)
@@ -621,7 +632,7 @@ export function BoardClient({
                       <Button size="sm" variant="ghost" onClick={() => setEditBooking(b)}>
                         עריכה
                       </Button>
-                      <CancelBookingButton bookingId={b.id} onDone={reload} />
+                      <CancelBookingButton bookingId={b.id} onDone={reload} onError={setError} />
                     </span>
                   </div>
                 ))}
@@ -635,7 +646,7 @@ export function BoardClient({
                       </span>{" "}
                       · חסום: {rb.reason}
                     </span>
-                    <RemoveBlockButton blockId={rb.id} onDone={reload} />
+                    <RemoveBlockButton blockId={rb.id} onDone={reload} onError={setError} />
                   </div>
                 ))}
 
@@ -890,19 +901,35 @@ function EditBookingPanel({
         <Button size="sm" onClick={handleSave} disabled={loading}>
           {loading ? "שומר..." : "שמירה"}
         </Button>
-        <CancelBookingButton bookingId={booking.id} onDone={onDone} />
+        <CancelBookingButton bookingId={booking.id} onDone={onDone} onError={setError} />
       </div>
     </div>
   );
 }
 
-function CancelBookingButton({ bookingId, onDone }: { bookingId: string; onDone: () => void }) {
+function CancelBookingButton({
+  bookingId,
+  onDone,
+  onError,
+}: {
+  bookingId: string;
+  onDone: () => void;
+  onError: (error: string | null) => void;
+}) {
   const [loading, setLoading] = useState(false);
   async function handleCancel() {
-    const refund = window.confirm("להחזיר שעות ליתרת המטפל/ת? (אישור = כן, ביטול = לא)");
+    // קודם אישור הביטול עצמו — בלעדיו, "ביטול" בשאלת ההחזר עדיין ביטל את
+    // ההזמנה (בלי החזר), ולא הייתה דרך לסגת מלחיצה בטעות.
+    if (!window.confirm("לבטל את השיבוץ?")) return;
+    const refund = window.confirm("להחזיר את השעות ליתרת המטפל/ת?\n\nאישור = כן, להחזיר · ביטול = לא להחזיר");
+    onError(null);
     setLoading(true);
-    await adminCancelBookingAction(bookingId, refund);
+    const res = await adminCancelBookingAction(bookingId, refund);
     setLoading(false);
+    if (!res.ok) {
+      onError(res.error);
+      return;
+    }
     onDone();
   }
   return (
@@ -912,12 +939,26 @@ function CancelBookingButton({ bookingId, onDone }: { bookingId: string; onDone:
   );
 }
 
-function RemoveBlockButton({ blockId, onDone }: { blockId: string; onDone: () => void }) {
+function RemoveBlockButton({
+  blockId,
+  onDone,
+  onError,
+}: {
+  blockId: string;
+  onDone: () => void;
+  onError: (error: string | null) => void;
+}) {
   const [loading, setLoading] = useState(false);
   async function handleRemove() {
+    if (!window.confirm("להסיר את החסימה?")) return;
+    onError(null);
     setLoading(true);
-    await deleteRoomBlockAction(blockId);
+    const res = await deleteRoomBlockAction(blockId);
     setLoading(false);
+    if (!res.ok) {
+      onError(res.error);
+      return;
+    }
     onDone();
   }
   return (
