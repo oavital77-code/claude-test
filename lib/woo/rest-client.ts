@@ -1,5 +1,6 @@
 import "server-only";
 import type { WooOrderPayload } from "./process-order";
+import { ORDERS_PER_PAGE, buildOrdersUrl } from "./orders-url";
 
 // גישה ל-WooCommerce REST API — משמשת ל-polling כשאין webhook מוגדר בחנות
 // (המצב הנוכחי). דורש מפתחות Consumer Key/Secret עם הרשאת Read בלבד
@@ -9,7 +10,6 @@ import type { WooOrderPayload } from "./process-order";
 // ⚠️ המפתחות האלה נותנים גישת קריאה לכל ההזמנות בחנות (לא רק המוצרים
 // שלנו) — הם server-only, אף פעם לא נחשפים ל-client. ר' חוק ברזל #2.
 
-const PER_PAGE = 100;
 // תקרת ביטחון: 20 עמודים = 2,000 הזמנות בחלון אחד. מעבר לזה כנראה משהו
 // לא בסדר בפרמטרים, ועדיף לעצור מאשר לדפדף בלי סוף מול החנות.
 const MAX_PAGES = 20;
@@ -44,14 +44,7 @@ export async function fetchRecentWooOrders(sinceMinutesAgo: number): Promise<Woo
   // הנושרות הן דווקא ההזמנות הישנות ביותר בחלון — כלומר אלה שקרובות
   // לצאת ממנו ולא להיתפס לעולם. עוצרים כשמתקבל עמוד חלקי.
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = new URL("/wp-json/wc/v3/orders", creds.baseUrl);
-    url.searchParams.set("after", after);
-    url.searchParams.set("per_page", String(PER_PAGE));
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("orderby", "date");
-    url.searchParams.set("order", "desc");
-
-    const res = await fetch(url.toString(), {
+    const res = await fetch(buildOrdersUrl(creds.baseUrl, after, page), {
       headers: { Authorization: `Basic ${auth}` },
       cache: "no-store",
     });
@@ -71,7 +64,7 @@ export async function fetchRecentWooOrders(sinceMinutesAgo: number): Promise<Woo
     if (!Array.isArray(body)) break;
 
     all.push(...(body as WooOrderPayload[]));
-    if (body.length < PER_PAGE) break;
+    if (body.length < ORDERS_PER_PAGE) break;
   }
 
   return all;
