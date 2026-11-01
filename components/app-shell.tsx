@@ -10,6 +10,7 @@ import { Logo } from "@/components/logo";
 import type { NavItem } from "@/components/nav-types";
 import { APP_NAV_ITEMS } from "@/app/(app)/nav";
 import { ADMIN_NAV_ITEMS } from "@/app/(admin)/admin/admin-nav";
+import { PromoBanner, type PromoSlot } from "@/components/promo-banner";
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
@@ -41,6 +42,11 @@ export function AppShell({
   const items = VARIANTS[variant];
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // באנרים של שותפים — מטפלים בלבד. ה-state כאן (ולא בתוך הבאנר) כדי שסגירה
+  // תחזיק גם במעבר דרך עמודים בלי שלד (login וכו') — עד הפתיחה הבאה.
+  const showPromo = variant === "app";
+  const [dismissed, setDismissed] = useState<Partial<Record<PromoSlot, true>>>({});
+  const dismiss = (slot: PromoSlot) => () => setDismissed((d) => ({ ...d, [slot]: true }));
 
   if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return <>{children}</>;
@@ -58,6 +64,12 @@ export function AppShell({
             <NavLink key={item.href} item={item} active={pathname === item.href} />
           ))}
         </nav>
+        {/* בחלק הריק של הסרגל; במסך נמוך מוסתר כדי לא לדחוק את התפריט */}
+        {showPromo && !dismissed.sidebar && (
+          <div className="hidden px-3 pb-3 [@media(min-height:680px)]:block">
+            <PromoBanner slot="sidebar" onDismiss={dismiss("sidebar")} />
+          </div>
+        )}
         <div className="flex flex-col gap-0.5 border-t border-border px-3 py-3">
           {adminEntryHref && (
             <Link
@@ -119,6 +131,9 @@ export function AppShell({
 
         <main className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-1 flex-col px-4 py-4 md:px-8 md:py-8">
           {children}
+          {showPromo && !dismissed.bottom && (
+            <PromoBanner slot="bottom" onDismiss={dismiss("bottom")} className="mx-auto mt-8" />
+          )}
         </main>
       </div>
     </div>
