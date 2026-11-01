@@ -586,6 +586,12 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["woo_pending_purchases"]["Insert"]>;
         Relationships: [];
       };
+      link_clicks: {
+        Row: { id: number; link: string; user_id: string | null; created_at: string };
+        Insert: { id?: number; link: string; user_id?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["link_clicks"]["Insert"]>;
+        Relationships: [];
+      };
       audit_log: {
         Row: {
           id: number;
@@ -623,6 +629,21 @@ export type Database = {
       };
     };
     Functions: {
+      record_link_click: {
+        Args: { p_link: string };
+        Returns: undefined;
+      };
+      admin_link_click_stats: {
+        Args: Record<string, never>;
+        Returns: {
+          link: string;
+          total: number;
+          last_7_days: number;
+          last_30_days: number;
+          unique_users: number;
+          last_click_at: string | null;
+        }[];
+      };
       create_booking: {
         Args: { p_room_id: string; p_starts_at: string; p_ends_at: string };
         Returns: { booking_id: string; hours_charged: number; hours_remaining: number }[];
