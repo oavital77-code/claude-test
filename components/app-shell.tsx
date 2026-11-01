@@ -10,6 +10,7 @@ import { Logo } from "@/components/logo";
 import type { NavItem } from "@/components/nav-types";
 import { APP_NAV_ITEMS } from "@/app/(app)/nav";
 import { ADMIN_NAV_ITEMS } from "@/app/(admin)/admin/admin-nav";
+import { PromoBanner } from "@/components/promo-banner";
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
@@ -41,6 +42,9 @@ export function AppShell({
   const items = VARIANTS[variant];
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // באנר שותפים — מטפלים בלבד. כאן (ולא בתוך הבאנר) כדי שסגירה תחזיק גם
+  // במעבר דרך עמודים בלי שלד (login וכו') — עד הפתיחה הבאה של המערכת.
+  const [promoDismissed, setPromoDismissed] = useState(false);
 
   if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return <>{children}</>;
@@ -118,6 +122,7 @@ export function AppShell({
         </header>
 
         <main className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-1 flex-col px-4 py-4 md:px-8 md:py-8">
+          {variant === "app" && !promoDismissed && <PromoBanner onDismiss={() => setPromoDismissed(true)} />}
           {children}
         </main>
       </div>
