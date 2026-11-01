@@ -11,6 +11,7 @@ import type { NavItem } from "@/components/nav-types";
 import { APP_NAV_ITEMS } from "@/app/(app)/nav";
 import { ADMIN_NAV_ITEMS } from "@/app/(admin)/admin/admin-nav";
 import { PromoBanner, type PromoSlot } from "@/components/promo-banner";
+import { CleanaPlusLink } from "@/components/cleana-plus-link";
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
@@ -42,9 +43,9 @@ export function AppShell({
   const items = VARIANTS[variant];
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  // באנרים של שותפים — מטפלים בלבד. ה-state כאן (ולא בתוך הבאנר) כדי שסגירה
+  // באנרים של שותפים וקישור Cleana+ — ממשק המטפלים בלבד. ה-state כאן (ולא בתוך הבאנר) כדי שסגירה
   // תחזיק גם במעבר דרך עמודים בלי שלד (login וכו') — עד הפתיחה הבאה.
-  const showPromo = variant === "app";
+  const isTherapistApp = variant === "app";
   const [dismissed, setDismissed] = useState<Partial<Record<PromoSlot, true>>>({});
   const dismiss = (slot: PromoSlot) => () => setDismissed((d) => ({ ...d, [slot]: true }));
 
@@ -63,9 +64,14 @@ export function AppShell({
           {items.map((item) => (
             <NavLink key={item.href} item={item} active={pathname === item.href} />
           ))}
+          {isTherapistApp && (
+            <div className="mt-2 border-t border-border pt-2">
+              <CleanaPlusLink />
+            </div>
+          )}
         </nav>
         {/* בחלק הריק של הסרגל; במסך נמוך מוסתר כדי לא לדחוק את התפריט */}
-        {showPromo && !dismissed.sidebar && (
+        {isTherapistApp && !dismissed.sidebar && (
           <div className="hidden px-3 pb-3 [@media(min-height:680px)]:block">
             <PromoBanner slot="sidebar" onDismiss={dismiss("sidebar")} />
           </div>
@@ -114,6 +120,11 @@ export function AppShell({
                   onClick={() => setOpen(false)}
                 />
               ))}
+              {isTherapistApp && (
+                <div className="my-1 border-t border-border pt-1">
+                  <CleanaPlusLink onClick={() => setOpen(false)} />
+                </div>
+              )}
               {adminEntryHref && (
                 <Link
                   href={adminEntryHref}
@@ -131,7 +142,7 @@ export function AppShell({
 
         <main className="mx-auto flex w-full min-w-0 max-w-[1280px] flex-1 flex-col px-4 py-4 md:px-8 md:py-8">
           {children}
-          {showPromo && !dismissed.bottom && (
+          {isTherapistApp && !dismissed.bottom && (
             <PromoBanner slot="bottom" onDismiss={dismiss("bottom")} className="mx-auto mt-8" />
           )}
         </main>
