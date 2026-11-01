@@ -46,6 +46,10 @@ export function PromoBanner({
       >
         <X className="size-3.5" strokeWidth={2.5} />
       </button>
+      {/* סימון כפרסומת — ליד ה-X, לא לחיץ (הלחיצה עוברת לקישור שמתחתיו) */}
+      <span className="pointer-events-none absolute left-9 top-1.5 flex h-6 items-center rounded-full bg-black/55 px-2 text-[11px] font-medium leading-none text-white">
+        פרסומת
+      </span>
     </div>
   );
 }
