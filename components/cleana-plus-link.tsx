@@ -1,11 +1,11 @@
 import { ArrowUpLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { outboundHref } from "@/lib/outbound-links";
 
 // קישור למערכת האחות Cleana+ (יומן וזימון תורים למטפלים עצמאיים). הצבעים
 // לקוחים מהאתר החי שלה: --primary hsl(24 55% 50%), --background
 // hsl(37 59% 90%), --accent hsl(41 71% 46%) — כדי שהלוגו ייראה בדיוק כמו שם.
-export const CLEANA_PLUS_URL = "https://cleanaplus.cleanagroup.app/";
-
+// ה-href עובר דרך /api/go (ספירת לחיצות לפאנל הניהול).
 function CleanaPlusMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={cn("shrink-0", className)}>
@@ -18,7 +18,7 @@ function CleanaPlusMark({ className }: { className?: string }) {
 export function CleanaPlusLink({ onClick }: { onClick?: () => void }) {
   return (
     <a
-      href={CLEANA_PLUS_URL}
+      href={outboundHref("cleana-plus")}
       target="_blank"
       rel="noopener"
       onClick={onClick}

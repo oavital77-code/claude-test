@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TIMEZONE, isoDaysAgo } from "@/lib/time";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReportsClient } from "./reports-client";
+import { LinkClicksCard } from "./link-clicks-card";
 
 function StatTile({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
@@ -35,6 +36,7 @@ export default async function AdminReportsPage() {
     { data: allActiveCards },
     { data: subscriptions },
     { count: therapistCount },
+    { data: linkClickStats },
   ] = await Promise.all([
     supabase.from("payments").select("amount_total, paid_at").eq("status", "paid").gte("paid_at", sixMonthsAgo),
     supabase.from("bookings").select("room_id").eq("status", "confirmed").gte("starts_at", thirtyDaysAgo),
@@ -57,6 +59,7 @@ export default async function AdminReportsPage() {
       .select("user_id, status, weekly_hours, monthly_price, created_at")
       .order("created_at", { ascending: false }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "therapist").eq("status", "active"),
+    supabase.rpc("admin_link_click_stats"),
   ]);
 
   // סיכום: ססיות פעילות, כרטיסיות בתוקף ועם יתרה חיובית
@@ -139,6 +142,7 @@ export default async function AdminReportsPage() {
           hint={`בתוקף ועם יתרה · אצל ${new Set(cardsWithBalance.map((c) => c.user_id)).size} מטפלים`}
         />
       </div>
+      <LinkClicksCard stats={linkClickStats ?? []} />
       <ReportsClient
         monthlyRevenue={monthlyRevenue}
         occupancy={occupancy}

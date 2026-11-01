@@ -2,20 +2,21 @@
 
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { outboundHref } from "@/lib/outbound-links";
 
 // באנרים של שותפים (PayPlus — bit). כיבוי: enabled=false.
 // ה-X מסתיר לשאר הביקור בלבד — ה-state יושב ב-AppShell (שנשאר mounted בין
 // מעברי עמודים), כך שבכל פתיחה/רענון של המערכת הבאנר מופיע שוב. בכוונה בלי
-// localStorage/cookie.
-const HREF = "https://aff.pays.plus/cf3975e1-6a1a-4043-8745-665c8c35be81?ref=";
+// localStorage/cookie. הקישור עובר דרך /api/go (ספירת לחיצות); היעד ב-
+// lib/outbound-links.ts.
 const ALT = "PayPlus — קבלו את ה-bit";
 
 export const PROMO_BANNERS = {
   // תחתית כל עמוד (מובייל + מחשב), בתוך זרימת הדף — לא צף, כדי לא להסתיר
   // את הכרטיס הצף של בחירת שעות בלוח.
-  bottom: { enabled: true, href: HREF, src: "/promo/payplus-bit-wide.gif", width: 970, height: 250 },
+  bottom: { enabled: true, href: outboundHref("promo-bottom"), src: "/promo/payplus-bit-wide.gif", width: 970, height: 250 },
   // החלק הריק בסרגל הצד (מחשב בלבד).
-  sidebar: { enabled: true, href: HREF, src: "/promo/payplus-bit-square.gif", width: 300, height: 250 },
+  sidebar: { enabled: true, href: outboundHref("promo-sidebar"), src: "/promo/payplus-bit-square.gif", width: 300, height: 250 },
 } as const;
 
 export type PromoSlot = keyof typeof PROMO_BANNERS;
@@ -33,7 +34,7 @@ export function PromoBanner({
   if (!b.enabled) return null;
   return (
     <div className={cn("relative w-full overflow-hidden rounded-card", className)} style={{ maxWidth: b.width }}>
-      <a href={b.href} target="_blank" rel="sponsored noopener noreferrer" className="block">
+      <a href={b.href} target="_blank" rel="sponsored noopener" className="block">
         {/* GIF מונפש — next/image לא מעבד GIF בכל מקרה */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={b.src} alt={ALT} width={b.width} height={b.height} className="block h-auto w-full" />
