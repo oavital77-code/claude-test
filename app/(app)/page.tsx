@@ -47,7 +47,9 @@ export default async function HomePage() {
       .select("id, starts_at, ends_at, rooms(name, branches(name))")
       .eq("user_id", userId)
       .eq("status", "confirmed")
-      .gt("starts_at", new Date().toISOString())
+      // ends_at ולא starts_at: מפגש שמתקיים עכשיו (ססיה של 14:00–20:00 ב-16:00)
+      // הוא "ההזמנה הבאה" עד שהוא נגמר, עם הקוד לדלת.
+      .gt("ends_at", new Date().toISOString())
       .order("starts_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -152,7 +154,9 @@ export default async function HomePage() {
       {nextBooking && (
         <Card className="w-full max-w-sm">
           <CardContent className="flex flex-col gap-1 p-4 text-right">
-            <p className="text-sm text-muted-foreground">ההזמנה הבאה</p>
+            <p className="text-sm text-muted-foreground">
+              {new Date(nextBooking.starts_at) <= new Date() ? "מתקיים עכשיו" : "ההזמנה הבאה"}
+            </p>
             <p className="font-medium">
               {nextBranchName ? `${nextBranchName} · ` : ""}
               {nextRoomName} · {formatDateTimeHe(new Date(nextBooking.starts_at))}

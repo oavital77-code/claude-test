@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import { GRID_END_HOUR, GRID_START_HOUR, addDaysToDateStr, israelDateTime, todayInIsrael } from "@/lib/availability/grid";
 import { cancelBookingAction, rescheduleBookingAction } from "./actions";
+import { isInProgress, splitBookings } from "@/lib/bookings/split";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 export type BookingWithRoom = Booking & { roomName: string; branchName: string };
@@ -43,8 +44,7 @@ export function BookingsClient({
   const [tab, setTab] = useState<"upcoming" | "history">("upcoming");
   const now = useMemo(() => new Date(), []);
 
-  const upcoming = bookings.filter((b) => b.status === "confirmed" && new Date(b.starts_at) > now);
-  const history = bookings.filter((b) => !(b.status === "confirmed" && new Date(b.starts_at) > now));
+  const { upcoming, history } = useMemo(() => splitBookings(bookings, now), [bookings, now]);
   const list = tab === "upcoming" ? upcoming : history;
 
   return (
@@ -127,6 +127,9 @@ function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Po
         </div>
 
         <div className="flex flex-col items-end gap-1 text-sm">
+          {isInProgress(booking, now) && (
+            <span className="rounded-pill bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">מתקיים עכשיו</span>
+          )}
           <span className="text-muted-foreground">{SOURCE_LABELS[booking.source]}</span>
           {booking.status !== "confirmed" && (
             <span className="text-muted-foreground">{STATUS_LABELS[booking.status]}</span>
