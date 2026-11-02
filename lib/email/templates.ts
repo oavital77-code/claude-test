@@ -287,6 +287,25 @@ export function cardPurchasedAdminEmail(params: {
   };
 }
 
+export function sessionPurchasedAdminEmail(params: {
+  buyer: string;
+  kind: "initial" | "renewal";
+  amountTotal: number;
+  wooOrderId: number;
+}): EmailContent {
+  const buyer = escapeHtml(params.buyer);
+  const what = params.kind === "initial" ? "תשלום פתיחת ססיה" : "חידוש ססיה";
+  return {
+    subject: `${what} — ${params.buyer} · ${formatCurrency(params.amountTotal)}`,
+    html: emailLayout(`
+      <p>התקבל ${what} בחנות:</p>
+      <p style="font-weight:700;">${buyer} · ${formatCurrency(params.amountTotal)}</p>
+      <p style="color:#6b7570;font-size:13px;">הזמנה ${params.wooOrderId}</p>
+      <p>✅ ${params.kind === "initial" ? "הססיה הופעלה." : "המנוי חודש."}</p>
+    `),
+  };
+}
+
 export function wooPurchaseReceivedEmail(params: {
   hours: number;
   registerUrl: string;

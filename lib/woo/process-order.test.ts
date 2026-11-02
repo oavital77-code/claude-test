@@ -129,6 +129,8 @@ describe("processWooOrder — ססיה", () => {
     expect(subs[0].status).toBe("active");
     expect(rpcCalls).toEqual(["activate_session_payment"]);
     expect(unmatchedAlerts()).toBe(0);
+    // ההנהלה יודעת על התשלום — פעם אחת, לא בכל polling
+    expect(sent.filter((m) => m.subject.includes("תשלום פתיחת ססיה"))).toHaveLength(1);
   });
 
   it("חידוש שנראה 3 פעמים: מייל 'חודש' אחד בלבד", async () => {
@@ -139,6 +141,7 @@ describe("processWooOrder — ססיה", () => {
     const { db } = makeDb(payments, subs);
     for (let i = 0; i < 3; i++) await processWooOrder(db, order(5002));
     expect(renewedEmails()).toBe(1);
+    expect(sent.filter((m) => m.subject.includes("חידוש ססיה"))).toHaveLength(1);
     expect(unmatchedAlerts()).toBe(0);
   });
 
@@ -166,6 +169,7 @@ describe("processWooOrder — ססיה", () => {
     const { db } = makeDb(payments, [{ id: "s1", status: "active" }], { failRpc: "finalize_session_renewal" });
     for (let i = 0; i < 3; i++) await processWooOrder(db, order(5004));
     expect(renewedEmails()).toBe(0);
+    expect(sent.filter((m) => m.subject.includes("חידוש ססיה"))).toHaveLength(0);
     expect(unmatchedAlerts()).toBe(1);
   });
 
