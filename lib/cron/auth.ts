@@ -9,8 +9,8 @@ import { timingSafeEqual } from "node:crypto";
  * קובץ נפרד מ-guard.ts (בלי "server-only" ובלי תלות ב-Supabase/Resend)
  * כדי שיהיה ניתן לבדיקת יחידה טהורה בלי mocking.
  */
-export function isAuthorizedCronRequest(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
+export function isAuthorizedCronRequest(request: Request, secretEnv: "CRON_SECRET" | "WOO_POLL_SECRET" = "CRON_SECRET"): boolean {
+  const secret = process.env[secretEnv];
   if (!secret) return false;
   const provided = Buffer.from(request.headers.get("authorization") ?? "", "utf8");
   const expected = Buffer.from(`Bearer ${secret}`, "utf8");
