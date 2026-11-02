@@ -1,6 +1,6 @@
 import "server-only";
 import type { WooOrderPayload } from "./process-order";
-import { ORDERS_PER_PAGE, buildOrdersUrl } from "./orders-url";
+import { ORDERS_PER_PAGE, buildOrdersUrl, type OrdersDateField } from "./orders-url";
 
 // גישה ל-WooCommerce REST API — משמשת ל-polling כשאין webhook מוגדר בחנות
 // (המצב הנוכחי). דורש מפתחות Consumer Key/Secret עם הרשאת Read בלבד
@@ -31,7 +31,10 @@ export function isWooRestConfigured(): boolean {
  * לפי סטטוס (processWooOrder כבר מסנן ל-processing/completed בעצמו), כדי
  * לא להסתמך על תמיכה ב-multi-status query param בכל גרסת Woo.
  */
-export async function fetchRecentWooOrders(sinceMinutesAgo: number): Promise<WooOrderPayload[]> {
+export async function fetchRecentWooOrders(
+  sinceMinutesAgo: number,
+  field: OrdersDateField = "created",
+): Promise<WooOrderPayload[]> {
   const creds = wooCredentials();
   if (!creds) return [];
 
@@ -44,7 +47,7 @@ export async function fetchRecentWooOrders(sinceMinutesAgo: number): Promise<Woo
   // הנושרות הן דווקא ההזמנות הישנות ביותר בחלון — כלומר אלה שקרובות
   // לצאת ממנו ולא להיתפס לעולם. עוצרים כשמתקבל עמוד חלקי.
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const res = await fetch(buildOrdersUrl(creds.baseUrl, after, page), {
+    const res = await fetch(buildOrdersUrl(creds.baseUrl, after, page, field), {
       headers: { Authorization: `Basic ${auth}` },
       cache: "no-store",
     });
@@ -54,7 +57,7 @@ export async function fetchRecentWooOrders(sinceMinutesAgo: number): Promise<Woo
       // עמוד המשך שנכשל אחרי שכבר אספנו הזמנות — עדיף להחזיר את מה שיש
       // מאשר לאבד גם אותן; הריצה הבאה תשלים, כי העיבוד אידמפוטנטי.
       if (page === 1) {
-        throw new Error(`WooCommerce REST API החזיר ${res.status}`);
+        throw new Error(`WooCommerce REST API החזיר ${res.status} (${field})`);
       }
       console.error(`[woo] דפדוף נעצר בעמוד ${page}: HTTP ${res.status}`);
       break;

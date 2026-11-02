@@ -25,7 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // throttleSeconds: לכל היותר בדיקה אחת לדקה מול החנות, לכל המטפלים יחד —
     // ורכישה שהתגלתה נזקפת מיד (trigger auto_claim, 20261015000003).
     after(async () => {
-      await pollWooOrders(90, { throttleSeconds: 60 }).catch(() => {});
+      // כשל לא נבלע בשקט: בלי לוג, תקלה בשליפה (31/10–02/11) לא נראתה בשום
+      // מקום ורכישות לא נזקפו. בלי PII — רק ההודעה.
+      await pollWooOrders(90, { throttleSeconds: 60 }).catch((e: unknown) => {
+        console.error("[woo] בדיקת הזמנות בטעינת עמוד נכשלה:", e instanceof Error ? e.message : e);
+      });
       try {
         await supabase.rpc("claim_woo_pending_purchase");
       } catch {
