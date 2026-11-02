@@ -629,6 +629,10 @@ export type Database = {
       };
     };
     Functions: {
+      record_woo_poll_result: {
+        Args: { p_ok: boolean; p_threshold?: number; p_alert_every?: string };
+        Returns: boolean;
+      };
       record_link_click: {
         Args: { p_link: string };
         Returns: undefined;

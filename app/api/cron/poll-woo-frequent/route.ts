@@ -16,35 +16,37 @@ export const dynamic = "force-dynamic";
 // חלון 120 דקות לפי תאריך יצירה: ריצה שנכשלה מכוסה ע"י הריצות הבאות;
 // תשלום מאוחר — ה-cron היומי (גם לפי תאריך עדכון).
 //
-// כשל: התראה להנהלה לכל היותר פעם ב-6 שעות (לא 60 מיילים בשעה), דרך audit_log.
-const ALERT_EVERY_HOURS = 6;
+// התראה להנהלה רק אחרי 5 כשלים רצופים (record_woo_poll_result) — תקלה
+// רגעית בחנות (503 בודד, איטיות) לא שולחת מייל; הצלחה אחת מאפסת.
+const FAILURE_THRESHOLD = 5;
 
 async function handle(request: Request) {
   if (!isAuthorizedCronRequest(request, "WOO_POLL_SECRET")) {
     return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
+  const supabase = createAdminClient();
   try {
     const result = await pollWooOrders(120, { throttleSeconds: 30 });
+    await supabase.rpc("record_woo_poll_result", { p_ok: true });
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "UNKNOWN";
     console.error("[cron:poll-woo-frequent] נכשל:", message);
-    await alertOncePerWindow(message).catch(() => {});
+    try {
+      const { data: shouldAlert } = await supabase.rpc("record_woo_poll_result", {
+        p_ok: false,
+        p_threshold: FAILURE_THRESHOLD,
+      });
+      if (shouldAlert) await alertAdmins(supabase, message);
+    } catch {
+      // best-effort
+    }
     return NextResponse.json({ error: "POLL_FAILED" }, { status: 500 });
   }
 }
 
-async function alertOncePerWindow(detail: string) {
-  const supabase = createAdminClient();
-  const since = new Date(Date.now() - ALERT_EVERY_HOURS * 3600_000).toISOString();
-  const { data: recent } = await supabase
-    .from("audit_log")
-    .select("id")
-    .eq("action", "woo_frequent_poll_failed")
-    .gte("created_at", since)
-    .limit(1)
-    .maybeSingle();
-  if (recent) return;
+async function alertAdmins(supabase: ReturnType<typeof createAdminClient>, lastError: string) {
+  const detail = `נכשלה ${FAILURE_THRESHOLD} דקות ברציפות — רכישות חדשות לא נקלטות כרגע. שגיאה אחרונה: ${lastError}`;
   await supabase.from("audit_log").insert({
     actor_id: null,
     action: "woo_frequent_poll_failed",
