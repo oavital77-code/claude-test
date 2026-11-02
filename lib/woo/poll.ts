@@ -11,7 +11,7 @@ import { processWooOrder } from "./process-order";
  */
 export async function pollWooOrders(
   sinceMinutesAgo: number,
-  options: { throttleSeconds?: number } = {},
+  options: { throttleSeconds?: number; includeModified?: boolean } = {},
 ): Promise<{ checked: number; processed: number }> {
   if (!isWooRestConfigured()) return { checked: 0, processed: 0 };
 
@@ -26,7 +26,19 @@ export async function pollWooOrders(
     if (error || !claimed) return { checked: 0, processed: 0 };
   }
 
-  const orders = await fetchRecentWooOrders(sinceMinutesAgo);
+  // תאריך יצירה תמיד; ב-cron גם תאריך עדכון (תשלום מאוחר). איחוד לפי id —
+  // העיבוד אידמפוטנטי בכל מקרה, זה רק חוסך עבודה כפולה.
+  const created = await fetchRecentWooOrders(sinceMinutesAgo, "created");
+  // best-effort: כשל בשאילתת תאריך העדכון לא מבטל את מה שכבר נשלף.
+  const modified = options.includeModified
+    ? await fetchRecentWooOrders(sinceMinutesAgo, "modified").catch((e: unknown) => {
+        console.error("[woo] שליפה לפי תאריך עדכון נכשלה:", e instanceof Error ? e.message : e);
+        return [];
+      })
+    : [];
+  const byId = new Map<number, (typeof created)[number]>();
+  for (const o of [...created, ...modified]) byId.set(o.id, o);
+  const orders = [...byId.values()];
   if (orders.length === 0) return { checked: 0, processed: 0 };
 
   let processed = 0;
