@@ -12,6 +12,7 @@ import { APP_NAV_ITEMS } from "@/app/(app)/nav";
 import { ADMIN_NAV_ITEMS } from "@/app/(admin)/admin/admin-nav";
 import { PromoBanner, type PromoSlot } from "@/components/promo-banner";
 import { CleanaPlusLink } from "@/components/cleana-plus-link";
+import { PurchaseSync } from "@/components/purchase-sync";
 
 const HIDDEN_ON = ["/login", "/suspended", "/privacy", "/reset-password"];
 
@@ -55,6 +56,8 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen w-full">
+      {/* רכישה מהחנות מופיעה מיד — שעות מתעדכנות במסך בלי רענון */}
+      {isTherapistApp && <PurchaseSync />}
       {/* סרגל צד — דסקטופ בלבד, קבוע מימין (dir=rtl הופך flex-row אוטומטית) */}
       <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col self-start border-e border-border bg-surface md:flex">
         <Link href={homeHref} className="flex items-center px-5 py-5">
