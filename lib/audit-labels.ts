@@ -24,6 +24,7 @@ export const AUDIT_LABELS: Record<string, { label: string; severity: AuditSeveri
   woo_purchase_auto_claimed: { label: "רכישה מהחנות זוכתה אוטומטית", severity: "money" },
   woo_purchase_assigned_by_admin: { label: "רכישה מהחנות שויכה ע״י אדמין", severity: "money" },
   woo_payment_unmatched: { label: "תשלום בחנות לא שויך — לטיפול ידני", severity: "alert" },
+  woo_frequent_poll_failed: { label: "בדיקת רכישות כל דקה נכשלה", severity: "alert" },
   punch_card_debt_absorbed: { label: "קיזוז מינוס מכרטיסייה חדשה", severity: "money" },
   balance_aligned_to_skedda: { label: "יישור יתרה ל-Skedda", severity: "admin" },
   session_created_prepaid_migration: { label: "ססיה הועברה מ-Skedda", severity: "admin" },
