@@ -6,6 +6,7 @@ import {
   sessionRenewedEmail,
   wooPaymentUnmatchedAdminEmail,
   cardPurchasedAdminEmail,
+  sessionPurchasedAdminEmail,
 } from "@/lib/email/templates";
 import { getAdminEmails } from "@/lib/email/recipients";
 import { toE164Israel } from "@/lib/phone";
@@ -269,7 +270,9 @@ async function activateSessionFromWooOrder(
         wooOrderId: params.wooOrderId,
         reason: `הפעלת הססיה נכשלה (${error.message})`,
       });
+      return;
     }
+    await notifyAdminsOfSessionPayment(supabase, { ...params, userId: profile.id, kind: "initial" });
     return;
   }
 
@@ -317,6 +320,36 @@ async function activateSessionFromWooOrder(
 
   const { subject, html } = sessionRenewedEmail(params.amountTotal, null);
   await sendEmail({ to: profile.email, subject, html });
+  await notifyAdminsOfSessionPayment(supabase, { ...params, userId: profile.id, kind: "renewal" });
+}
+
+/**
+ * מייל להנהלה על כל תשלום ססיה שהוחל בהצלחה (פתיחה / חידוש) — "על כל רכישה
+ * אני רוצה לדעת באותו רגע". פעם אחת בלבד: הבדיקה alreadyApplied בראש
+ * activateSessionFromWooOrder עוצרת עיבוד חוזר של אותה הזמנה.
+ */
+async function notifyAdminsOfSessionPayment(
+  supabase: SupabaseClient<Database>,
+  params: { userId: string; wooOrderId: number; amountTotal: number; kind: "initial" | "renewal" },
+) {
+  try {
+    const adminEmails = await getAdminEmails(supabase);
+    if (adminEmails.length === 0) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", params.userId)
+      .maybeSingle();
+    const { subject, html } = sessionPurchasedAdminEmail({
+      buyer: profile?.full_name ?? `הזמנה ${params.wooOrderId}`,
+      kind: params.kind,
+      amountTotal: params.amountTotal,
+      wooOrderId: params.wooOrderId,
+    });
+    await sendEmail({ to: adminEmails, subject, html });
+  } catch {
+    // best-effort
+  }
 }
 
 /** תשלום הפתיחה האחרון של המטפל/ת שהמנוי שלו עדיין ממתין לתשלום — או null. */

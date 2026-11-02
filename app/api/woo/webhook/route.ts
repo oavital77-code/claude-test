@@ -3,20 +3,26 @@ import { verifyWooWebhook } from "@/lib/woo/verify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processWooOrder, type WooOrderPayload } from "@/lib/woo/process-order";
 
-// חנות ה-WooCommerce (baclinica-shop) היא מקור האמת היחיד לתשלום — לא PayPlus
-// (ר' CLAUDE.md, שוחרר לגמרי מ-PayPlus). זהו נתיב ה-webhook (push) — אם
-// מוגדר webhook בפועל בחנות, הוא מזין הזמנות לכאן ברגע שהן משולמות. אם אין
-// webhook מוגדר (המצב הנוכחי), המסלול הפעיל הוא ה-polling דרך ה-REST API —
-// ר' app/api/cron/poll-woo-orders ו-lib/woo/rest-client.ts — ששולף הזמנות
-// ומזין אותן לאותה processWooOrder בדיוק. הראוט הזה נשאר עובד ומוכן למקרה
-// שיוגדר webhook בעתיד.
+// Webhook של WooCommerce (push) — המסלול המיידי: החנות שולחת את ההזמנה לכאן
+// ברגע שהיא משתנה (topic "Order updated"), והיא נזקפת באותו רגע. ה-polling
+// (בטעינת עמוד + cron יומי) נשאר כרשת ביטחון; העיבוד אידמפוטנטי, אז אותה
+// הזמנה שמגיעה משני המסלולים לא נזקפת פעמיים.
 //
-// ⚠️ צורת ה-payload כאן (order.id/status/billing/line_items) מבוססת על
-// ה-WooCommerce REST API / Webhooks הסטנדרטי. יש לאמת מול הגדרות ה-webhook
-// בפועל בחנות (Settings → Advanced → Webhooks) לפני production, כולל הנושא
-// (topic) המדויק שנבחר (מומלץ "Order updated" כדי לתפוס מעבר ל-processing).
+// הגדרה בחנות: WooCommerce → Settings → Advanced → Webhooks → Add webhook:
+// Status Active · Topic "Order updated" · Delivery URL <APP_URL>/api/woo/webhook
+// · Secret = הערך של WOOCOMMERCE_WEBHOOK_SECRET ב-Vercel · API v3.
+//
+// קודי תשובה: Woo מכבה webhook אחרי 5 כשלים רצופים, לכן 200 לכל מה שלא
+// יצליח גם בניסיון חוזר (הזמנה בלי מייל, נושא אחר) — שגיאה רק על חתימה לא
+// תקינה או כשל שמירה אמיתי.
 export async function POST(request: Request) {
   const rawBody = await request.text();
+
+  // פינג הבדיקה ש-Woo שולח כשיוצרים/מפעילים webhook: גוף "webhook_id=N",
+  // בלי חתימה. לא מעובד — רק מאשרים שהכתובת חיה (אחרת Woo מציג שגיאה).
+  if (/^webhook_id=\d+$/.test(rawBody.trim())) {
+    return NextResponse.json({ ok: true, ping: true });
+  }
 
   const secret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
   if (!secret) {
@@ -26,18 +32,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "INVALID_SIGNATURE" }, { status: 401 });
   }
 
+  const topic = request.headers.get("x-wc-webhook-topic");
+  if (topic && !topic.startsWith("order.")) {
+    return NextResponse.json({ ok: true, skipped: "NOT_AN_ORDER_TOPIC" });
+  }
+
   let order: WooOrderPayload;
   try {
     order = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "INVALID_PAYLOAD" }, { status: 400 });
+    return NextResponse.json({ ok: true, skipped: "INVALID_PAYLOAD" });
   }
 
   const supabase = createAdminClient();
   const result = await processWooOrder(supabase, order);
 
-  if (!result.ok) {
-    return NextResponse.json({ error: result.skipped ?? "PROCESSING_FAILED" }, { status: 400 });
+  if (!result.ok && result.skipped === "SAVE_FAILED") {
+    console.error("[woo-webhook] שמירת רכישה נכשלה, הזמנה", order.id);
+    return NextResponse.json({ error: "SAVE_FAILED" }, { status: 500 });
   }
   return NextResponse.json({ ok: true, skipped: result.skipped });
 }
