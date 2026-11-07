@@ -25,6 +25,12 @@ async function handle(request: Request) {
   if (!isAuthorizedCronRequest(request, "WOO_POLL_SECRET")) {
     return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
+  // pg_cron עדיין קורא כל דקה (שינוי התזמון ל-*/5 — מיגרציה 20261107000001 —
+  // ממתין להחלה ב-Supabase). עד אז: עבודה מלאה רק בדקה שמתחלקת ב-5; בשאר
+  // הדקות חוזרים מיד — אלפיות שנייה, בלי פנייה לחנות ובלי DB.
+  if (new Date().getUTCMinutes() % 5 !== 0) {
+    return NextResponse.json({ skipped: "NOT_FIVE_MINUTE_MARK" });
+  }
   const supabase = createAdminClient();
   try {
     const result = await pollWooOrders(120, { throttleSeconds: 30 });
