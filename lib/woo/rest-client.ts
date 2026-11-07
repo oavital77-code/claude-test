@@ -50,9 +50,9 @@ export async function fetchRecentWooOrders(
     const res = await fetch(buildOrdersUrl(creds.baseUrl, after, page, field), {
       headers: { Authorization: `Basic ${auth}` },
       cache: "no-store",
-      // חנות איטית לא תוקעת את הבדיקה: אחרי 20 שניות זה כשל (נספר ונבדק
-      // שוב בדקה הבאה), במקום שהפונקציה תיחתך בלי שהכשל נרשם.
-      signal: AbortSignal.timeout(20_000),
+      // חנות איטית לא תוקעת את הבדיקה: אחרי 10 שניות זה כשל (נספר ונבדק
+      // שוב בריצה הבאה). גם עלות: כל שנייה המתנה = זמן פונקציה ב-Vercel.
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
