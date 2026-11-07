@@ -8,11 +8,14 @@ import { syncMyPurchases } from "@/app/(app)/purchase-sync-actions";
 // כמה זמן אחורה מחשבים "חדש" ביחס לפתיחת המערכת — מכסה כרטיסייה שנזקפה
 // (webhook) בין הרינדור בשרת לטעינה בדפדפן.
 const LOOKBACK_MS = 60_000;
-// אחרי כל חזרה ללשונית: בדיקה מיד, ושוב אחרי 10 ו-30 שניות (החנות לפעמים
-// מעדכנת את סטטוס ההזמנה כמה שניות אחרי ההפניה מעמוד התשלום).
-const FOLLOW_UPS_MS = [0, 10_000, 30_000];
-// בעמוד הרכישה המטפל/ת מחכה לכרטיסייה — בודקים כל 15 שניות כל עוד הוא פתוח.
-const PURCHASE_PAGE_INTERVAL_MS = 15_000;
+// אחרי כל חזרה ללשונית: בדיקה מיד, ושוב אחרי 20 שניות (החנות לפעמים מעדכנת
+// את סטטוס ההזמנה כמה שניות אחרי ההפניה מעמוד התשלום).
+// ⚠️ כל בדיקה = הפעלת פונקציה ב-Vercel. ב-07/11 חשבון ה-Vercel הושבת על חריגה
+// ממכסה — לא להגדיל תדירויות כאן בלי לחשב עלות (ר' CLAUDE.md, "עלויות").
+const FOLLOW_UPS_MS = [0, 20_000];
+// בעמוד הרכישה המטפל/ת מחכה לכרטיסייה — כל 30 שניות, ולכל היותר 5 דקות.
+const PURCHASE_PAGE_INTERVAL_MS = 30_000;
+const PURCHASE_PAGE_MAX_MS = 5 * 60_000;
 
 /**
  * רכישה מופיעה מיד: כשהמערכת נפתחת וכשחוזרים ללשונית, בודק רכישות חדשות;
@@ -65,7 +68,11 @@ export function PurchaseSync() {
   useEffect(() => {
     if (!pathname.startsWith("/purchase")) return;
     const id = setInterval(check, PURCHASE_PAGE_INTERVAL_MS);
-    return () => clearInterval(id);
+    const stop = setTimeout(() => clearInterval(id), PURCHASE_PAGE_MAX_MS);
+    return () => {
+      clearInterval(id);
+      clearTimeout(stop);
+    };
   }, [pathname, check]);
 
   useEffect(() => {

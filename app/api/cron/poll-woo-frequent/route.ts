@@ -8,17 +8,18 @@ import { pollWooOrders } from "@/lib/woo/poll";
 
 export const dynamic = "force-dynamic";
 
-// בדיקת רכישות כל דקה, בלי תלות בכך שמישהו פותח את האפליקציה: pg_cron ב-
-// Supabase קורא לכאן (Vercel Hobby מאפשר cron יומי בלבד). רכישה נזקפת תוך
-// דקה, ומייל ההנהלה יוצא באותו רגע. סוד נפרד (WOO_POLL_SECRET, נשמר גם
+// בדיקת רכישות כל 5 דקות, בלי תלות בכך שמישהו פותח את האפליקציה: pg_cron
+// ב-Supabase קורא לכאן. הייתה כל דקה — ב-07/11 חשבון ה-Vercel (Hobby) הושבת
+// על חריגה ממכסה; ירד ל-5 דקות (20261107000001). רכישה נזקפת תוך 5 דקות,
+// ומיד כשהמטפל/ת חוזר/ת לאפליקציה (PurchaseSync). סוד נפרד (WOO_POLL_SECRET, נשמר גם
 // ב-Supabase Vault) — לא CRON_SECRET, שלא יוצא מ-Vercel.
 //
 // חלון 120 דקות לפי תאריך יצירה: ריצה שנכשלה מכוסה ע"י הריצות הבאות;
 // תשלום מאוחר — ה-cron היומי (גם לפי תאריך עדכון).
 //
-// התראה להנהלה רק אחרי 5 כשלים רצופים (record_woo_poll_result) — תקלה
-// רגעית בחנות (503 בודד, איטיות) לא שולחת מייל; הצלחה אחת מאפסת.
-const FAILURE_THRESHOLD = 5;
+// התראה להנהלה אחרי 3 כשלים רצופים (~15 דקות, record_woo_poll_result) —
+// תקלה רגעית בחנות לא שולחת מייל; הצלחה אחת מאפסת.
+const FAILURE_THRESHOLD = 3;
 
 async function handle(request: Request) {
   if (!isAuthorizedCronRequest(request, "WOO_POLL_SECRET")) {
@@ -46,7 +47,7 @@ async function handle(request: Request) {
 }
 
 async function alertAdmins(supabase: ReturnType<typeof createAdminClient>, lastError: string) {
-  const detail = `נכשלה ${FAILURE_THRESHOLD} דקות ברציפות — רכישות חדשות לא נקלטות כרגע. שגיאה אחרונה: ${lastError}`;
+  const detail = `נכשלה ${FAILURE_THRESHOLD} פעמים ברציפות (כ-${FAILURE_THRESHOLD * 5} דקות) — רכישות חדשות לא נקלטות כרגע. שגיאה אחרונה: ${lastError}`;
   await supabase.from("audit_log").insert({
     actor_id: null,
     action: "woo_frequent_poll_failed",
