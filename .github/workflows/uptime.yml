@@ -1,0 +1,35 @@
+name: Uptime check
+
+# ניטור זמינות של cleana.co.il מחוץ ל-Vercel (לקח 07/11: החשבון הושבת על חריגה
+# ממכסה ואף אחד לא ידע). כל 15 דקות; ריצה שנכשלת → GitHub שולח מייל לבעלים.
+# GitHub מריץ משימות מתוזמנות באיחור של כמה דקות לפעמים — זה בסדר לניטור.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: cleana.co.il responds
+        run: |
+          fail=0
+          check() {
+            url="$1"; expected="$2"; label="$3"
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 --retry 2 --retry-delay 10 "$url" || echo 000)
+            if [ "$code" = "$expected" ]; then
+              echo "OK   $label ($code)"
+            else
+              echo "::error::$label — expected $expected, got $code (402 = Vercel disabled the deployment; 000 = no response)"
+              fail=1
+            fi
+          }
+          # דף ההתחברות נטען
+          check "https://cleana.co.il/login" 200 "login page"
+          # האפליקציה עצמה רצה (נתיב שמחזיר 404 מהקוד שלנו, לא מ-Vercel)
+          check "https://cleana.co.il/api/go/uptime-probe" 404 "app routes"
+          exit $fail
