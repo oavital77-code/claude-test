@@ -8,28 +8,22 @@ import { pollWooOrders } from "@/lib/woo/poll";
 
 export const dynamic = "force-dynamic";
 
-// בדיקת רכישות כל 5 דקות, בלי תלות בכך שמישהו פותח את האפליקציה: pg_cron
-// ב-Supabase קורא לכאן. הייתה כל דקה — ב-07/11 חשבון ה-Vercel (Hobby) הושבת
-// על חריגה ממכסה; ירד ל-5 דקות (20261107000001). רכישה נזקפת תוך 5 דקות,
-// ומיד כשהמטפל/ת חוזר/ת לאפליקציה (PurchaseSync). סוד נפרד (WOO_POLL_SECRET, נשמר גם
-// ב-Supabase Vault) — לא CRON_SECRET, שלא יוצא מ-Vercel.
+// בדיקת רכישות ברקע — פעם בשעה (החלטת הבעלים 07/11), בלי תלות בכך שמישהו
+// פותח את האפליקציה: pg_cron ב-Supabase קורא לכאן ב-:00 (20261107000002).
+// רכישה נקלטת מיד כשהמטפל/ת חוזר/ת לאפליקציה (PurchaseSync), ולכל המאוחר
+// תוך שעה כאן. היסטוריה: כל דקה → 07/11 חשבון ה-Vercel (Hobby) הושבת על
+// חריגה ממכסה → 5 דקות → שעה.
 //
-// חלון 120 דקות לפי תאריך יצירה: ריצה שנכשלה מכוסה ע"י הריצות הבאות;
-// תשלום מאוחר — ה-cron היומי (גם לפי תאריך עדכון).
+// חלון 120 דקות לפי תאריך יצירה: ריצה אחת שנכשלה מכוסה ע"י הבאה; תשלום
+// מאוחר — ה-cron היומי (גם לפי תאריך עדכון).
 //
-// התראה להנהלה אחרי 3 כשלים רצופים (~15 דקות, record_woo_poll_result) —
+// התראה להנהלה אחרי 2 כשלים רצופים (~שעתיים, record_woo_poll_result) —
 // תקלה רגעית בחנות לא שולחת מייל; הצלחה אחת מאפסת.
-const FAILURE_THRESHOLD = 3;
+const FAILURE_THRESHOLD = 2;
 
 async function handle(request: Request) {
   if (!isAuthorizedCronRequest(request, "WOO_POLL_SECRET")) {
     return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-  // pg_cron עדיין קורא כל דקה (שינוי התזמון ל-*/5 — מיגרציה 20261107000001 —
-  // ממתין להחלה ב-Supabase). עד אז: עבודה מלאה רק בדקה שמתחלקת ב-5; בשאר
-  // הדקות חוזרים מיד — אלפיות שנייה, בלי פנייה לחנות ובלי DB.
-  if (new Date().getUTCMinutes() % 5 !== 0) {
-    return NextResponse.json({ skipped: "NOT_FIVE_MINUTE_MARK" });
   }
   const supabase = createAdminClient();
   try {
@@ -53,7 +47,7 @@ async function handle(request: Request) {
 }
 
 async function alertAdmins(supabase: ReturnType<typeof createAdminClient>, lastError: string) {
-  const detail = `נכשלה ${FAILURE_THRESHOLD} פעמים ברציפות (כ-${FAILURE_THRESHOLD * 5} דקות) — רכישות חדשות לא נקלטות כרגע. שגיאה אחרונה: ${lastError}`;
+  const detail = `נכשלה ${FAILURE_THRESHOLD} פעמים ברציפות (כ-${FAILURE_THRESHOLD} שעות) — רכישות חדשות לא נקלטות כרגע. שגיאה אחרונה: ${lastError}`;
   await supabase.from("audit_log").insert({
     actor_id: null,
     action: "woo_frequent_poll_failed",
