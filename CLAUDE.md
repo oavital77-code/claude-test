@@ -169,7 +169,7 @@ M0 סכמה+RLS → M1 auth → M2 לוח → M3 תשלומים → M4 הזמנ�
 - **לא להפעיל פונקציה ב-Vercel רק כדי לחכות** (polling שממתין לשירות חיצוני).
   עדיף בתוך Supabase (pg_cron / pg_net), שלא נספר ב-Vercel.
 - **אסור להוסיף תדירות** לבדיקה קיימת (PurchaseSync, poll-woo-frequent) בלי אישור.
-- **ניטור זמינות** רץ מחוץ ל-Vercel (Supabase), כך שאם Vercel נופל — יוצא מייל.
+- **ניטור זמינות** רץ מחוץ ל-Vercel (GitHub Actions, `.github/workflows/uptime.yml`, כל 15 דקות), כך שאם Vercel נופל — יוצא מייל מ-GitHub.
 
 ## אסור
 
