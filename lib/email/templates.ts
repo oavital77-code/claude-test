@@ -243,17 +243,22 @@ export function wooPaymentUnmatchedAdminEmail(params: {
   reason: string;
   expected?: number;
   received?: number;
+  buyer?: string;
 }): EmailContent {
+  const buyerLine = params.buyer
+    ? `<p style="font-weight:700;">מי שילם/ה: ${escapeHtml(params.buyer)}</p>`
+    : "";
   const amounts =
     params.expected !== undefined && params.received !== undefined
       ? `<p style="color:#6b7570;font-size:13px;">סכום שצפינו לו: ${params.expected} ₪ · סכום שהתקבל: ${params.received} ₪</p>`
       : "";
   return {
-    subject: `🚨 תשלום Woo לא שויך — הזמנה ${params.wooOrderId}`,
+    subject: `🚨 תשלום Woo לא שויך — הזמנה ${params.wooOrderId}${params.buyer && !params.buyer.startsWith("מייל") ? ` · ${params.buyer}` : ""}`,
     html: emailLayout(`
       <p>התקבל תשלום בחנות, אבל לא הצלחנו לשייך אותו לתשלום ממתין במערכת —
          כלומר <strong>הכסף נגבה והשירות לא הופעל</strong>.</p>
-      <p style="font-weight:700;">הזמנה ${params.wooOrderId} — ${params.reason}</p>
+      <p style="font-weight:700;">הזמנה ${params.wooOrderId} — ${escapeHtml(params.reason)}</p>
+      ${buyerLine}
       ${amounts}
       <p>יש לבדוק ידנית מול החנות ולהפעיל את הססיה/הכרטיסייה דרך פאנל הניהול.</p>
     `),
