@@ -51,7 +51,7 @@ function makeDb(payments: Payment[], subs: Sub[], opts: { failRpc?: string } = {
             { key: "woo_session_product_id", value: 999 },
             { key: "woo_purchase_email_enabled", value: 1 },
           ];
-        if (table === "profiles") return [{ id: "u1", email: "dana@x.com", role: "therapist" }];
+        if (table === "profiles") return [{ id: "u1", email: "dana@x.com", role: "therapist", full_name: "דנה כהן" }];
         if (table === "payments") return payments as unknown as Row[];
         if (table === "session_subscriptions") return subs as unknown as Row[];
         if (table === "audit_log") return audit;
@@ -86,6 +86,19 @@ function makeDb(payments: Payment[], subs: Sub[], opts: { failRpc?: string } = {
     async rpc(name: string, args: Record<string, unknown>) {
       rpcCalls.push(name);
       if (opts.failRpc === name) return { data: null, error: { message: "boom" } };
+      if (name === "record_woo_session_renewal") {
+        const uid = args.p_transaction_uid as string;
+        const existing = payments.find((x) => x.payplus_transaction_uid === uid);
+        if (existing) return { data: [{ payment_id: existing.id, subscription_id: existing.subscription_id }], error: null };
+        const active = subs.filter((x) => x.status === "active");
+        if (active.length === 0) return { data: null, error: { message: "NO_ACTIVE_SUBSCRIPTION" } };
+        const pay: Payment = {
+          id: "rn-" + payments.length, user_id: "u1", type: "session_recurring", status: "paid",
+          amount_total: args.p_amount_total as number, subscription_id: active[0].id, created_at: 99, payplus_transaction_uid: uid,
+        };
+        payments.push(pay);
+        return { data: [{ payment_id: pay.id, subscription_id: pay.subscription_id }], error: null };
+      }
       const p = payments.find((x) => x.id === args.p_payment_id)!;
       const sub = subs.find((s) => s.id === p.subscription_id)!;
       if (name === "activate_session_payment" && p.status !== "paid") {
@@ -173,10 +186,23 @@ describe("processWooOrder — ססיה", () => {
     expect(unmatchedAlerts()).toBe(1);
   });
 
-  it("אין תשלום ממתין: התראה אחת להזמנה, לא בכל polling", async () => {
+  it("אין תשלום ממתין ואין ססיה פעילה: התראה אחת עם שם המטפל/ת, לא בכל polling", async () => {
     const { db, audit } = makeDb([], []);
     for (let i = 0; i < 3; i++) await processWooOrder(db, order(5005));
     expect(unmatchedAlerts()).toBe(1);
+    expect(sent.find((m) => m.subject.includes("לא שויך"))!.subject).toContain("דנה כהן");
     expect(audit.filter((a) => a.action === "woo_payment_unmatched")).toHaveLength(1);
+  });
+
+  it("תשלום בחנות על ססיה פעילה בלי חידוש ממתין (1078/1087): נרשם כחידוש, בלי התראה", async () => {
+    const payments: Payment[] = [];
+    const subs: Sub[] = [{ id: "s1", status: "active" }];
+    const { db } = makeDb(payments, subs);
+    for (let i = 0; i < 3; i++) await processWooOrder(db, order(5006));
+    expect(payments).toHaveLength(1);
+    expect(payments[0]).toMatchObject({ type: "session_recurring", status: "paid", subscription_id: "s1", payplus_transaction_uid: "woo-session-5006" });
+    expect(unmatchedAlerts()).toBe(0);
+    expect(renewedEmails()).toBe(1);
+    expect(sent.filter((m) => m.subject.includes("חידוש ססיה") && m.subject.includes("דנה כהן"))).toHaveLength(1);
   });
 });

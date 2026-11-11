@@ -244,15 +244,25 @@ async function activateSessionFromWooOrder(
     await alertPaymentUnmatched(supabase, {
       wooOrderId: params.wooOrderId,
       reason: "לא נמצא חשבון מטפל/ת תואם למייל שבהזמנה",
+      buyer: params.email ? `מייל בהזמנה: ${params.email}` : undefined,
     });
     return;
   }
 
+  // שם המטפל/ת בכל התראה — בלי זה ההנהלה הייתה צריכה לחפש בחנות מי שילם/ה.
+  const { data: buyerProfile } = await supabase.from("profiles").select("full_name").eq("id", profile.id).maybeSingle();
+  const alert = (p: { reason: string; expected?: number; received?: number }) =>
+    alertPaymentUnmatched(supabase, {
+      wooOrderId: params.wooOrderId,
+      buyer: buyerProfile?.full_name ?? undefined,
+      userId: profile.id,
+      ...p,
+    });
+
   const initialPayment = await findInitialPaymentAwaitingActivation(supabase, profile.id);
   if (initialPayment) {
     if (Math.abs(initialPayment.amount_total - params.amountTotal) > 0.01) {
-      await alertPaymentUnmatched(supabase, {
-        wooOrderId: params.wooOrderId,
+      await alert({
         reason: "הסכום ששולם אינו תואם לתשלום הססיה הממתין",
         expected: initialPayment.amount_total,
         received: params.amountTotal,
@@ -266,8 +276,7 @@ async function activateSessionFromWooOrder(
       p_token_uid: null,
     });
     if (error) {
-      await alertPaymentUnmatched(supabase, {
-        wooOrderId: params.wooOrderId,
+      await alert({
         reason: `הפעלת הססיה נכשלה (${error.message})`,
       });
       return;
@@ -289,15 +298,30 @@ async function activateSessionFromWooOrder(
     .maybeSingle();
 
   if (!renewalPayment) {
-    await alertPaymentUnmatched(supabase, {
-      wooOrderId: params.wooOrderId,
-      reason: "נמצא חשבון, אך אין לו תשלום ססיה ממתין (ראשוני או חידוש)",
+    // אין תשלום ממתין, אבל יש ססיה פעילה → זה תשלום חודשי ששולם ישירות בחנות
+    // (החלטת הבעלים 11/11; הזמנות 1078, 1087). נרשם כחידוש — אותו מסלול כמו
+    // חידוש רגיל (finalize_session_renewal). אחרת — התראה עם שם המטפל/ת.
+    const { error: renewError } = await supabase.rpc("record_woo_session_renewal", {
+      p_user_id: profile.id,
+      p_amount_total: params.amountTotal,
+      p_transaction_uid: transactionUid,
     });
+    if (renewError) {
+      const reason = renewError.message.includes("NO_ACTIVE_SUBSCRIPTION")
+        ? "נמצא חשבון, אך אין לו/ה ססיה פעילה או תשלום ססיה ממתין"
+        : renewError.message.includes("AMBIGUOUS_SUBSCRIPTION")
+          ? "למטפל/ת כמה ססיות פעילות והסכום לא תואם לאף אחת — יש לשייך ידנית"
+          : `רישום החידוש נכשל (${renewError.message})`;
+      await alert({ reason, received: params.amountTotal });
+      return;
+    }
+    const renewed = sessionRenewedEmail(params.amountTotal, null);
+    await sendEmail({ to: profile.email, subject: renewed.subject, html: renewed.html });
+    await notifyAdminsOfSessionPayment(supabase, { ...params, userId: profile.id, kind: "renewal" });
     return;
   }
   if (Math.abs(renewalPayment.amount_total - params.amountTotal) > 0.01) {
-    await alertPaymentUnmatched(supabase, {
-      wooOrderId: params.wooOrderId,
+    await alert({
       reason: "הסכום ששולם אינו תואם לחידוש הססיה הממתין",
       expected: renewalPayment.amount_total,
       received: params.amountTotal,
@@ -311,8 +335,7 @@ async function activateSessionFromWooOrder(
     p_transaction_uid: transactionUid,
   });
   if (error) {
-    await alertPaymentUnmatched(supabase, {
-      wooOrderId: params.wooOrderId,
+    await alert({
       reason: `חידוש הססיה נכשל (${error.message})`,
     });
     return;
@@ -381,7 +404,7 @@ async function findInitialPaymentAwaitingActivation(supabase: SupabaseClient<Dat
  */
 async function alertPaymentUnmatched(
   supabase: SupabaseClient<Database>,
-  params: { wooOrderId: number; reason: string; expected?: number; received?: number },
+  params: { wooOrderId: number; reason: string; expected?: number; received?: number; buyer?: string; userId?: string },
 ) {
   console.error(`[woo] תשלום לא שויך — הזמנה ${params.wooOrderId}: ${params.reason}`);
   try {
@@ -399,8 +422,8 @@ async function alertPaymentUnmatched(
     await supabase.from("audit_log").insert({
       actor_id: null,
       action: "woo_payment_unmatched",
-      entity: "payments",
-      entity_id: null,
+      entity: params.userId ? "profiles" : "payments",
+      entity_id: params.userId ?? null,
       after: { woo_order_id: String(params.wooOrderId), reason: params.reason },
     });
 

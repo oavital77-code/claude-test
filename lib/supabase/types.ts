@@ -629,6 +629,10 @@ export type Database = {
       };
     };
     Functions: {
+      record_woo_session_renewal: {
+        Args: { p_user_id: string; p_amount_total: number; p_transaction_uid: string };
+        Returns: { payment_id: string; subscription_id: string }[];
+      };
       record_woo_poll_result: {
         Args: { p_ok: boolean; p_threshold?: number; p_alert_every?: string };
         Returns: boolean;
