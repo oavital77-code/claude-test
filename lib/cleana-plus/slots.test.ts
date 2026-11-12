@@ -42,6 +42,7 @@ describe("openSlotsInCleanaPlus", () => {
     expect(await openSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST)).toEqual({
       status: "opened",
       opened: ["2030-01-15T12:00:00.000Z", "2030-01-15T13:00:00.000Z"],
+      roomTime: [],
       alreadyOpen: [],
       skipped: [{ startsAt: "2030-01-15T14:00:00.000Z", reason: "overlap" }],
       locationName: "בקליניקה — הוד השרון",

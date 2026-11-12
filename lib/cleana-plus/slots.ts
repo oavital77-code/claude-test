@@ -23,6 +23,8 @@ export type OpenSlotsOutcome =
   | {
       status: "opened";
       opened: string[];
+      /** זמן חדר קצר מטיפול שלם: מסומן ביומן המטפל/ת ב-Cleana+, לא פתוח ללקוחות. */
+      roomTime: string[];
       alreadyOpen: string[];
       skipped: { startsAt: string; reason: "overlap" | "past" }[];
       locationName: string;
@@ -74,6 +76,7 @@ export async function openSlotsInCleanaPlus(
     return {
       status: "opened",
       opened: stringArray(body.opened),
+      roomTime: stringArray(body.roomTime),
       alreadyOpen: stringArray(body.alreadyOpen),
       skipped,
       locationName: typeof location?.name === "string" ? location.name.slice(0, 80) : "",

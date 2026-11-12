@@ -87,7 +87,7 @@ export function OpenSlots({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const { opened, alreadyOpen, skipped, locationName, calendarUrl } = result;
+  const { opened, roomTime, alreadyOpen, skipped, locationName, calendarUrl } = result;
   const taken = skipped.filter((s) => s.reason === "overlap").map((s) => hhmm(s.startsAt));
   const past = skipped.filter((s) => s.reason === "past").map((s) => hhmm(s.startsAt));
   const link = (
@@ -110,6 +110,12 @@ export function OpenSlots({ bookingId }: { bookingId: string }) {
         ✓ השעות האלה כבר פתוחות לתורים ב-<CleanaPlusName />
       </>
     );
+  } else if (roomTime.length > 0) {
+    headline = (
+      <>
+        ✓ זמן החדר סומן ביומן שלך ב-<CleanaPlusName />
+      </>
+    );
   } else if (skipped.length > 0) {
     headline = (
       <>
@@ -126,10 +132,20 @@ export function OpenSlots({ bookingId }: { bookingId: string }) {
 
   return (
     <div className={`${box} flex flex-col gap-1 border-emerald-600/30`} role="status">
-      <span className={opened.length > 0 || alreadyOpen.length > 0 ? "text-emerald-700 dark:text-emerald-400" : ""}>
+      <span
+        className={
+          opened.length > 0 || alreadyOpen.length > 0 || roomTime.length > 0 ? "text-emerald-700 dark:text-emerald-400" : ""
+        }
+      >
         {headline}
       </span>
       {locationName && <span className="text-muted-foreground">מיקום: {locationName}</span>}
+      {roomTime.length > 0 && (
+        <span className="text-muted-foreground">
+          <span dir="ltr">{roomTime.map(hhmm).join(", ")}</span>: זמן חדר קצר מטיפול שלם. מסומן ביומן שלך ולא פתוח
+          ללקוחות; אפשר לפתוח אותו שם ידנית.
+        </span>
+      )}
       {taken.length > 0 && (
         <span className="text-muted-foreground">
           <span dir="ltr">{taken.join(", ")}</span> כבר תפוס אצלך, ולכן לא נפתח.
