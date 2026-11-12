@@ -10,13 +10,19 @@ import { sendEmail } from "@/lib/email/resend";
 import { bookingRescheduledEmail } from "@/lib/email/templates";
 import { generateSingleEventIcs } from "@/lib/ics";
 import { accessWindow, isAlignedTo30Minutes } from "@/lib/time";
+import {
+  cleanaPlusBookedTimes,
+  closeCleanaPlusForBooking,
+  moveCleanaPlusForBooking,
+  type CleanaPlusBookedTimes,
+} from "@/lib/cleana-plus/sync";
 
 export type CancelBookingResult =
   | { ok: true; hoursRefunded: boolean }
   | { ok: false; error: string };
 
 export async function cancelBookingAction(bookingId: string): Promise<CancelBookingResult> {
-  await requireTherapistProfile();
+  const { userId } = await requireTherapistProfile();
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -28,8 +34,23 @@ export async function cancelBookingAction(bookingId: string): Promise<CancelBook
   }
 
   after(() => notifyBookingCancelled(bookingId, data.hours_refunded).catch(() => {}));
+  // החדר בוטל — המשבצות הפנויות ב-Cleana+ נסגרות, ותור שנקבע מסומן "אין חדר".
+  after(() => closeCleanaPlusForBooking(userId, bookingId).catch(() => {}));
 
   return { ok: true, hoursRefunded: data.hours_refunded };
+}
+
+/**
+ * לפני ביטול/שינוי: האם לקוחות כבר קבעו ב-Cleana+ בשעות של ההזמנה.
+ * 🔒 רק על הזמנה של המשתמש/ת המחובר/ת.
+ */
+export async function cleanaPlusWarningForBooking(bookingId: string): Promise<CleanaPlusBookedTimes> {
+  const { userId } = await requireTherapistProfile();
+  if (!z.guid().safeParse(bookingId).success) return { status: "none" };
+  const supabase = await createClient();
+  const { data } = await supabase.from("bookings").select("user_id").eq("id", bookingId).maybeSingle();
+  if (!data || data.user_id !== userId) return { status: "none" };
+  return cleanaPlusBookedTimes(userId, bookingId);
 }
 
 export type RescheduleBookingResult =
@@ -59,7 +80,7 @@ export async function rescheduleBookingAction(input: {
   startsAt: string;
   endsAt: string;
 }): Promise<RescheduleBookingResult> {
-  const { profile } = await requireTherapistProfile();
+  const { userId, profile } = await requireTherapistProfile();
   const parsed = rescheduleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: bookingErrorMessage("INVALID_SLOT") };
   const d = parsed.data;
@@ -78,6 +99,8 @@ export async function rescheduleBookingAction(input: {
 
   // מייל עדכון אסינכרוני, מחוץ לטרנזקציה — כישלון שליחה לא מבטל את השינוי.
   after(() => sendRescheduleEmail(profile.email, d.roomId, new Date(d.startsAt), new Date(d.endsAt), d.bookingId).catch(() => {}));
+  // השעות זזו — המשבצות ב-Cleana+ זזות איתן (רק אם ההזמנה נפתחה שם).
+  after(() => moveCleanaPlusForBooking(userId, d.bookingId).catch(() => {}));
 
   return { ok: true, hoursDelta: Number(data.hours_delta) };
 }

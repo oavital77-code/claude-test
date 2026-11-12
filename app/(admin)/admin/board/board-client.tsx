@@ -47,12 +47,14 @@ import {
 } from "@/app/(app)/schedule/availability-grid";
 import {
   adminCancelBookingAction,
+  adminCleanaPlusWarning,
   adminEditBookingAction,
   adminCreateBookingAction,
   adminCreateRecurringBookingAction,
   createRoomBlockAction,
   deleteRoomBlockAction,
 } from "./actions";
+import { cleanaPlusWarningText } from "@/lib/cleana-plus/warning";
 import { claimSkeddaSessionAction } from "../therapists/[id]/actions";
 
 type Branch = Database["public"]["Tables"]["branches"]["Row"];
@@ -848,6 +850,14 @@ function EditBookingPanel({
       return;
     }
     setLoading(true);
+    const plusWarning = cleanaPlusWarningText(
+      await adminCleanaPlusWarning(booking.id).catch(() => ({ status: "unknown" as const })),
+      "admin",
+    );
+    if (plusWarning && !window.confirm(`${plusWarning}\n\nלשנות בכל זאת?`)) {
+      setLoading(false);
+      return;
+    }
     const res = await adminEditBookingAction(
       booking.id,
       roomId,
@@ -925,7 +935,13 @@ function CancelBookingButton({
   async function handleCancel() {
     // קודם אישור הביטול עצמו — בלעדיו, "ביטול" בשאלת ההחזר עדיין ביטל את
     // ההזמנה (בלי החזר), ולא הייתה דרך לסגת מלחיצה בטעות.
-    if (!window.confirm("לבטל את השיבוץ?")) return;
+    setLoading(true);
+    const plusWarning = cleanaPlusWarningText(
+      await adminCleanaPlusWarning(bookingId).catch(() => ({ status: "unknown" as const })),
+      "admin",
+    );
+    setLoading(false);
+    if (!window.confirm(plusWarning ? `${plusWarning}\n\nלבטל את השיבוץ?` : "לבטל את השיבוץ?")) return;
     const refund = window.confirm("להחזיר את השעות ליתרת המטפל/ת?\n\nאישור = כן, להחזיר · ביטול = לא להחזיר");
     onError(null);
     setLoading(true);

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { closeCleanaPlusForBooking } from "@/lib/cleana-plus/sync";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +10,7 @@ import { bookingErrorMessage } from "@/lib/booking-errors";
 import { formatInTimeZone } from "date-fns-tz";
 import { he } from "date-fns/locale";
 import { TIMEZONE } from "@/lib/time";
-import { todayInIsrael } from "@/lib/availability/grid";
+import { israelDateTime, todayInIsrael } from "@/lib/availability/grid";
 import { slotOccurrences } from "@/lib/sessions/occurrences";
 
 // ניהול ססיות ע"י אדמין — כל שינוי "החל מתאריך": מה שלפניו נשאר כמו שהוא.
@@ -201,11 +203,27 @@ export async function cancelSessionAction(input: unknown): Promise<ManageResult>
   if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
   const d = parsed.data;
   const supabase = await createClient();
+  // המפגשים שעומדים להתבטל — כדי לסגור אחר כך משבצות שהמטפל/ת פתח/ה מהם
+  // ידנית ב-Cleana+. נקרא לפני הביטול, כשהם עדיין 'confirmed'.
+  const { data: doomed } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("subscription_id", d.subscriptionId)
+    .eq("status", "confirmed")
+    .gte("starts_at", israelDateTime(d.from, "00:00").toISOString());
   const { error } = await supabase.rpc("admin_session_cancel", {
     p_subscription_id: d.subscriptionId,
     p_from: d.from,
   });
   if (error) return { ok: false, error: errorText(error.message) };
+  const ids = (doomed ?? []).map((b) => b.id);
+  if (ids.length > 0) {
+    after(async () => {
+      // רק מה שבאמת בוטל — לא מנחשים את גבולות p_from של ה-RPC.
+      const { data: cancelled } = await supabase.from("bookings").select("id").in("id", ids).neq("status", "confirmed");
+      for (const b of cancelled ?? []) await closeCleanaPlusForBooking(d.userId, b.id).catch(() => {});
+    });
+  }
 
   if (d.cardHours && d.cardHours > 0) {
     const { error: grantError } = await supabase.rpc("grant_bonus_hours", {
@@ -223,8 +241,10 @@ export async function cancelOccurrenceAction(bookingId: string): Promise<ManageR
   await requireAdmin();
   if (!z.string().uuid().safeParse(bookingId).success) return { ok: false, error: "קלט לא תקין" };
   const supabase = await createClient();
+  const { data: owner } = await supabase.from("bookings").select("user_id").eq("id", bookingId).maybeSingle();
   const { error } = await supabase.rpc("admin_cancel_booking", { p_booking_id: bookingId, p_refund_hours: false });
   if (error) return { ok: false, error: errorText(error.message) };
+  if (owner) after(() => closeCleanaPlusForBooking(owner.user_id, bookingId).catch(() => {}));
   return done();
 }
 
@@ -241,6 +261,7 @@ export async function moveOccurrenceAction(input: unknown): Promise<ManageResult
   if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
   const d = parsed.data;
   const supabase = await createClient();
+  const { data: owner } = await supabase.from("bookings").select("user_id").eq("id", d.bookingId).maybeSingle();
   const { error } = await supabase.rpc("admin_session_move_occurrence", {
     p_booking_id: d.bookingId,
     p_room_id: d.roomId,
@@ -248,5 +269,8 @@ export async function moveOccurrenceAction(input: unknown): Promise<ManageResult
     p_ends_at: d.endsAt,
   });
   if (error) return { ok: false, error: errorText(error.message) };
+  // המפגש זז — המשבצות הישנות ב-Cleana+ נסגרות. את החדשות המטפל/ת פותח/ת
+  // מ"ההזמנות שלי" אם רוצה (מפגש ססיה לא נפתח אוטומטית).
+  if (owner) after(() => closeCleanaPlusForBooking(owner.user_id, d.bookingId).catch(() => {}));
   return done();
 }

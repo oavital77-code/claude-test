@@ -10,7 +10,9 @@ import { DateInput } from "@/components/ui/date-input";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import { GRID_END_HOUR, GRID_START_HOUR, addDaysToDateStr, israelDateTime, todayInIsrael } from "@/lib/availability/grid";
-import { cancelBookingAction, rescheduleBookingAction } from "./actions";
+import { cancelBookingAction, cleanaPlusWarningForBooking, rescheduleBookingAction } from "./actions";
+import { cleanaPlusWarningText } from "@/lib/cleana-plus/warning";
+import { OpenSlots } from "../schedule/cleana-plus-after-booking";
 import { isInProgress, splitBookings } from "@/lib/bookings/split";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -32,15 +34,22 @@ const STATUS_LABELS: Record<Booking["status"], string> = {
 
 export type RoomOption = { id: string; label: string };
 
-type Policy = { cancelWindowHours: number; horizonDays: number; roomOptions: RoomOption[] };
+type Policy = {
+  cancelWindowHours: number;
+  horizonDays: number;
+  roomOptions: RoomOption[];
+  /** חשבון Cleana+ מחובר — מציגים "פתח ב-Cleana+" על הזמנות קרובות. */
+  cleanaPlusConnected: boolean;
+};
 
 export function BookingsClient({
   bookings,
   cancelWindowHours,
   horizonDays,
   roomOptions,
+  cleanaPlusConnected,
 }: { bookings: BookingWithRoom[] } & Policy) {
-  const policy: Policy = { cancelWindowHours, horizonDays, roomOptions };
+  const policy: Policy = { cancelWindowHours, horizonDays, roomOptions, cleanaPlusConnected };
   const [tab, setTab] = useState<"upcoming" | "history">("upcoming");
   const now = useMemo(() => new Date(), []);
 
@@ -76,6 +85,7 @@ function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Po
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [openingInPlus, setOpeningInPlus] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const now = useMemo(() => new Date(), []);
@@ -88,16 +98,23 @@ function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Po
   // שינוי — אותה חוקיות כמו ביטול: רק כרטיסייה, ורק מחוץ לחלון (reschedule_booking אוכף).
   const canReschedule = isCancellable && booking.source === "punch_card" && !withinCancelWindow;
   const windowLabel = `${policy.cancelWindowHours} שעות`;
+  // פתיחה ידנית ב-Cleana+ (שלב 2 באפיון): הזמנה פעילה שעוד לא הסתיימה —
+  // כולל מפגשי ססיה והזמנות שאדמין קבע, שלא נפתחים אוטומטית. בטוח לחזרה:
+  // מה שכבר פתוח שם לא נפתח פעמיים.
+  const canOpenInPlus = policy.cleanaPlusConnected && booking.status === "confirmed" && endsAt > now;
 
   async function handleCancel() {
     if (booking.source === "session") return;
     const warning = withinCancelWindow
       ? `הביטול בתוך ${windowLabel} מהמועד — השעות לא יוחזרו ליתרה. להמשיך?`
       : "לבטל את ההזמנה? השעות יוחזרו ליתרה.";
-    if (!window.confirm(warning)) return;
-
     setLoading(true);
     setError(null);
+    const plusWarning = cleanaPlusWarningText(await cleanaPlusWarningForBooking(booking.id).catch(() => ({ status: "unknown" as const })), "therapist");
+    setLoading(false);
+    if (!window.confirm(plusWarning ? `${plusWarning}\n\n${warning}` : warning)) return;
+
+    setLoading(true);
     const result = await cancelBookingAction(booking.id);
     setLoading(false);
     if (!result.ok) {
@@ -170,6 +187,17 @@ function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Po
           }}
         />
       )}
+      {canOpenInPlus && (
+        <div className="px-4 pb-3">
+          {openingInPlus ? (
+            <OpenSlots bookingId={booking.id} />
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setOpeningInPlus(true)}>
+              פתח ב-<span dir="ltr">Cleana+</span>
+            </Button>
+          )}
+        </div>
+      )}
       {notice && <p className="px-4 pb-3 text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
       {error && <p className="px-4 pb-3 text-sm text-destructive">{error}</p>}
     </Card>
@@ -217,6 +245,11 @@ function RescheduleForm({
     }
     setSaving(true);
     setError(null);
+    const plusWarning = cleanaPlusWarningText(await cleanaPlusWarningForBooking(booking.id).catch(() => ({ status: "unknown" as const })), "therapist");
+    if (plusWarning && !window.confirm(`${plusWarning}\n\nלשנות בכל זאת?`)) {
+      setSaving(false);
+      return;
+    }
     const res = await rescheduleBookingAction({
       bookingId: booking.id,
       roomId,
