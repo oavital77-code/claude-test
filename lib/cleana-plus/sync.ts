@@ -84,27 +84,34 @@ export async function closeCleanaPlusForBooking(therapistId: string, bookingId: 
 }
 
 /**
- * ההזמנה שונתה (שעה/חדר): המשבצות הישנות נסגרות, ואם היו כאלה — נפתחות
- * משבצות לשעות החדשות. מי שלא פתח/ה את ההזמנה ב-Cleana+ מלכתחילה, לא מקבל/ת
- * פתאום תורים שם.
+ * ההזמנה שונתה (שעה/חדר). קריאה אחת ל-Cleana+, שעושה שם הכול יחד: סוגרת את
+ * המשבצות הפנויות הישנות, פותחת לשעות החדשות, ותור של לקוח/ה שהשעות החדשות
+ * עדיין מכסות (באותו סניף) נשאר עם חדר — בלי התראת שווא. תור שנשאר מחוץ
+ * לשעות החדשות מסומן "אין חדר". הזמנה שלא נפתחה ב-Cleana+ מלכתחילה לא
+ * נפתחת שם עכשיו.
  */
 export async function moveCleanaPlusForBooking(
   therapistId: string,
   oldBookingId: string,
   newBookingId: string = oldBookingId,
 ): Promise<void> {
-  const hadSlots = await closeCleanaPlusForBooking(therapistId, oldBookingId);
-  if (!hadSlots) return;
   const creds = await credentials(therapistId);
+  if (!creds) return;
   const booking = await loadBooking(newBookingId);
-  if (!creds || !booking || booking.user_id !== therapistId || booking.status !== "confirmed") return;
-  await openSlotsInCleanaPlus(creds.config, creds.token, {
+  if (!booking || booking.user_id !== therapistId || booking.status !== "confirmed") {
+    // אין הזמנה חדשה לפתוח — לפחות סוגרים את הישנה.
+    await closeCleanaPlusForBooking(therapistId, oldBookingId);
+    return;
+  }
+  const outcome = await openSlotsInCleanaPlus(creds.config, creds.token, {
     bookingId: booking.id,
     branch: booking.room.branch,
     room: booking.room.name,
     startsAt: booking.starts_at,
     endsAt: booking.ends_at,
+    replacesBookingId: oldBookingId,
   });
+  if (outcome.status === "revoked") await deleteCleanaPlusConnection(therapistId);
 }
 
 /** בעל/ת ההזמנה — לפעולות אדמין, שמקבל/ת רק מזהה הזמנה. */

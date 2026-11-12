@@ -15,6 +15,8 @@ export type OpenSlotsRequest = {
   room: string;
   startsAt: string;
   endsAt: string;
+  /** ההזמנה הוזזה: מזהה ההזמנה שהשעות האלה מחליפות (אותו מזהה אם לא השתנה). */
+  replacesBookingId?: string;
 };
 
 export type OpenSlotsOutcome =
