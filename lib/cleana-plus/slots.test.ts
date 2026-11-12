@@ -51,9 +51,11 @@ describe("openSlotsInCleanaPlus", () => {
   });
 
   it("never links the therapist to another site", async () => {
-    reply(200, { opened: [], calendarUrl: "https://evil.example/" });
-    const result = await openSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST);
-    expect(result).toMatchObject({ calendarUrl: "https://plus.example/dashboard" });
+    for (const url of ["https://evil.example/", "https://plus.example.evil.com/dashboard", "javascript:alert(1)", 7]) {
+      reply(200, { opened: [], calendarUrl: url });
+      const result = await openSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST);
+      expect(result).toMatchObject({ calendarUrl: "https://plus.example/dashboard" });
+    }
   });
 
   it("tells a revoked link, a locked account and an outage apart", async () => {

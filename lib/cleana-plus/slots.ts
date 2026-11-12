@@ -38,6 +38,16 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
+/** The URL, only if it is on Cleana+ itself. A prefix check would let "…cleanagroup.app.evil.com" through. */
+function sameOrigin(value: unknown, origin: string): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    return new URL(value).origin === origin ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function openSlotsInCleanaPlus(
   config: CleanaPlusConfig,
   accessToken: string,
@@ -69,9 +79,7 @@ export async function openSlotsInCleanaPlus(
             : [];
         })
       : [];
-    const calendarUrl = typeof body.calendarUrl === "string" && body.calendarUrl.startsWith(config.baseUrl)
-      ? body.calendarUrl
-      : `${config.baseUrl}/dashboard`;
+    const calendarUrl = sameOrigin(body.calendarUrl, config.baseUrl) ?? `${config.baseUrl}/dashboard`;
 
     return {
       status: "opened",
