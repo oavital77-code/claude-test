@@ -27,7 +27,7 @@ export type CleanaPlusConfig = { baseUrl: string; clientSecret: string };
  * שרת-לשרת נחסמת שם לפני שהיא מגיעה לקוד. Vercel מאפשרת לעבור עם סוד
  * "Protection Bypass for Automation". מוגדר רק ב-preview; בפרודקשן ריק.
  */
-function bypassHeaders(): Record<string, string> {
+export function bypassHeaders(): Record<string, string> {
   const secret = process.env.CLEANA_PLUS_PROTECTION_BYPASS;
   return secret ? { "x-vercel-protection-bypass": secret } : {};
 }

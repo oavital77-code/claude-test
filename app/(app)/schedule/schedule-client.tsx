@@ -35,6 +35,7 @@ import { useBottomSheet } from "@/components/ui/use-bottom-sheet";
 import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
 import { ROOM_TYPE_LABELS, roomTypeLabel } from "@/lib/rooms";
 import { bookSlot } from "./actions";
+import { CleanaPlusAfterBooking } from "./cleana-plus-after-booking";
 import { HolidayTags, MonthHolidayTag, hasChag, holidaySublabel } from "./holiday-tags";
 import type { HolidayMap } from "@/lib/holiday-types";
 
@@ -607,7 +608,11 @@ function SlotPreview({
   const { accessStart, accessEnd } = accessWindow(start, end);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<{ hoursRemaining: number } | null>(null);
+  const [confirmed, setConfirmed] = useState<{
+    hoursRemaining: number;
+    bookingId: string;
+    cleanaPlusConnected: boolean;
+  } | null>(null);
 
   async function handleConfirm() {
     setLoading(true);
@@ -618,7 +623,11 @@ function SlotPreview({
       setError(result.error);
       return;
     }
-    setConfirmed({ hoursRemaining: result.hoursRemaining });
+    setConfirmed({
+      hoursRemaining: result.hoursRemaining,
+      bookingId: result.bookingId,
+      cleanaPlusConnected: result.cleanaPlusConnected,
+    });
     onConfirmed();
   }
 
@@ -651,6 +660,7 @@ function SlotPreview({
           <p className="text-emerald-600 dark:text-emerald-400">
             ההזמנה אושרה! יתרה לאחר ההזמנה: {confirmed.hoursRemaining} שעות.
           </p>
+          <CleanaPlusAfterBooking bookingId={confirmed.bookingId} connected={confirmed.cleanaPlusConnected} />
           <Button size="sm" onClick={onBooked}>
             סגירה
           </Button>
