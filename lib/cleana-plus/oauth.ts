@@ -22,6 +22,16 @@ const TIMEOUT_MS = 8000;
 
 export type CleanaPlusConfig = { baseUrl: string; clientSecret: string };
 
+/**
+ * סביבת בדיקה בלבד: ה-preview של Cleana+ מוגן ב-Vercel Authentication, וקריאה
+ * שרת-לשרת נחסמת שם לפני שהיא מגיעה לקוד. Vercel מאפשרת לעבור עם סוד
+ * "Protection Bypass for Automation". מוגדר רק ב-preview; בפרודקשן ריק.
+ */
+function bypassHeaders(): Record<string, string> {
+  const secret = process.env.CLEANA_PLUS_PROTECTION_BYPASS;
+  return secret ? { "x-vercel-protection-bypass": secret } : {};
+}
+
 export function cleanaPlusConfig(): CleanaPlusConfig | null {
   const raw = process.env.CLEANA_PLUS_URL;
   const clientSecret = process.env.CLEANA_PLUS_CLIENT_SECRET;
@@ -67,7 +77,11 @@ export async function exchangeCode(config: CleanaPlusConfig, code: string): Prom
   try {
     const res = await fetch(new URL("/api/integrations/cleana/token", config.baseUrl), {
       method: "POST",
-      headers: { authorization: `Bearer ${config.clientSecret}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${config.clientSecret}`,
+        "content-type": "application/json",
+        ...bypassHeaders(),
+      },
       body: JSON.stringify({ code }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
@@ -93,7 +107,7 @@ export async function revokeToken(config: CleanaPlusConfig, accessToken: string)
   try {
     const res = await fetch(new URL("/api/integrations/cleana/revoke", config.baseUrl), {
       method: "POST",
-      headers: { authorization: `Bearer ${accessToken}` },
+      headers: { authorization: `Bearer ${accessToken}`, ...bypassHeaders() },
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
     });

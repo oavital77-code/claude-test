@@ -93,6 +93,17 @@ describe("exchangeCode", () => {
     expect(init.headers.authorization).toBe("Bearer client-secret");
   });
 
+  it("adds the Vercel bypass header only when configured", async () => {
+    const ok = () => new Response(JSON.stringify({ access_token: "clp_abc.def" }), { status: 200 });
+    const fetchMock = vi.fn().mockImplementation(async () => ok());
+    vi.stubGlobal("fetch", fetchMock);
+    await exchangeCode(CONFIG, CODE);
+    expect(fetchMock.mock.calls[0][1].headers["x-vercel-protection-bypass"]).toBeUndefined();
+    vi.stubEnv("CLEANA_PLUS_PROTECTION_BYPASS", "bypass-secret");
+    await exchangeCode(CONFIG, CODE);
+    expect(fetchMock.mock.calls[1][1].headers["x-vercel-protection-bypass"]).toBe("bypass-secret");
+  });
+
   it("tells a rejection from an outage", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 400 })));
     expect(await exchangeCode(CONFIG, CODE)).toEqual({ ok: false, reason: "rejected" });
