@@ -586,6 +586,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["woo_pending_purchases"]["Insert"]>;
         Relationships: [];
       };
+      cleana_plus_connections: {
+        Row: {
+          therapist_id: string;
+          access_token_ciphertext: string;
+          account_label: string | null;
+          connected_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          therapist_id: string;
+          access_token_ciphertext: string;
+          account_label?: string | null;
+          connected_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cleana_plus_connections"]["Insert"]>;
+        Relationships: [];
+      };
       link_clicks: {
         Row: { id: number; link: string; user_id: string | null; created_at: string };
         Insert: { id?: number; link: string; user_id?: string | null; created_at?: string };

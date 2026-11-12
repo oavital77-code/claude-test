@@ -1,8 +1,15 @@
 import { requireTherapistProfile } from "@/lib/auth/guards";
+import { getCleanaPlusStatus } from "@/lib/cleana-plus/connection";
+import { CleanaPlusCard } from "./cleana-plus-card";
 import { ProfileClient } from "./profile-client";
 
-export default async function ProfilePage() {
-  const { profile } = await requireTherapistProfile();
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cleana_plus?: string }>;
+}) {
+  const { userId, profile } = await requireTherapistProfile();
+  const [{ cleana_plus: cleanaPlusResult }, cleanaPlus] = await Promise.all([searchParams, getCleanaPlusStatus(userId)]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 p-4">
@@ -21,6 +28,12 @@ export default async function ProfilePage() {
         termsAcceptedAt={profile.terms_accepted_at}
         termsVersion={profile.terms_version}
         createdAt={profile.created_at}
+      />
+      <CleanaPlusCard
+        connected={cleanaPlus.connected}
+        connectedAt={cleanaPlus.connected ? cleanaPlus.connectedAt : null}
+        accountLabel={cleanaPlus.connected ? cleanaPlus.accountLabel : null}
+        result={cleanaPlusResult ?? null}
       />
     </div>
   );

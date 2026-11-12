@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { profileEditSchema } from "@/lib/validation/profile";
+import { deleteCleanaPlusConnection, getCleanaPlusToken } from "@/lib/cleana-plus/connection";
+import { cleanaPlusConfig, revokeToken } from "@/lib/cleana-plus/oauth";
 
 export type UpdateProfileResult = { ok: true } | { ok: false; error: string };
 
@@ -42,6 +44,26 @@ export async function updateOwnProfile(formValues: unknown): Promise<UpdateProfi
   if (error) {
     return { ok: false, error: "שמירת הפרטים נכשלה. נסו שוב." };
   }
+
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
+export type DisconnectCleanaPlusResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * ניתוק Cleana+ מצד Cleana. מבטל את המפתח ב-Cleana+ (best-effort) ומוחק
+ * אותו אצלנו. גם אם Cleana+ לא עונה — המפתח נמחק כאן, כך שאף אחד לא מחזיק בו.
+ */
+export async function disconnectCleanaPlus(): Promise<DisconnectCleanaPlusResult> {
+  const { userId } = await requireTherapistProfile();
+
+  const token = await getCleanaPlusToken(userId);
+  const config = cleanaPlusConfig();
+  if (token && config) await revokeToken(config, token);
+
+  const deleted = await deleteCleanaPlusConnection(userId);
+  if (!deleted) return { ok: false, error: "הניתוק נכשל. נסו שוב." };
 
   revalidatePath("/profile");
   return { ok: true };
