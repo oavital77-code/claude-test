@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openSlotsInCleanaPlus, type OpenSlotsRequest } from "./slots";
+import { bookedInCleanaPlus, closeSlotsInCleanaPlus, openSlotsInCleanaPlus, type OpenSlotsRequest } from "./slots";
 
 const CONFIG = { baseUrl: "https://plus.example", clientSecret: "s" };
 const REQUEST: OpenSlotsRequest = {
@@ -74,5 +74,35 @@ describe("openSlotsInCleanaPlus", () => {
     fetchMock = reply(200, {});
     await openSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST);
     expect(fetchMock.mock.calls[0][1].headers["x-vercel-protection-bypass"]).toBe("b");
+  });
+});
+
+describe("bookedInCleanaPlus / closeSlotsInCleanaPlus", () => {
+  it("asks for one booking's booked times", async () => {
+    const fetchMock = reply(200, { booked: ["2030-01-15T13:00:00.000Z"] });
+    expect(await bookedInCleanaPlus(CONFIG, "clp_tok", REQUEST.bookingId)).toEqual({
+      status: "ok",
+      times: ["2030-01-15T13:00:00.000Z"],
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `https://plus.example/api/integrations/cleana/slots?bookingId=${REQUEST.bookingId}`,
+    );
+  });
+
+  it("closes, and reads what was closed and what has no room now", async () => {
+    const fetchMock = reply(200, { closed: 2, noRoom: ["2030-01-15T13:00:00.000Z"] });
+    expect(await closeSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST.bookingId)).toEqual({
+      status: "closed",
+      closed: 2,
+      noRoom: ["2030-01-15T13:00:00.000Z"],
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ bookingId: REQUEST.bookingId });
+  });
+
+  it("reports a revoked link and an outage without throwing", async () => {
+    reply(401);
+    expect(await closeSlotsInCleanaPlus(CONFIG, "clp_tok", REQUEST.bookingId)).toEqual({ status: "revoked" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("down")));
+    expect(await bookedInCleanaPlus(CONFIG, "clp_tok", REQUEST.bookingId)).toEqual({ status: "failed" });
   });
 });

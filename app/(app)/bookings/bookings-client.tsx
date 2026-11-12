@@ -10,7 +10,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Database } from "@/lib/supabase/types";
 import { GRID_END_HOUR, GRID_START_HOUR, addDaysToDateStr, israelDateTime, todayInIsrael } from "@/lib/availability/grid";
-import { cancelBookingAction, rescheduleBookingAction } from "./actions";
+import { cancelBookingAction, cleanaPlusWarningForBooking, rescheduleBookingAction } from "./actions";
+import { cleanaPlusWarningText } from "@/lib/cleana-plus/warning";
 import { isInProgress, splitBookings } from "@/lib/bookings/split";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -94,10 +95,13 @@ function BookingCard({ booking, policy }: { booking: BookingWithRoom; policy: Po
     const warning = withinCancelWindow
       ? `הביטול בתוך ${windowLabel} מהמועד — השעות לא יוחזרו ליתרה. להמשיך?`
       : "לבטל את ההזמנה? השעות יוחזרו ליתרה.";
-    if (!window.confirm(warning)) return;
-
     setLoading(true);
     setError(null);
+    const plusWarning = cleanaPlusWarningText(await cleanaPlusWarningForBooking(booking.id).catch(() => ({ status: "unknown" as const })), "therapist");
+    setLoading(false);
+    if (!window.confirm(plusWarning ? `${plusWarning}\n\n${warning}` : warning)) return;
+
+    setLoading(true);
     const result = await cancelBookingAction(booking.id);
     setLoading(false);
     if (!result.ok) {
@@ -217,6 +221,11 @@ function RescheduleForm({
     }
     setSaving(true);
     setError(null);
+    const plusWarning = cleanaPlusWarningText(await cleanaPlusWarningForBooking(booking.id).catch(() => ({ status: "unknown" as const })), "therapist");
+    if (plusWarning && !window.confirm(`${plusWarning}\n\nלשנות בכל זאת?`)) {
+      setSaving(false);
+      return;
+    }
     const res = await rescheduleBookingAction({
       bookingId: booking.id,
       roomId,

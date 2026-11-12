@@ -1,5 +1,12 @@
 "use server";
 
+import {
+  bookingOwner,
+  cleanaPlusBookedTimes,
+  closeCleanaPlusForBooking,
+  moveCleanaPlusForBooking,
+  type CleanaPlusBookedTimes,
+} from "@/lib/cleana-plus/sync";
 import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
@@ -128,7 +135,23 @@ export async function adminEditBookingAction(
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
   // מפגש ססיה שזז מקבל מזהה חדש — ה-RPC מחזיר את מזהה ההזמנה בפועל.
   after(() => notifyBookingPlaced(supabase, newBookingId ?? bookingId, "rescheduled").catch(() => {}));
+  // המשבצות ב-Cleana+ זזות עם ההזמנה (רק אם נפתחו שם).
+  after(async () => {
+    const owner = await bookingOwner(newBookingId ?? bookingId);
+    if (owner) await moveCleanaPlusForBooking(owner, bookingId, newBookingId ?? bookingId);
+  });
   return { ok: true };
+}
+
+/**
+ * לפני ביטול/עריכה ע"י אדמין: האם למטפל/ת יש תורים שנקבעו ב-Cleana+ בשעות
+ * האלה. שעות בלבד — האדמין לא רואה מי הלקוחות.
+ */
+export async function adminCleanaPlusWarning(bookingId: string): Promise<CleanaPlusBookedTimes> {
+  await requireAdmin();
+  const owner = await bookingOwner(bookingId);
+  if (!owner) return { status: "none" };
+  return cleanaPlusBookedTimes(owner, bookingId);
 }
 
 export async function adminCancelBookingAction(bookingId: string, refundHours: boolean): Promise<ActionResult> {
@@ -144,6 +167,12 @@ export async function adminCancelBookingAction(bookingId: string, refundHours: b
     p_refund_hours: refundHours,
   });
   if (error) return { ok: false, error: bookingErrorMessage(error.message) };
+
+  // החדר בוטל — סגירה ב-Cleana+ של בעל/ת ההזמנה (תור שנקבע מסומן "אין חדר").
+  after(async () => {
+    const owner = await bookingOwner(bookingId);
+    if (owner) await closeCleanaPlusForBooking(owner, bookingId);
+  });
 
   // מייל ביטול רק להזמנה שהמטפל/ת קבע/ה בעצמו/ה. שיבוץ שהאדמין פרס (שיבוץ
   // ידני, מפגש ססיה, או כרטיסייה שקוזזה בהעברה מ-Skedda — admin_note מסומן)

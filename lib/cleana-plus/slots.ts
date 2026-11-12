@@ -81,3 +81,60 @@ export async function openSlotsInCleanaPlus(
     return { status: "failed" };
   }
 }
+
+export type BookedCheck = { status: "ok"; times: string[] } | { status: "revoked" } | { status: "failed" };
+
+/** אילו משבצות של ההזמנה לקוח/ה כבר קבע/ה ב-Cleana+. שעות בלבד, בלי שמות. */
+export async function bookedInCleanaPlus(
+  config: CleanaPlusConfig,
+  accessToken: string,
+  bookingId: string,
+): Promise<BookedCheck> {
+  try {
+    const url = new URL("/api/integrations/cleana/slots", config.baseUrl);
+    url.searchParams.set("bookingId", bookingId);
+    const res = await fetch(url, {
+      headers: { authorization: `Bearer ${accessToken}`, ...bypassHeaders() },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (res.status === 401) return { status: "revoked" };
+    if (!res.ok) return { status: "failed" };
+    const body = (await res.json()) as { booked?: unknown };
+    return { status: "ok", times: stringArray(body.booked) };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+export type CloseOutcome =
+  | { status: "closed"; closed: number; noRoom: string[] }
+  | { status: "revoked" }
+  | { status: "failed" };
+
+/** החדר בוטל או הוזז: סגירת המשבצות הפנויות, וסימון "אין חדר" על תורים שנקבעו. */
+export async function closeSlotsInCleanaPlus(
+  config: CleanaPlusConfig,
+  accessToken: string,
+  bookingId: string,
+): Promise<CloseOutcome> {
+  try {
+    const res = await fetch(new URL("/api/integrations/cleana/slots/close", config.baseUrl), {
+      method: "POST",
+      headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json", ...bypassHeaders() },
+      body: JSON.stringify({ bookingId }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (res.status === 401) return { status: "revoked" };
+    if (!res.ok) return { status: "failed" };
+    const body = (await res.json()) as { closed?: unknown; noRoom?: unknown };
+    return {
+      status: "closed",
+      closed: typeof body.closed === "number" ? body.closed : 0,
+      noRoom: stringArray(body.noRoom),
+    };
+  } catch {
+    return { status: "failed" };
+  }
+}
