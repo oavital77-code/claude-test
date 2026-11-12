@@ -2,6 +2,7 @@ import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { BookingsClient, type BookingWithRoom } from "./bookings-client";
 import { CalendarSyncLink } from "./calendar-sync-link";
+import { getCleanaPlusStatus } from "@/lib/cleana-plus/connection";
 
 export default async function BookingsPage() {
   const { userId, profile } = await requireTherapistProfile();
@@ -36,10 +37,11 @@ export default async function BookingsPage() {
 
   // חלון הביטול/השינוי וטווח ההזמנה — מ-app_settings, אותם ערכים שה-RPCs
   // אוכפים (cancel_booking / reschedule_booking / create_booking).
-  const [{ data: settings }, { data: activeRooms }, { data: allBranches }] = await Promise.all([
+  const [{ data: settings }, { data: activeRooms }, { data: allBranches }, cleanaPlus] = await Promise.all([
     supabase.from("app_settings").select("key, value").in("key", ["cancel_window_hours", "booking_horizon_days"]),
     supabase.from("rooms").select("id, name, branch_id, sort_order").eq("active", true).order("sort_order"),
     supabase.from("branches").select("id, name"),
+    getCleanaPlusStatus(userId).catch(() => ({ connected: false })),
   ]);
   const setting = (key: string, fallback: number) => {
     const raw = settings?.find((s) => s.key === key)?.value;
@@ -61,6 +63,7 @@ export default async function BookingsPage() {
         cancelWindowHours={setting("cancel_window_hours", 24)}
         horizonDays={setting("booking_horizon_days", 30)}
         roomOptions={roomOptions}
+        cleanaPlusConnected={cleanaPlus.connected}
       />
     </div>
   );

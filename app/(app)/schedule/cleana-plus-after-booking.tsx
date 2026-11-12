@@ -32,7 +32,8 @@ async function attempt(bookingId: string): Promise<OpenInCleanaPlusResult> {
   }
 }
 
-function OpenSlots({ bookingId }: { bookingId: string }) {
+/** פתיחה ותוצאה — גם אחרי קביעה וגם מהכפתור ב"ההזמנות שלי". */
+export function OpenSlots({ bookingId }: { bookingId: string }) {
   // null = עדיין פותחים.
   const [result, setResult] = useState<OpenInCleanaPlusResult | null>(null);
 
