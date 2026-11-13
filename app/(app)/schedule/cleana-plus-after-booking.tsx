@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { Button } from "@/components/ui/button";
 import { TIMEZONE } from "@/lib/time";
+import { previewSlots } from "@/lib/cleana-plus/preview";
 import { openBookingInCleanaPlus, type OpenInCleanaPlusResult } from "./actions";
 
 // אחרי אישור הזמנה (סנכרון Cleana ↔ Cleana+, שלב 2):
@@ -19,8 +20,19 @@ function CleanaPlusName() {
   return <span dir="ltr">Cleana+</span>;
 }
 
-export function CleanaPlusAfterBooking({ bookingId, connected }: { bookingId: string; connected: boolean }) {
-  if (!connected) return <ConnectCta />;
+export function CleanaPlusAfterBooking({
+  bookingId,
+  connected,
+  startsAt,
+  endsAt,
+}: {
+  bookingId: string;
+  connected: boolean;
+  /** שעות ההזמנה שנקבעה הרגע — לתצוגה המקדימה למי שלא מחובר/ת. */
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  if (!connected) return <ConnectCta startsAt={startsAt} endsAt={endsAt} />;
   return <OpenSlots bookingId={bookingId} />;
 }
 
@@ -175,7 +187,7 @@ function readHidden(): boolean {
 
 const noSubscription = () => () => {};
 
-function ConnectCta() {
+function ConnectCta({ startsAt, endsAt }: { startsAt?: Date; endsAt?: Date }) {
   // בשרת: מוסתר, כדי שלא יהבהב למי שכבר ביקש/ה לא להציג.
   const storedHidden = useSyncExternalStore(noSubscription, readHidden, () => true);
   const [dismissed, setDismissed] = useState(false);
@@ -191,6 +203,41 @@ function ConnectCta() {
     }
   }
 
+  const dismissLink = (
+    <button type="button" onClick={dismiss} className="hover:text-foreground">
+      לא להציג שוב
+    </button>
+  );
+  // מיד אחרי קביעה: לא "יש מוצר", אלא מה היה קורה עם השעות שנקבעו הרגע.
+  const slots = startsAt && endsAt ? previewSlots(startsAt, endsAt) : [];
+  if (slots.length > 0) {
+    return (
+      <div className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-3.5 py-3 text-[13px]">
+        <span className="font-semibold text-foreground">
+          עם <CleanaPlusName />{" "}
+          {slots.length === 1 ? "היה נפתח עכשיו תור אחד ללקוחות שלך:" : `היו נפתחים עכשיו ${slots.length} תורים ללקוחות שלך:`}
+        </span>
+        <span dir="ltr" className="flex flex-wrap justify-end gap-1.5">
+          {slots.map((slot) => (
+            <span
+              key={slot.startsAt.toISOString()}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs tabular-nums text-emerald-800"
+            >
+              {formatInTimeZone(slot.startsAt, TIMEZONE, "HH:mm")}–{formatInTimeZone(slot.endsAt, TIMEZONE, "HH:mm")}
+            </span>
+          ))}
+        </span>
+        <span className="text-muted-foreground">לקוחות קובעים בעצמם בקישור אישי, בלי להקליד את השעות פעמיים.</span>
+        <span className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <a href="/api/cleana-plus/connect" className="font-semibold text-violet-600 underline">
+            חיבור ב-30 שניות (30 יום ניסיון חינם)
+          </a>
+          {dismissLink}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
       <span>
@@ -200,9 +247,7 @@ function ConnectCta() {
         <a href="/api/cleana-plus/connect" className="font-medium text-violet-600 underline">
           פתיחת חשבון וחיבור (30 יום ניסיון חינם)
         </a>
-        <button type="button" onClick={dismiss} className="hover:text-foreground">
-          לא להציג שוב
-        </button>
+        {dismissLink}
       </span>
     </div>
   );

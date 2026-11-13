@@ -660,7 +660,12 @@ function SlotPreview({
           <p className="text-emerald-600 dark:text-emerald-400">
             ההזמנה אושרה! יתרה לאחר ההזמנה: {confirmed.hoursRemaining} שעות.
           </p>
-          <CleanaPlusAfterBooking bookingId={confirmed.bookingId} connected={confirmed.cleanaPlusConnected} />
+          <CleanaPlusAfterBooking
+            bookingId={confirmed.bookingId}
+            connected={confirmed.cleanaPlusConnected}
+            startsAt={start}
+            endsAt={end}
+          />
           <Button size="sm" onClick={onBooked}>
             סגירה
           </Button>
