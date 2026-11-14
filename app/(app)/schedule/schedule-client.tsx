@@ -33,6 +33,7 @@ import type { Slot } from "@/lib/availability/grid";
 import { Button } from "@/components/ui/button";
 import { useBottomSheet } from "@/components/ui/use-bottom-sheet";
 import { AvailabilityGrid, Legend, SESSION_COLOR, CARD_COLOR, type GridColumn } from "./availability-grid";
+import { TimeGrid } from "./time-grid";
 import { ROOM_TYPE_LABELS, roomTypeLabel } from "@/lib/rooms";
 import { bookSlot } from "./actions";
 import { CleanaPlusAfterBooking } from "./cleana-plus-after-booking";
@@ -59,12 +60,16 @@ export function ScheduleClient({
   userId,
   fullName,
   holidays,
+  timeGrid = false,
 }: {
   branches: Branch[];
   userId: string;
   fullName: string;
   holidays: HolidayMap;
+  /** הלוח החדש (גרירה ומתיחה) — רק כשהופעל ב-app_settings.schedule_time_grid. */
+  timeGrid?: boolean;
 }) {
+  const [dragging, setDragging] = useState(false);
   const supabase = useMemo(() => createClient(), []);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
   const [view, setView] = useState<View>("day");
@@ -271,6 +276,20 @@ export function ScheduleClient({
     setSelected({ columnKey, roomId, roomName, roomDescription, start, end });
   }
 
+  /** הלוח החדש: הטווח כבר מחושב (וכבר נבדק שפנוי) — רק ממלאים את פרטי החדר. */
+  function selectRange(columnKey: string, start: Date, end: Date) {
+    const roomId = view === "day" ? columnKey : selectedRoomId;
+    const room = rooms.find((r) => r.id === roomId);
+    setSelected({
+      columnKey,
+      roomId,
+      roomName: room?.name ?? "",
+      roomDescription: room?.description ?? null,
+      start,
+      end,
+    });
+  }
+
   /**
    * תצוגה חודשית: לפי חוק ברזל #3 מטפל/ת לא רואה מי הזמין מה — לכן, בניגוד
    * ללוח האדמין, לכל יום מוצגות רק ההזמנות *שלי* (זמן+חדר, כמו ביום/שבוע)
@@ -445,12 +464,33 @@ export function ScheduleClient({
 
       {view !== "month" && (
         <>
-          <p className="text-sm text-muted-foreground">
-            לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
-            ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
-          </p>
+          {timeGrid ? (
+            <p className="text-sm text-muted-foreground">
+              לחצו על זמן <span className="font-medium text-foreground">פנוי</span> כדי לקבוע תור. גוררים את
+              המסגרת כדי להזיז, ומותחים מהפסים שלמעלה ולמטה כדי להאריך או לקצר.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              לחצו על משבצת <span className="font-medium text-foreground">פנויה</span> כדי לקבוע תור. אפשר
+              ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
+            </p>
+          )}
           <Legend statuses={["free", "mine", "blocked"]} />
 
+          {timeGrid ? (
+            <TimeGrid
+              columns={columns.map((c) => ({
+                ...c,
+                dateStr: view === "day" ? date : c.key,
+                roomId: view === "day" ? c.key : selectedRoomId,
+              }))}
+              intervalsFor={(c) => intervalsFor(c.key, c.roomId)}
+              fullName={fullName}
+              selected={selected}
+              onSelect={selectRange}
+              onDraggingChange={setDragging}
+            />
+          ) : (
           <AvailabilityGrid
             columns={columns}
             slots={slots}
@@ -468,6 +508,7 @@ export function ScheduleClient({
               return start >= selected.start && end <= selected.end;
             }}
           />
+          )}
         </>
       )}
 
@@ -555,7 +596,14 @@ export function ScheduleClient({
         // ימשיכו להגיע למשבצות — כך אפשר להמשיך ולהרחיב את הבחירה בזמן
         // שהכרטיס פתוח, ולא רק לבטל אותו. הכרטיס עצמו קבוע בתחתית המסך כדי
         // שיישאר גלוי גם בלוח יום ארוך (48 שורות) בלי תלות בגלילה.
-        <div ref={sheetRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
+        <div
+          ref={sheetRef}
+          className={cn(
+            "pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 transition-transform duration-200 motion-reduce:transition-none",
+            // בזמן גרירת מסגרת בלוח החדש הכרטיס יורד, כדי שכל היום פנוי לגרירה.
+            dragging && "translate-y-full",
+          )}
+        >
           <div className="pointer-events-auto w-full max-w-sm shadow-e2">
             {/* key: כל בחירה חדשה (חדר/שעות) מקבלת כרטיס חדש. בלי זה מצב
                 "ההזמנה אושרה" או שגיאה מהבחירה הקודמת עבר לבחירה הבאה — מטפלת
