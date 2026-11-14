@@ -240,7 +240,7 @@ export function TimeGrid({
               dir="ltr"
               className={cn(
                 "absolute end-1.5 text-[10px] leading-none text-muted-foreground tabular-nums",
-                i === 0 ? "top-1" : "-translate-y-1/2",
+                i === 0 ? "top-1" : i === hours.length - 1 ? "-translate-y-full" : "-translate-y-1/2",
               )}
               style={i === 0 ? undefined : { top: (hour * 60 - DAY_START) / 60 * hourHeight }}
             >
@@ -285,12 +285,12 @@ export function TimeGrid({
             const ghostBox = isSelectedCol ? place(selectedSpan.start, selectedSpan.end, hourHeight) : null;
             const short = ghostBox ? ghostBox.height < 40 : false;
             return (
-              <div key={col.key} className={cn("relative border-l border-border last:border-l-0", FREE_BG)} style={{ height }}>
+              <div key={col.key} className={cn("relative border-l border-emerald-300 last:border-l-0 dark:border-emerald-800", FREE_BG)} style={{ height }}>
                 {hours.map((hour) => (
                   <div
                     key={hour}
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 border-t border-border"
+                    className="pointer-events-none absolute inset-x-0 border-t border-emerald-300 dark:border-emerald-800"
                     style={{ top: ((hour * 60 - DAY_START) / 60) * hourHeight }}
                   />
                 ))}
@@ -298,7 +298,7 @@ export function TimeGrid({
                   <div
                     key={`half-${hour}`}
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 border-t border-dashed border-border/60"
+                    className="pointer-events-none absolute inset-x-0 border-t border-dashed border-emerald-300/60 dark:border-emerald-900"
                     style={{ top: ((hour * 60 + 30 - DAY_START) / 60) * hourHeight }}
                   />
                 ))}
