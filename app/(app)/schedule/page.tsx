@@ -2,28 +2,8 @@ import { requireTherapistProfile } from "@/lib/auth/guards";
 import { createClient } from "@/lib/supabase/server";
 import { fetchBranches } from "@/lib/availability/queries";
 import { holidaysForSchedule } from "@/lib/holidays";
+import { timeGridEnabled } from "@/lib/schedule/flag";
 import { ScheduleClient } from "./schedule-client";
-
-/**
- * מתג ללוח החדש (גרירה ומתיחה), בלי העלאה: app_settings.schedule_time_grid.
- *   "all"                  → לכולם
- *   { "users": ["<uuid>"] } → רק למשתמשים האלה
- * כל ערך אחר, מפתח חסר או שגיאת קריאה → הלוח הקיים. כיבוי = מחיקת השורה.
- */
-async function timeGridEnabled(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  try {
-    const { data } = await supabase.from("app_settings").select("value").eq("key", "schedule_time_grid").maybeSingle();
-    const value = data?.value;
-    if (value === "all") return true;
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const users = (value as { users?: unknown }).users;
-      return Array.isArray(users) && users.includes(userId);
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
 
 export default async function SchedulePage() {
   const { userId, profile } = await requireTherapistProfile();

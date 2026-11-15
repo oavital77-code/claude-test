@@ -55,8 +55,10 @@ export async function middleware(request: NextRequest) {
 // וכולן שילמו עד היום את אותו round-trip בלי צורך.
 // בונוס: /icon, /apple-icon ו-/manifest.webmanifest יושבים ב-app/ (לא בתוך
 // (admin)), אז ה-rewrite לפי host היה שולח אותם ב-admin ל-/admin/icon שלא קיים.
+// /whats-new/ — הסרטון של הודעת "מה חדש" (public/whats-new): הדפדפן מוריד
+// אותו בכמה בקשות range, ואין סיבה לרענן session על כל אחת.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api|sw\\.js|manifest\\.webmanifest|icon|apple-icon).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api|sw\\.js|manifest\\.webmanifest|icon|apple-icon|whats-new/).*)",
   ],
 };

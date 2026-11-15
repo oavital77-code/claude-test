@@ -18,13 +18,15 @@ const loadAuthState = cache(async (): Promise<{
   userId: string | null;
   profile: Profile | null;
   mustChangePassword: boolean;
+  /** מפתח הודעת "מה חדש" האחרונה שנסגרה (lib/whats-new.ts). */
+  whatsNewSeen: string | null;
 }> => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { userId: null, profile: null, mustChangePassword: false };
+  if (!user) return { userId: null, profile: null, mustChangePassword: false, whatsNewSeen: null };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -37,6 +39,7 @@ const loadAuthState = cache(async (): Promise<{
     profile: profile ?? null,
     // סיסמה זמנית שאדמין קבע (setTemporaryPasswordAction) — חובה להחליף.
     mustChangePassword: user.user_metadata?.must_change_password === true,
+    whatsNewSeen: typeof user.user_metadata?.whats_new_seen === "string" ? user.user_metadata.whats_new_seen : null,
   };
 });
 
@@ -75,5 +78,10 @@ export async function getAuthState(): Promise<{
   userId: string | null;
   profile: Profile | null;
 }> {
+  return loadAuthState();
+}
+
+/** ל-layout של ממשק המטפלים: האם להציג את הודעת "מה חדש" (בלי להפנות לשום מקום). */
+export async function getShellState() {
   return loadAuthState();
 }
