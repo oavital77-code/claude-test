@@ -1,7 +1,6 @@
 import "server-only";
-import type { createClient } from "@/lib/supabase/server";
-
-type Client = Awaited<ReturnType<typeof createClient>>;
+import { cache } from "react";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * מתג ללוח החדש (גרירה ומתיחה) ולהודעת "מה חדש" שמסבירה אותו, בלי העלאה:
@@ -9,9 +8,12 @@ type Client = Awaited<ReturnType<typeof createClient>>;
  *   "all"                   → לכולם
  *   { "users": ["<uuid>"] } → רק למשתמשים האלה
  * כל ערך אחר, מפתח חסר או שגיאת קריאה → כבוי (הלוח הקיים, בלי הודעה).
+ *
+ * cache(): ה-layout וה-page של /schedule שואלים באותה בקשה — קריאה אחת ל-DB.
  */
-export async function timeGridEnabled(supabase: Client, userId: string): Promise<boolean> {
+export const timeGridEnabled = cache(async (userId: string): Promise<boolean> => {
   try {
+    const supabase = await createClient();
     const { data } = await supabase.from("app_settings").select("value").eq("key", "schedule_time_grid").maybeSingle();
     const value = data?.value;
     if (value === "all") return true;
@@ -23,4 +25,4 @@ export async function timeGridEnabled(supabase: Client, userId: string): Promise
   } catch {
     return false;
   }
-}
+});

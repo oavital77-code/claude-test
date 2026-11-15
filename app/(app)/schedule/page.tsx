@@ -8,7 +8,7 @@ import { ScheduleClient } from "./schedule-client";
 export default async function SchedulePage() {
   const { userId, profile } = await requireTherapistProfile();
   const supabase = await createClient();
-  const [branches, timeGrid] = await Promise.all([fetchBranches(supabase), timeGridEnabled(supabase, userId)]);
+  const [branches, timeGrid] = await Promise.all([fetchBranches(supabase), timeGridEnabled(userId)]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col p-4">
