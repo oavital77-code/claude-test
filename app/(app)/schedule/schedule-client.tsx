@@ -475,7 +475,7 @@ export function ScheduleClient({
               ללחוץ על עוד משבצות פנויות באותה עמודה כדי להאריך את ההזמנה.
             </p>
           )}
-          <Legend statuses={["free", "mine", "blocked"]} />
+          <Legend statuses={["free", "mine", "blocked"]} labels={timeGrid ? { blocked: "תפוס" } : undefined} />
 
           {timeGrid ? (
             <TimeGrid

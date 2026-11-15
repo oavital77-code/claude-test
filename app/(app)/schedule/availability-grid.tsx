@@ -49,10 +49,13 @@ const STATUS_TITLES: Record<SlotStatus, string> = {
  */
 export function Legend({
   statuses = ["free", "taken", "mine", "blocked"],
+  labels,
 }: {
   statuses?: SlotStatus[];
+  /** דריסת שם במקרא (הלוח החדש של המטפל/ת קורא ל"לא זמין" "תפוס"). */
+  labels?: Partial<Record<SlotStatus, string>>;
 }) {
-  const items = statuses.map((status) => ({ status, label: STATUS_TITLES[status] }));
+  const items = statuses.map((status) => ({ status, label: labels?.[status] ?? STATUS_TITLES[status] }));
   return (
     <div className="flex flex-wrap gap-4 text-sm">
       {items.map((item) => (

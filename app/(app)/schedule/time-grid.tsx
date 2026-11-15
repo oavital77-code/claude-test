@@ -321,7 +321,7 @@ export function TimeGrid({
                       className={cn("absolute inset-x-1 z-[2] overflow-hidden rounded-sm px-1.5 py-0.5", UNAVAILABLE)}
                       style={{ top: box.top + 1, height: box.height - 2 }}
                     >
-                      <span className="text-[10px] leading-none opacity-90 select-none">לא זמין</span>
+                      <span className="text-[10px] leading-none opacity-90 select-none">תפוס</span>
                     </div>
                   );
                 })}
@@ -358,7 +358,7 @@ export function TimeGrid({
                       )}
                       style={{ top: box.top + 1, height: box.height - 2 }}
                     >
-                      {hover.fits ? <span dir="ltr">+ {toTime(hover.start)}–{toTime(hover.end)}</span> : "לא זמין"}
+                      {hover.fits ? <span dir="ltr">+ {toTime(hover.start)}–{toTime(hover.end)}</span> : "תפוס"}
                     </div>
                   );
                 })()}
@@ -388,7 +388,7 @@ export function TimeGrid({
                         <i className={cn("rounded-full ring-2 ring-background", short ? "h-1 w-7" : "h-1.5 w-10", shown.fits ? "bg-primary" : "bg-zinc-400")} />
                       </span>
                       <span dir="ltr" className="pointer-events-none leading-none whitespace-nowrap">
-                        {shown.fits ? `${toTime(shown.start)}–${toTime(shown.end)}` : "לא זמין"}
+                        {shown.fits ? `${toTime(shown.start)}–${toTime(shown.end)}` : "תפוס"}
                       </span>
                       <span
                         data-edge="end"
