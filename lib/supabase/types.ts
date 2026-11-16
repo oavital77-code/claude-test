@@ -726,11 +726,12 @@ export type Database = {
           p_start_time: string;
           p_end_time: string;
           p_from: string;
+          p_until?: string | null;
         };
         Returns: { cancelled: number; conflicts: number }[];
       };
       admin_session_remove_slot: {
-        Args: { p_slot_id: string; p_from: string };
+        Args: { p_slot_id: string; p_from: string; p_until?: string | null };
         Returns: number;
       };
       admin_session_add_slot_from: {
@@ -741,6 +742,7 @@ export type Database = {
           p_start_time: string;
           p_end_time: string;
           p_from: string;
+          p_until?: string | null;
         };
         Returns: { conflicts: number }[];
       };

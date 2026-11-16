@@ -27,11 +27,14 @@ const slotFields = {
   startTime: time,
   endTime: time,
   from: date,
+  /** אופציונלי: עד תאריך (כולל). בלי — ללא סיום, כמו קודם. */
+  until: date.nullable().optional(),
 };
 
 const MESSAGES: Record<string, string> = {
   INVALID_SUBSCRIPTION_STATUS: "הססיה כבר לא פעילה.",
   INVALID_START_DATE: "התאריך חייב להיות היום או מאוחר יותר.",
+  INVALID_END_DATE: "תאריך הסיום חייב להיות אחרי תאריך ההתחלה.",
   INVALID_SLOT: "המשבצת לא תקינה — שעות בחצאי שעה, וסיום אחרי התחלה.",
 };
 
@@ -153,6 +156,7 @@ export async function changeSlotAction(input: unknown): Promise<ManageResult> {
     p_start_time: d.startTime,
     p_end_time: d.endTime,
     p_from: d.from,
+    p_until: d.until ?? null,
   });
   if (error) return { ok: false, error: errorText(error.message) };
   return done(conflictNote(data?.[0]?.conflicts ?? 0));
@@ -160,12 +164,15 @@ export async function changeSlotAction(input: unknown): Promise<ManageResult> {
 
 export async function removeSlotAction(input: unknown): Promise<ManageResult> {
   await requireAdmin();
-  const parsed = z.object({ slotId: z.string().uuid(), from: date }).safeParse(input);
+  const parsed = z
+    .object({ slotId: z.string().uuid(), from: date, until: date.nullable().optional() })
+    .safeParse(input);
   if (!parsed.success) return { ok: false, error: "קלט לא תקין" };
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_session_remove_slot", {
     p_slot_id: parsed.data.slotId,
     p_from: parsed.data.from,
+    p_until: parsed.data.until ?? null,
   });
   if (error) return { ok: false, error: errorText(error.message) };
   return done();
@@ -184,6 +191,7 @@ export async function addSlotAction(input: unknown): Promise<ManageResult> {
     p_start_time: d.startTime,
     p_end_time: d.endTime,
     p_from: d.from,
+    p_until: d.until ?? null,
   });
   if (error) return { ok: false, error: errorText(error.message) };
   return done(conflictNote(data?.[0]?.conflicts ?? 0));
