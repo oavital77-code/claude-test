@@ -55,6 +55,31 @@ function dateLabel(d: string) {
   return formatDateHe(new Date(`${d}T12:00:00`));
 }
 
+/** התאריך המוקדם מבין השניים (null = בלי סוף). */
+function minDate(a: string | null, b: string | null) {
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
+/**
+ * כמה מפגשים קרובים של המשבצת הזו נופלים בטווח [from, until] — לתצוגה לפני
+ * שמירה. "קרובים" = מה שהעמוד טוען (8 שבועות), לכן זה מספר מינימלי.
+ */
+function slotOccurrencesInRange(sub: ManagedSubscription, slot: Slot, from: string, until: string | null) {
+  const lo = dayBoundaries(from).start.toISOString();
+  const hi = until ? dayBoundaries(until).end.toISOString() : null;
+  return sub.upcoming.filter(
+    (b) =>
+      b.room_id === slot.room_id &&
+      b.starts_at >= lo &&
+      (!hi || b.starts_at < hi) &&
+      new Date(b.starts_at).toLocaleDateString("en-US", { timeZone: "Asia/Jerusalem", weekday: "short" }) ===
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][slot.weekday] &&
+      formatTimeHe(new Date(b.starts_at)) === hhmm(slot.start_time),
+  ).length;
+}
+
 /** ISO של תאריך+שעה בשעון ישראל — דרך israelDateTime (נכון גם ביום מעבר שעון). */
 function israelIso(date: string, time: string) {
   return israelDateTime(date, time).toISOString();
@@ -321,7 +346,12 @@ function SlotRow({
 }) {
   const [mode, setMode] = useState<null | "edit" | "remove">(null);
   const [from, setFrom] = useState(slot.valid_from && slot.valid_from > today ? slot.valid_from : today);
+  const [until, setUntil] = useState("");
   const { busy, error, notice, run } = useAction();
+  // תחילת המשבצת בפועל: המאוחר מבין תחילת המשבצת לתחילת הססיה.
+  const effectiveFrom =
+    slot.valid_from && sub.start_date ? (slot.valid_from > sub.start_date ? slot.valid_from : sub.start_date) : (slot.valid_from ?? sub.start_date);
+  const affected = mode ? slotOccurrencesInRange(sub, slot, from, until || null) : 0;
   const { guard, checking, panel } = useConflictGuard();
 
   return (
@@ -330,10 +360,11 @@ function SlotRow({
         <span>
           <span className="font-medium">יום {WEEKDAY_LABELS[slot.weekday]}</span> · {hhmm(slot.start_time)}–
           {hhmm(slot.end_time)} · {roomName.get(slot.room_id) ?? "חדר"}
-          {slot.valid_from && slot.valid_from > today && (
-            <span className="text-muted-foreground"> · מ-{dateLabel(slot.valid_from)}</span>
-          )}
-          {slot.valid_until && <span className="text-muted-foreground"> · עד {dateLabel(slot.valid_until)}</span>}
+          <span className="text-muted-foreground">
+            {" "}
+            · {effectiveFrom ? `מ-${dateLabel(effectiveFrom)}` : ""}{" "}
+            {slot.valid_until ? `עד ${dateLabel(slot.valid_until)}` : "· ללא סיום"}
+          </span>
         </span>
         <span className="flex gap-1">
           <Button size="sm" variant="ghost" onClick={() => setMode(mode === "edit" ? null : "edit")}>
@@ -351,17 +382,33 @@ function SlotRow({
           roomOptions={roomOptions}
           from={from}
           setFrom={setFrom}
+          until={until}
+          setUntil={setUntil}
+          untilHint="אחרי תאריך הסיום חוזרים אוטומטית למשבצת המקורית."
           today={today}
           submitLabel="שמירת השינוי"
           busy={busy || checking}
           onSubmit={(draft) =>
             guard(
               // מפגשי הססיה הזו עצמה לא נחשבים התנגשות — הישנים מבוטלים מהתאריך.
-              { slots: [draft], from, until: sub.effective_end_date, userId: sub.user_id, excludeSubscriptionId: sub.id },
-              () => run(() => changeSlotAction({ slotId: slot.id, ...draft, from }), () => setMode(null)),
+              {
+                slots: [draft],
+                from,
+                until: minDate(until || null, sub.effective_end_date),
+                userId: sub.user_id,
+                excludeSubscriptionId: sub.id,
+              },
+              () => run(() => changeSlotAction({ slotId: slot.id, ...draft, from, until: until || null }), () => setMode(null)),
             )
           }
         />
+      )}
+      {mode && (
+        <p className="text-xs text-muted-foreground">
+          {until
+            ? `ישתנו/יבוטלו ${affected} מפגשים קרובים בין ${dateLabel(from)} ל-${dateLabel(until)}. מה שאחרי ${dateLabel(until)} לא משתנה.`
+            : `ישתנו/יבוטלו ${affected} מפגשים קרובים מ-${dateLabel(from)} והלאה, בלי תאריך סיום.`}
+        </p>
       )}
       {panel}
       {mode === "remove" && (
@@ -370,14 +417,21 @@ function SlotRow({
             <Label className="text-xs">להסיר החל מ-</Label>
             <DateInput min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-52" />
           </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">עד תאריך (לא חובה)</Label>
+            <DateInput min={from} value={until} onChange={(e) => setUntil(e.target.value)} className="w-52" />
+          </div>
           <Button
             size="sm"
             variant="destructive"
-            disabled={busy}
-            onClick={() => run(() => removeSlotAction({ slotId: slot.id, from }), () => setMode(null))}
+            disabled={busy || (!!until && until < from)}
+            onClick={() => run(() => removeSlotAction({ slotId: slot.id, from, until: until || null }), () => setMode(null))}
           >
-            {busy ? "מסיר..." : "הסרת המשבצת"}
+            {busy ? "מסיר..." : until ? "השהיית המשבצת" : "הסרת המשבצת"}
           </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            עם תאריך סיום — השהיה: אחריו המשבצת חוזרת לבד. בלי — הסרה עד סוף הססיה.
+          </p>
         </div>
       )}
       <Feedback error={error} notice={notice} />
@@ -390,6 +444,9 @@ function SlotForm({
   roomOptions,
   from,
   setFrom,
+  until,
+  setUntil,
+  untilHint,
   today,
   submitLabel,
   busy,
@@ -399,6 +456,9 @@ function SlotForm({
   roomOptions: RoomOption[];
   from: string;
   setFrom: (v: string) => void;
+  until: string;
+  setUntil: (v: string) => void;
+  untilHint: string;
   today: string;
   submitLabel: string;
   busy: boolean;
@@ -412,9 +472,14 @@ function SlotForm({
         <Label className="text-xs">החל מתאריך</Label>
         <DateInput min={today} value={from} onChange={(e) => setFrom(e.target.value)} className="w-52" />
       </div>
-      <Button size="sm" disabled={busy} onClick={() => onSubmit(draft)}>
+      <div className="flex flex-col gap-1">
+        <Label className="text-xs">עד תאריך (לא חובה)</Label>
+        <DateInput min={from} value={until} onChange={(e) => setUntil(e.target.value)} className="w-52" />
+      </div>
+      <Button size="sm" disabled={busy || (!!until && until < from)} onClick={() => onSubmit(draft)}>
         {busy ? "שומר..." : submitLabel}
       </Button>
+      <p className="w-full text-xs text-muted-foreground">{untilHint} בלי תאריך סיום — ללא סיום.</p>
     </div>
   );
 }
@@ -490,6 +555,7 @@ function AddSlotForm({
   onDone: () => void;
 }) {
   const [from, setFrom] = useState(today);
+  const [until, setUntil] = useState("");
   const { busy, error, notice, run } = useAction();
   const { guard, checking, panel } = useConflictGuard();
   return (
@@ -499,12 +565,15 @@ function AddSlotForm({
         roomOptions={roomOptions}
         from={from}
         setFrom={setFrom}
+        until={until}
+        setUntil={setUntil}
+        untilHint="משבצת עם תאריך סיום היא זמנית ולא משנה את השעות השבועיות של המנוי."
         today={today}
         submitLabel="הוספה"
         busy={busy || checking}
         onSubmit={(draft) =>
-          guard({ slots: [draft], from, until: sub.effective_end_date, userId: sub.user_id }, () =>
-            run(() => addSlotAction({ subscriptionId: sub.id, ...draft, from }), onDone),
+          guard({ slots: [draft], from, until: minDate(until || null, sub.effective_end_date), userId: sub.user_id }, () =>
+            run(() => addSlotAction({ subscriptionId: sub.id, ...draft, from, until: until || null }), onDone),
           )
         }
       />
