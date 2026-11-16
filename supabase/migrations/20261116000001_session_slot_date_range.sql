@@ -1,10 +1,7 @@
 -- ניהול ססיות: "החל מ… עד…" לכל משבצת שבועית (בקשת הבעלים, 16/11).
 --
--- 1. לכל משבצת יש תאריך התחלה. משבצות קיימות בלי valid_from מתחילות ב-13/10/2026
---    (יום ההשקה). המזהים נשמרים ב-audit_log כדי שאפשר יהיה להחזיר.
---    משבצת חדשה בלי valid_from מקבלת את תאריך ההתחלה של הססיה (טריגר).
---    מבחינת שיבוץ זה שקול לחלוטין ל-null: materialize ממילא לא יוצר מפגש לפני
---    start_date של הססיה, ואין ססיה שמתחילה לפני 13/10.
+-- 1. משבצת חדשה בלי valid_from מקבלת את תאריך ההתחלה של הססיה (טריגר).
+--    משבצות קיימות לא משתנות; במסך מוצג להן תאריך ההתחלה של הססיה.
 -- 2. שינוי משבצת, הוספת משבצת והסרת משבצת מקבלים p_until אופציונלי:
 --    - שינוי זמני: מ-p_from עד p_until המשבצת החדשה, ומ-p_until+1 חוזרים
 --      אוטומטית למשבצת המקורית (משבצת המשך עם אותם חדר/יום/שעות).
@@ -15,15 +12,8 @@
 -- 3. שעות שבועיות (refresh_session_weekly_hours) נספרות ממשבצות פתוחות בלבד,
 --    כך שהוספה/שינוי זמניים לא משנים את המחיר או את השעות של המנוי.
 
--- 1. מילוי תאריך התחלה --------------------------------------------------------
-
-insert into audit_log (actor_id, action, entity, entity_id, after)
-select null, 'session_slots_valid_from_backfilled', 'session_slots', null,
-       jsonb_build_object('valid_from', '2026-10-13', 'slot_ids', coalesce(jsonb_agg(id), '[]'::jsonb),
-                          'undo', 'update session_slots set valid_from = null where id in (<slot_ids>)')
-from session_slots where valid_from is null;
-
-update session_slots set valid_from = date '2026-10-13' where valid_from is null;
+-- 1. תאריך התחלה למשבצות חדשות (משבצות קיימות לא נוגעים — בקשת הבעלים: אפס
+--    שינוי בססיות קיימות; המסך מציג לקיימות את תאריך ההתחלה של הססיה).
 
 create or replace function public.session_slots_default_valid_from()
 returns trigger
